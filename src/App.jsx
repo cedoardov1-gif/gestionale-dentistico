@@ -99,6 +99,7 @@ function useStore(key, init) {
             if (r.gruppo_sanguigno !== undefined) { r.gruppoSanguigno = r.gruppo_sanguigno; delete r.gruppo_sanguigno; }
             if (r.medico_base !== undefined) { r.medicoBase = r.medico_base; delete r.medico_base; }
             if (r.voci && typeof r.voci === "string") { try { r.voci = JSON.parse(r.voci); } catch(e) { r.voci = []; } }
+            if (r.denti_stato !== undefined) { r.dentiStato = r.denti_stato || {}; delete r.denti_stato; }
             return r;
           }));
         }
@@ -113,8 +114,9 @@ function useStore(key, init) {
     const {supabase} = await import("./supabase.js");
     await supabase.from(table).delete().neq("id", 0);
     if (next.length > 0) {
-      const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, created_at, ...rest}) => ({
+      const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
         ...rest,
+        ...(dentiStato !== undefined && {denti_stato: dentiStato}),
         ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
         ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
         ...(pazienteId !== undefined && {paziente_id: nullIfEmpty(pazienteId)}),
@@ -286,64 +288,43 @@ function Tabs({tabs, active, onChange}) {
   </div>;
 }
 
-
 function LoginPage({onLogin}) {
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-
-  function go() {
-    setLoading(true); setErr("");
-    setTimeout(()=>{
-      const u=UTENTI_DEFAULT.find(u=>u.email===email&&u.password===pwd&&u.attivo);
-      if(u){onLogin(u);}else{setErr("Email o password non corretti");}
-      setLoading(false);
-    },600);
-  }
-
-  function onKey(e){ if(e.key==="Enter") go(); }
-
-  const inputStyle = {
-    width:"100%", padding:"10px 14px", fontSize:14, border:`1.5px solid ${T.border}`,
-    borderRadius:T.r, outline:"none", fontFamily:"inherit", color:T.text,
-    background:"#fff", boxSizing:"border-box", marginBottom:14, display:"block",
-  };
-
-  return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#F0FDFC 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+  function go() { setLoading(true); setErr(""); setTimeout(()=>{ const u=UTENTI_DEFAULT.find(u=>u.email===email&&u.password===pwd&&u.attivo); if(u){onLogin(u);}else{setErr("Email o password non corretti");} setLoading(false); },600); }
+  const onKey = e => { if(e.key==="Enter") go(); };
+  return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#EBF8F7 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:"100%",maxWidth:400}}>
       <div style={{textAlign:"center",marginBottom:28}}>
         <img src={LOGO} alt="Studio" style={{width:110,marginBottom:14}}/>
         <h1 style={{fontSize:22,fontWeight:700,color:T.text,margin:0}}>Gestionale Studio</h1>
         <p style={{fontSize:14,color:T.textSub,marginTop:6}}>Accedi al tuo account</p>
       </div>
-      <div style={{background:"#fff",borderRadius:T.rXl,padding:28,boxShadow:T.shadowMd,border:`1px solid ${T.border}`}}>
+      <div style={{background:"#fff",borderRadius:T.rXl,padding:28,boxShadow:"0 4px 24px rgba(0,0,0,0.1)",border:`1px solid ${T.border}`}}>
         <div style={{marginBottom:16}}>
           <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Email</label>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={onKey}
-            placeholder="email@studio.it" style={inputStyle} autoComplete="email"/>
+          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={onKey} placeholder="email@studio.it" autoComplete="email"
+            style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",display:"block"}}/>
         </div>
-        <div style={{marginBottom:16}}>
+        <div style={{marginBottom:18}}>
           <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Password</label>
-          <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)} onKeyDown={onKey}
-            placeholder="••••••••" style={inputStyle} autoComplete="current-password"/>
+          <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)} onKeyDown={onKey} placeholder="••••••••" autoComplete="current-password"
+            style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",display:"block"}}/>
         </div>
         {err&&<div style={{padding:"10px 14px",background:T.dangerBg,border:`1px solid #FECACA`,borderRadius:T.r,fontSize:13,color:T.danger,marginBottom:16}}>{err}</div>}
-        <button
-          onClick={go}
-          disabled={loading}
-          style={{display:"block",width:"100%",padding:"13px 20px",fontSize:15,fontWeight:700,
-            background:loading?T.brandDark:T.brand,color:"#fff",border:"none",borderRadius:T.r,
+        <button onClick={go} disabled={loading}
+          style={{display:"block",width:"100%",padding:"13px",fontSize:15,fontWeight:700,
+            background:loading?"#3D9990":T.brand,color:"#fff",border:"none",borderRadius:T.r,
             cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",
-            boxShadow:"0 2px 8px rgba(91,191,181,0.4)",transition:"all 0.15s",
-            opacity:loading?0.8:1,
-          }}>
+            boxShadow:"0 3px 10px rgba(91,191,181,0.45)",transition:"all 0.15s",opacity:loading?0.85:1}}>
           {loading?"Accesso in corso...":"Accedi →"}
         </button>
-        <div style={{marginTop:18,padding:12,background:T.bg,borderRadius:T.r,fontSize:12,color:T.textSub}}>
-          <div style={{fontWeight:600,marginBottom:5,color:T.text}}>Account demo:</div>
-          <div>👩‍⚕️ Admin: lgporcedda@studio.it / admin123</div>
-          <div style={{marginTop:3}}>👩‍💼 Assistente: mconti@studio.it / assist123</div>
+        <div style={{marginTop:18,padding:"12px 14px",background:"#F8FAFC",borderRadius:T.r,fontSize:12,color:T.textSub,border:`1px solid ${T.border}`}}>
+          <div style={{fontWeight:700,color:T.text,marginBottom:6}}>Account demo:</div>
+          <div>👩‍⚕️ Admin: lgporcedda@studio.it / <b>admin123</b></div>
+          <div style={{marginTop:4}}>👩‍💼 Assistente: mconti@studio.it / <b>assist123</b></div>
         </div>
       </div>
     </div>
@@ -359,34 +340,67 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
   const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
   const daPagare=fatture.filter(f=>f.statoPagamento!=="pagato").reduce((s,f)=>s+f.totale,0);
   const trend=mesePrev>0?Math.round((meseInc-mesePrev)/mesePrev*100):0;
-  const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return {label:d.toLocaleDateString("it-IT",{weekday:"short"}),rev,isToday:iso===today};});
+  const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return{label:d.toLocaleDateString("it-IT",{weekday:"short"}),rev,isToday:iso===today};});
   const maxRev=Math.max(...last7.map(d=>d.rev),1);
   const byTipo=useMemo(()=>{const m={};appuntamenti.filter(a=>a.stato==="completato").forEach(a=>{if(!m[a.tipo])m[a.tipo]=0;m[a.tipo]++;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,5);},[appuntamenti]);
   const maxTipo=byTipo.length>0?byTipo[0][1]:1;
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.nome} ${p.cognome}`:"—";}
+
+  /* Widget clickabili */
+  const kpis=[
+    {icon:"📅",label:"Appuntamenti oggi",value:todayApts.length,sub:todayApts.filter(a=>a.stato==="urgente").length+" urgenti",color:T.brand,nav:"agenda"},
+    {icon:"👥",label:"Pazienti",value:pazienti.length,color:T.info,nav:"pazienti"},
+    {icon:"💰",label:"Incasso mese",value:fmtEurShort(meseInc),sub:"Anno: "+fmtEurShort(annInc),color:T.success,trend,nav:"fatture"},
+    {icon:"⏳",label:"Da incassare",value:fmtEurShort(daPagare),color:daPagare>0?T.danger:T.success,sub:fatture.filter(f=>f.statoPagamento!=="pagato").length+" fatture",nav:"fatture"},
+    {icon:"📄",label:"Preventivi aperti",value:preventivi.filter(p=>p.stato==="in_attesa").length,color:T.warning,nav:"preventivi"},
+  ];
+
   return <div>
     <PageHdr title={`Buongiorno, Dr.ssa Porcedda`} subtitle={new Date().toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} action={<Btn icon="+" onClick={()=>onNav("agenda")}>Nuovo appuntamento</Btn>}/>
+
+    {/* KPI widgets — tutti cliccabili */}
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:14,marginBottom:22}}>
-      <StatCard icon="📅" label="Appuntamenti oggi" value={todayApts.length} sub={todayApts.filter(a=>a.stato==="urgente").length+" urgenti"} color={T.brand}/>
-      <StatCard icon="👥" label="Pazienti" value={pazienti.length} color={T.info}/>
-      <StatCard icon="💰" label="Incasso mese" value={fmtEurShort(meseInc)} sub={"Anno: "+fmtEurShort(annInc)} color={T.success} trend={trend}/>
-      <StatCard icon="⏳" label="Da incassare" value={fmtEurShort(daPagare)} color={daPagare>0?T.danger:T.success} sub={fatture.filter(f=>f.statoPagamento!=="pagato").length+" fatture"}/>
-      <StatCard icon="📄" label="Preventivi aperti" value={preventivi.filter(p=>p.stato==="in_attesa").length} color={T.warning}/>
+      {kpis.map((k,i)=>(
+        <div key={i} onClick={()=>onNav(k.nav)}
+          style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rLg,padding:20,boxShadow:T.shadow,
+            cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden"}}
+          onMouseEnter={e=>{e.currentTarget.style.boxShadow=T.shadowMd;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.borderColor=k.color+"66";}}
+          onMouseLeave={e=>{e.currentTarget.style.boxShadow=T.shadow;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.borderColor=T.border;}}>
+          <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:k.color,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+            <div style={{width:40,height:40,borderRadius:10,background:k.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{k.icon}</div>
+            {k.trend!==undefined&&<span style={{fontSize:11.5,fontWeight:600,color:k.trend>=0?T.success:T.danger,background:k.trend>=0?T.successBg:T.dangerBg,padding:"2px 8px",borderRadius:20}}>{k.trend>=0?"↑":"↓"}{Math.abs(k.trend)}%</span>}
+          </div>
+          <div style={{fontSize:26,fontWeight:700,color:T.text,lineHeight:1}}>{k.value}</div>
+          <div style={{fontSize:13,fontWeight:600,color:T.text,marginTop:5}}>{k.label}</div>
+          {k.sub&&<div style={{fontSize:11.5,color:T.textMuted,marginTop:2}}>{k.sub}</div>}
+          <div style={{position:"absolute",bottom:10,right:12,fontSize:11,color:k.color,fontWeight:600,opacity:0.7}}>→</div>
+        </div>
+      ))}
     </div>
+
     <div style={{display:"grid",gridTemplateColumns:"3fr 2fr",gap:18,marginBottom:18}}>
+      {/* Agenda oggi */}
       <Card>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div><h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:0}}>Agenda di oggi</h3><p style={{fontSize:12,color:T.textSub,margin:"3px 0 0"}}>{todayApts.length} appuntamenti</p></div>
           <Btn variant="ghost" size="sm" onClick={()=>onNav("agenda")}>Apri agenda →</Btn>
         </div>
         {todayApts.length===0?<div style={{textAlign:"center",padding:"30px",color:T.textMuted}}><div style={{fontSize:36,marginBottom:8}}>📅</div><div>Nessun appuntamento oggi</div></div>
-        :todayApts.map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8,background:T.bg}}>
-          <div style={{textAlign:"center",minWidth:44,flexShrink:0}}><div style={{fontSize:13,fontWeight:700,color:T.text}}>{a.oraInizio}</div><div style={{fontSize:10,color:T.textMuted}}>{a.durata}m</div></div>
+        :todayApts.map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8,background:T.bg,cursor:"pointer"}} onClick={()=>onNav("agenda")}>
+          <div style={{textAlign:"center",minWidth:44,flexShrink:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:T.text}}>{a.oraInizio}</div>
+            <div style={{fontSize:10,color:T.textMuted}}>{a.durata}m</div>
+          </div>
           <div style={{width:3,height:32,borderRadius:2,background:bs.dot||T.brand,flexShrink:0}}/>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:13.5,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div><div style={{fontSize:12,color:T.textSub}}>{a.tipo}</div></div>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13.5,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
+            <div style={{fontSize:12,color:T.textSub}}>{a.tipo}</div>
+          </div>
           <Badge label={a.stato} status={a.stato}/>
         </div>;})}
       </Card>
+
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         <Card>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -395,28 +409,32 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
           </div>
           <div style={{display:"flex",alignItems:"flex-end",gap:4,height:70}}>
             {last7.map((d,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}}>
-              <div style={{width:"100%",borderRadius:"3px 3px 0 0",background:d.isToday?T.brand:d.rev>0?T.brandLight:"#F3F4F6",height:`${Math.max(d.rev/maxRev*100,d.rev>0?8:3)}%`,minHeight:3}} title={fmtEur(d.rev)}/>
+              {d.rev>0&&<span style={{fontSize:8.5,color:d.isToday?T.brand:T.textMuted,fontWeight:600}}>{fmtEurShort(d.rev)}</span>}
+              <div style={{width:"100%",borderRadius:"3px 3px 0 0",background:d.isToday?T.brand:d.rev>0?T.brandLight:"#F3F4F6",height:`${Math.max(d.rev/maxRev*100,d.rev>0?8:3)}%`,minHeight:3,flex:"none"}}/>
               <span style={{fontSize:9.5,color:d.isToday?T.brand:T.textMuted,fontWeight:d.isToday?700:400}}>{d.label}</span>
             </div>)}
           </div>
         </Card>
         <Card>
           <h3 style={{fontSize:14,fontWeight:700,color:T.text,margin:"0 0 12px"}}>Top trattamenti</h3>
-          {byTipo.map(([tipo,cnt],i)=><div key={i} style={{marginBottom:9}}>
+          {byTipo.length===0?<div style={{fontSize:13,color:T.textMuted,textAlign:"center",padding:12}}>Nessun dato</div>:byTipo.map(([tipo,cnt],i)=><div key={i} style={{marginBottom:9}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:3}}>
               <span style={{color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:130}}>{tipo}</span>
-              <span style={{color:T.textMuted,flexShrink:0,marginLeft:6}}>{cnt}</span>
+              <span style={{color:T.textMuted,flexShrink:0,marginLeft:6,fontWeight:600}}>{cnt}</span>
             </div>
             <div style={{height:4,borderRadius:2,background:T.bg}}><div style={{height:"100%",borderRadius:2,background:T.brand,width:`${cnt/maxTipo*100}%`}}/></div>
           </div>)}
         </Card>
       </div>
     </div>
+
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
-      <Card>
+      <Card style={{cursor:"pointer"}} onClick={()=>onNav("fatture")}
+        onMouseEnter={e=>e.currentTarget.style.boxShadow=T.shadowMd}
+        onMouseLeave={e=>e.currentTarget.style.boxShadow=T.shadow}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <h3 style={{fontSize:14,fontWeight:700,color:T.text,margin:0}}>Fatture da incassare</h3>
-          <Btn variant="ghost" size="sm" onClick={()=>onNav("fatture")}>Tutte →</Btn>
+          <Btn variant="ghost" size="sm" onClick={e=>{e.stopPropagation();onNav("fatture");}}>Tutte →</Btn>
         </div>
         {fatture.filter(f=>f.statoPagamento!=="pagato").length===0?<div style={{textAlign:"center",padding:20,color:T.textMuted,fontSize:13}}>✅ Tutte pagate</div>
         :fatture.filter(f=>f.statoPagamento!=="pagato").slice(0,4).map(f=>{const p=pazienti.find(x=>x.id===f.pazienteId);const nome=p?`${p.nome} ${p.cognome}`:"—";return <div key={f.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
@@ -424,10 +442,13 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
           <div style={{textAlign:"right"}}><div style={{fontSize:14,fontWeight:700}}>{fmtEur(f.totale)}</div><Badge label={f.statoPagamento.replace("_"," ")} status={f.statoPagamento}/></div>
         </div>;})}
       </Card>
-      <Card>
+
+      <Card style={{cursor:"pointer"}} onClick={()=>onNav("preventivi")}
+        onMouseEnter={e=>e.currentTarget.style.boxShadow=T.shadowMd}
+        onMouseLeave={e=>e.currentTarget.style.boxShadow=T.shadow}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
           <h3 style={{fontSize:14,fontWeight:700,color:T.text,margin:0}}>Preventivi in attesa</h3>
-          <Btn variant="ghost" size="sm" onClick={()=>onNav("preventivi")}>Tutti →</Btn>
+          <Btn variant="ghost" size="sm" onClick={e=>{e.stopPropagation();onNav("preventivi");}}>Tutti →</Btn>
         </div>
         {preventivi.filter(p=>p.stato==="in_attesa").length===0?<div style={{textAlign:"center",padding:20,color:T.textMuted,fontSize:13}}>Nessun preventivo aperto</div>
         :preventivi.filter(p=>p.stato==="in_attesa").slice(0,4).map(p=>{const paz=pazienti.find(x=>x.id===p.pazienteId);const nome=paz?`${paz.nome} ${paz.cognome}`:"—";return <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${T.border}`}}>
@@ -439,253 +460,261 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
   </div>;
 }
 
-
 /* ══════════════════════════
-   ODONTOGRAMMA FDI
+   ODONTOGRAMMA FDI v2
 ══════════════════════════ */
 
 const CONDIZIONI = {
-  otturazione:     {label:"Otturazione",      color:"#3B82F6", bg:"#EFF6FF", dot:"#3B82F6"},
-  estrazione:      {label:"Estrazione",       color:"#6B7280", bg:"#F9FAFB", dot:"#6B7280"},
-  impianto:        {label:"Impianto",         color:"#8B5CF6", bg:"#F5F3FF", dot:"#8B5CF6"},
-  corona:          {label:"Corona",           color:"#F59E0B", bg:"#FFFBEB", dot:"#F59E0B"},
-  devitalizzazione:{label:"Devitalizzazione", color:"#EC4899", bg:"#FDF2F8", dot:"#EC4899"},
+  otturazione:     {label:"Otturazione",      color:"#3B82F6", bg:"#EFF6FF"},
+  estrazione:      {label:"Estrazione",       color:"#6B7280", bg:"#F3F4F6"},
+  impianto:        {label:"Impianto",         color:"#8B5CF6", bg:"#F5F3FF"},
+  corona:          {label:"Corona",           color:"#F59E0B", bg:"#FFFBEB"},
+  devitalizzazione:{label:"Devitalizzazione", color:"#EC4899", bg:"#FDF2F8"},
 };
 
-const UPPER_RIGHT = [18,17,16,15,14,13,12,11];
-const UPPER_LEFT  = [21,22,23,24,25,26,27,28];
-const LOWER_LEFT  = [31,32,33,34,35,36,37,38];
-const LOWER_RIGHT = [48,47,46,45,44,43,42,41];
+const UPPER_RIGHT=[18,17,16,15,14,13,12,11];
+const UPPER_LEFT =[21,22,23,24,25,26,27,28];
+const LOWER_LEFT =[31,32,33,34,35,36,37,38];
+const LOWER_RIGHT=[48,47,46,45,44,43,42,41];
 
 function ToothSVG({num, stato, size=30, onClick, selected}) {
-  const cond = CONDIZIONI[stato];
-  const isMolar = [6,7,8].includes(num%10)||(num%10===0);
-  const isPremolar = [4,5].includes(num%10);
-  const isExtracted = stato === "estrazione";
-  const isImplant = stato === "impianto";
-  const fill = cond ? cond.color+"22" : "#FFFFFF";
-  const stroke = cond ? cond.color : "#D1D5DB";
-  const strokeW = selected ? 2.5 : cond ? 2 : 1.5;
+  const cond = stato ? CONDIZIONI[stato] : null;
+  const isM=[6,7,8].includes(num%10)||(num%10===0);
+  const isP=[4,5].includes(num%10);
+  const fill  = cond ? cond.color+"30" : "#F9FAFB";
+  const stroke= cond ? cond.color : "#CBD5E1";
+  const sw    = selected?2.5:cond?2:1.2;
 
   return (
-    <div onClick={onClick} title={`Dente ${num}${cond ? " — " + cond.label : " — Sano"}`}
-      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"2px 1px",borderRadius:6,
-        background:selected?`${T.brand}22`:"transparent",transition:"all 0.1s",userSelect:"none"}}
-      onMouseEnter={e=>!selected&&(e.currentTarget.style.background=`${T.brand}11`)}
-      onMouseLeave={e=>!selected&&(e.currentTarget.style.background="transparent")}>
-      <svg width={size} height={size*1.45} viewBox="0 0 32 46" style={{display:"block"}}>
-        {isExtracted ? (
-          <g opacity="0.5">
-            <line x1="7" y1="5" x2="25" y2="40" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round"/>
-            <line x1="25" y1="5" x2="7" y2="40" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round"/>
+    <div onClick={onClick}
+      title={`Dente ${num}${cond?" — "+cond.label:" — Sano"}`}
+      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,
+        cursor:"pointer",padding:"2px 1px",borderRadius:5,transition:"all 0.1s",
+        background:selected?`${T.brand}25`:cond?cond.color+"12":"transparent",
+        outline:selected?`2px solid ${T.brand}`:"none"}}
+      onMouseEnter={e=>{if(!selected)e.currentTarget.style.background=T.brandLight;}}
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background=cond?cond.color+"12":"transparent";}}>
+      <svg width={size} height={size*1.5} viewBox="0 0 32 48">
+        {stato==="estrazione"?(
+          <g opacity="0.6">
+            <line x1="6" y1="4" x2="26" y2="44" stroke="#9CA3AF" strokeWidth="3" strokeLinecap="round"/>
+            <line x1="26" y1="4" x2="6" y2="44" stroke="#9CA3AF" strokeWidth="3" strokeLinecap="round"/>
           </g>
-        ) : isImplant ? (
+        ):stato==="impianto"?(
           <g>
-            <rect x="10" y="2" width="12" height="20" rx="6" fill={cond.color+"33"} stroke={cond.color} strokeWidth="1.5"/>
-            <rect x="12" y="22" width="8" height="18" rx="3" fill={cond.color+"44"} stroke={cond.color} strokeWidth="1.5"/>
-            <line x1="14" y1="6" x2="14" y2="18" stroke={cond.color} strokeWidth="1" strokeDasharray="2,2"/>
-            <line x1="18" y1="6" x2="18" y2="18" stroke={cond.color} strokeWidth="1" strokeDasharray="2,2"/>
-            <line x1="10" y1="28" x2="22" y2="28" stroke={cond.color} strokeWidth="1" strokeDasharray="3,2"/>
+            <rect x="11" y="1" width="10" height="18" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            <rect x="13" y="19" width="6" height="26" rx="3" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            <line x1="11" y1="25" x2="21" y2="25" stroke={stroke} strokeWidth="1.5" strokeDasharray="3,2"/>
+            <line x1="11" y1="31" x2="21" y2="31" stroke={stroke} strokeWidth="1.5" strokeDasharray="3,2"/>
+            <line x1="11" y1="37" x2="21" y2="37" stroke={stroke} strokeWidth="1.5" strokeDasharray="3,2"/>
           </g>
-        ) : isMolar ? (
+        ):isM?(
           <g>
-            <rect x="3" y="2" width="26" height="20" rx="5" fill={fill} stroke={stroke} strokeWidth={strokeW}/>
-            {stato==="corona"&&<rect x="3" y="2" width="26" height="20" rx="5" fill={cond.color+"33"} stroke={cond.color} strokeWidth="2.5"/>}
-            {stato==="devitalizzazione"&&<><circle cx="16" cy="12" r="5" fill={cond.color+"66"}/><circle cx="16" cy="12" r="2" fill={cond.color}/></>}
-            {stato==="otturazione"&&<rect x="10" y="6" width="12" height="12" rx="2" fill={cond.color+"66"} stroke={cond.color} strokeWidth="1"/>}
-            <ellipse cx="16" cy="37" rx="7" ry="7" fill={fill} stroke={stroke} strokeWidth={Math.max(strokeW-0.5,1)}/>
-            <line x1="8" y1="22" x2="10" y2="30" stroke={stroke} strokeWidth="1" opacity="0.5"/>
-            <line x1="24" y1="22" x2="22" y2="30" stroke={stroke} strokeWidth="1" opacity="0.5"/>
+            <rect x="3" y="1" width="26" height="22" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            {stato==="otturazione"&&<rect x="9" y="6" width="14" height="12" rx="3" fill={cond.color+"60"} stroke={cond.color} strokeWidth="1.5"/>}
+            {stato==="corona"&&<rect x="3" y="1" width="26" height="22" rx="5" fill={cond.color+"50"} stroke={cond.color} strokeWidth="2.5"/>}
+            {stato==="devitalizzazione"&&<><circle cx="16" cy="12" r="6" fill={cond.color+"70"}/><circle cx="16" cy="12" r="2.5" fill={cond.color}/></>}
+            <path d="M 8 23 L 10 32 Q 16 38 22 32 L 24 23" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
+            <ellipse cx="16" cy="41" rx="6" ry="6" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
           </g>
-        ) : isPremolar ? (
+        ):isP?(
           <g>
-            <ellipse cx="16" cy="12" rx="12" ry="10" fill={fill} stroke={stroke} strokeWidth={strokeW}/>
-            {stato==="corona"&&<ellipse cx="16" cy="12" rx="12" ry="10" fill={cond.color+"33"} stroke={cond.color} strokeWidth="2.5"/>}
-            {stato==="devitalizzazione"&&<><circle cx="16" cy="12" r="5" fill={cond.color+"66"}/><circle cx="16" cy="12" r="2" fill={cond.color}/></>}
-            {stato==="otturazione"&&<ellipse cx="16" cy="12" rx="7" ry="6" fill={cond.color+"66"} stroke={cond.color} strokeWidth="1"/>}
-            <ellipse cx="16" cy="36" rx="7" ry="8" fill={fill} stroke={stroke} strokeWidth={Math.max(strokeW-0.5,1)}/>
-            <line x1="8" y1="22" x2="10" y2="28" stroke={stroke} strokeWidth="1" opacity="0.5"/>
-            <line x1="24" y1="22" x2="22" y2="28" stroke={stroke} strokeWidth="1" opacity="0.5"/>
+            <ellipse cx="16" cy="12" rx="12" ry="10" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            {stato==="otturazione"&&<ellipse cx="16" cy="12" rx="7" ry="6" fill={cond.color+"60"} stroke={cond.color} strokeWidth="1.5"/>}
+            {stato==="corona"&&<ellipse cx="16" cy="12" rx="12" ry="10" fill={cond.color+"50"} stroke={cond.color} strokeWidth="2.5"/>}
+            {stato==="devitalizzazione"&&<><circle cx="16" cy="12" r="6" fill={cond.color+"70"}/><circle cx="16" cy="12" r="2.5" fill={cond.color}/></>}
+            <line x1="9" y1="22" x2="10" y2="30" stroke={stroke} strokeWidth="1" opacity="0.6"/>
+            <line x1="23" y1="22" x2="22" y2="30" stroke={stroke} strokeWidth="1" opacity="0.6"/>
+            <ellipse cx="16" cy="38" rx="7" ry="8" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
           </g>
-        ) : (
+        ):(
           <g>
-            <ellipse cx="16" cy="11" rx="11" ry="9" fill={fill} stroke={stroke} strokeWidth={strokeW}/>
-            {stato==="corona"&&<ellipse cx="16" cy="11" rx="11" ry="9" fill={cond.color+"33"} stroke={cond.color} strokeWidth="2.5"/>}
-            {stato==="devitalizzazione"&&<><circle cx="16" cy="11" r="5" fill={cond.color+"66"}/><circle cx="16" cy="11" r="2" fill={cond.color}/></>}
-            {stato==="otturazione"&&<ellipse cx="16" cy="11" rx="6" ry="5" fill={cond.color+"66"} stroke={cond.color} strokeWidth="1"/>}
-            <path d="M 7 18 C 10 28 22 28 25 18" fill={fill} stroke={stroke} strokeWidth={Math.max(strokeW-0.5,1)}/>
-            <ellipse cx="16" cy="37" rx="6" ry="7" fill={fill} stroke={stroke} strokeWidth={Math.max(strokeW-0.5,1)}/>
+            <ellipse cx="16" cy="11" rx="12" ry="9" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            {stato==="otturazione"&&<ellipse cx="16" cy="11" rx="6" ry="5" fill={cond.color+"60"} stroke={cond.color} strokeWidth="1.5"/>}
+            {stato==="corona"&&<ellipse cx="16" cy="11" rx="12" ry="9" fill={cond.color+"50"} stroke={cond.color} strokeWidth="2.5"/>}
+            {stato==="devitalizzazione"&&<><circle cx="16" cy="11" r="6" fill={cond.color+"70"}/><circle cx="16" cy="11" r="2.5" fill={cond.color}/></>}
+            <path d="M 6 18 C 8 30 24 30 26 18" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
+            <ellipse cx="16" cy="40" rx="7" ry="7" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
           </g>
         )}
       </svg>
-      <span style={{fontSize:9,fontWeight:600,color:cond?cond.color:"#9CA3AF",lineHeight:1}}>{num}</span>
+      <span style={{fontSize:9,fontWeight:700,color:cond?cond.color:"#94A3B8",lineHeight:1}}>{num}</span>
     </div>
   );
 }
 
-function Odontogramma({denti={}, setDenti}) {
+function Odontogramma({denti={}, setDenti, readOnly=false}) {
   const [selected, setSelected] = useState(null);
   const [condForm, setCondForm] = useState("otturazione");
   const [nota, setNota] = useState("");
 
   function clickDente(num) {
-    if (selected === num) { setSelected(null); return; }
+    if (readOnly) return;
+    if (selected===num) { setSelected(null); return; }
     setSelected(num);
-    setCondForm(denti[num]?.stato || "otturazione");
-    setNota(denti[num]?.nota || "");
+    setCondForm(denti[num]?.stato||"otturazione");
+    setNota(denti[num]?.nota||"");
   }
 
   function applica() {
     if (!selected) return;
-    setDenti(prev => ({...prev, [selected]: {stato: condForm, nota, data: todayISO()}}));
+    const nuoviDenti = {...denti, [selected]:{stato:condForm,nota,data:todayISO()}};
+    setDenti(nuoviDenti);
     setSelected(null);
     setNota("");
   }
 
   function rimuovi() {
     if (!selected) return;
-    setDenti(prev => { const n={...prev}; delete n[selected]; return n; });
+    const nuoviDenti = {...denti};
+    delete nuoviDenti[selected];
+    setDenti(nuoviDenti);
     setSelected(null);
   }
 
-  const conteggioCondizioni = useMemo(()=>Object.values(denti).reduce((acc, v) => {
-    if (v?.stato) acc[v.stato] = (acc[v.stato]||0)+1;
-    return acc;
-  }, {}),[denti]);
+  const conteggio = useMemo(()=>Object.values(denti).reduce((a,v)=>{if(v?.stato)a[v.stato]=(a[v.stato]||0)+1;return a;},{}),[denti]);
 
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
-
-  const ToothRow = ({teeth}) => (
+  const Row=({teeth})=>(
     <div style={{display:"flex",gap:0,justifyContent:"center"}}>
-      {teeth.map(n => <ToothSVG key={n} num={n} stato={denti[n]?.stato} selected={selected===n} size={isMobile?22:28} onClick={()=>clickDente(n)}/>)}
+      {teeth.map(n=><ToothSVG key={n} num={n} stato={denti[n]?.stato} selected={selected===n} size={28} onClick={()=>clickDente(n)}/>)}
     </div>
   );
 
   return (
     <div>
       {/* Legenda */}
-      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+      <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
         {Object.entries(CONDIZIONI).map(([k,v])=>(
-          <span key={k} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,padding:"4px 10px",borderRadius:20,background:v.bg,color:v.color,fontWeight:600,border:`1px solid ${v.color}33`}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:v.dot,flexShrink:0}}/>
+          <span key={k} style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:11.5,padding:"3px 10px",borderRadius:20,background:v.bg,color:v.color,fontWeight:600,border:`1px solid ${v.color}44`,cursor:readOnly?"default":"pointer"}}
+            onClick={()=>{if(!readOnly&&selected){setCondForm(k);}}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:v.color,flexShrink:0}}/>
             {v.label}
-            {conteggioCondizioni[k]>0&&<span style={{background:v.color,color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10,fontWeight:700,marginLeft:2}}>{conteggioCondizioni[k]}</span>}
+            {conteggio[k]>0&&<span style={{background:v.color,color:"#fff",borderRadius:10,padding:"0 5px",fontSize:10,fontWeight:700}}>{conteggio[k]}</span>}
           </span>
         ))}
-        {Object.keys(denti).length>0&&<span style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11.5,padding:"4px 10px",borderRadius:20,background:"#F3F4F6",color:"#6B7280",fontWeight:500}}>
-          {Object.keys(denti).length} denti trattati
-        </span>}
       </div>
 
       {/* Arcata */}
-      <div style={{background:"#F8FAFC",borderRadius:T.rLg,padding:"18px 12px 14px",border:`1px solid ${T.border}`,marginBottom:14}}>
-        {/* Superiore */}
-        <div style={{fontSize:10,fontWeight:600,color:T.textMuted,textTransform:"uppercase",letterSpacing:0.5,textAlign:"center",marginBottom:8}}>Arcata Superiore — Mascella</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,marginBottom:4}}>
-          <ToothRow teeth={UPPER_RIGHT}/>
-          <ToothRow teeth={UPPER_LEFT}/>
+      <div style={{background:"#F8FAFC",borderRadius:T.rLg,padding:"14px 8px 10px",border:`1px solid ${T.border}`}}>
+        <div style={{fontSize:10,fontWeight:600,color:T.textMuted,textAlign:"center",marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>▲ Mascella — Arcata superiore</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,marginBottom:2}}>
+          <Row teeth={UPPER_RIGHT}/><Row teeth={UPPER_LEFT}/>
         </div>
-
-        {/* Linea mediana */}
-        <div style={{display:"flex",alignItems:"center",gap:8,margin:"8px 0"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,margin:"6px 12px"}}>
           <div style={{flex:1,height:1,background:T.border}}/>
-          <span style={{fontSize:9.5,color:T.textMuted,whiteSpace:"nowrap",fontWeight:500}}>linea mediana</span>
+          <span style={{fontSize:9,color:T.textMuted,whiteSpace:"nowrap"}}>linea mediana</span>
           <div style={{flex:1,height:1,background:T.border}}/>
         </div>
-
-        {/* Inferiore */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,marginTop:4}}>
-          <ToothRow teeth={LOWER_LEFT}/>
-          <ToothRow teeth={LOWER_RIGHT}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:2,marginTop:2}}>
+          <Row teeth={LOWER_LEFT}/><Row teeth={LOWER_RIGHT}/>
         </div>
-        <div style={{fontSize:10,fontWeight:600,color:T.textMuted,textTransform:"uppercase",letterSpacing:0.5,textAlign:"center",marginTop:8}}>Arcata Inferiore — Mandibola</div>
+        <div style={{fontSize:10,fontWeight:600,color:T.textMuted,textAlign:"center",marginTop:6,textTransform:"uppercase",letterSpacing:0.5}}>▼ Mandibola — Arcata inferiore</div>
       </div>
 
-      {/* Pannello selezione condizione */}
-      {selected && (
-        <div style={{padding:16,background:T.surface,border:`1.5px solid ${T.brand}`,borderRadius:T.rLg,boxShadow:`0 4px 20px ${T.brand}22`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <span style={{fontSize:14,fontWeight:700,color:T.text}}>
-              Dente <span style={{color:T.brand}}>{selected}</span>
-              {denti[selected]&&<span style={{marginLeft:8,fontSize:12,color:CONDIZIONI[denti[selected].stato]?.color,background:CONDIZIONI[denti[selected].stato]?.bg,padding:"2px 8px",borderRadius:20}}>{CONDIZIONI[denti[selected].stato]?.label}</span>}
-            </span>
-            <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textMuted,fontSize:18,padding:"2px 6px",borderRadius:6}}>✕</button>
-          </div>
+      {!readOnly&&<>
+        {/* Istruzione se nessun dente selezionato */}
+        {!selected&&<div style={{marginTop:10,padding:"10px 14px",background:T.bg,borderRadius:T.r,fontSize:13,color:T.textMuted,textAlign:"center",border:`1px dashed ${T.border}`}}>
+          👆 Clicca su un dente per registrare un trattamento
+        </div>}
 
-          {/* Scelta condizione */}
-          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-            {Object.entries(CONDIZIONI).map(([k,v])=>(
-              <button key={k} onClick={()=>setCondForm(k)}
-                style={{padding:"6px 12px",borderRadius:20,border:`1.5px solid ${condForm===k?v.color:T.border}`,
-                  background:condForm===k?v.bg:"transparent",color:condForm===k?v.color:T.textSub,
-                  fontSize:12.5,fontWeight:condForm===k?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.1s"}}>
-                {v.label}
+        {/* Pannello selezione */}
+        {selected&&(
+          <div style={{marginTop:12,padding:16,background:"#fff",border:`2px solid ${T.brand}`,borderRadius:T.rLg,boxShadow:`0 4px 20px ${T.brand}20`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:15,fontWeight:700,color:T.text}}>Dente <span style={{color:T.brand}}>{selected}</span></span>
+                {denti[selected]&&<span style={{fontSize:12,padding:"2px 8px",borderRadius:20,background:CONDIZIONI[denti[selected].stato]?.bg,color:CONDIZIONI[denti[selected].stato]?.color,fontWeight:600}}>
+                  {CONDIZIONI[denti[selected].stato]?.label}
+                </span>}
+              </div>
+              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textMuted,fontSize:20,lineHeight:1}}>✕</button>
+            </div>
+
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8}}>Tipo di trattamento</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {Object.entries(CONDIZIONI).map(([k,v])=>(
+                  <button key={k} onClick={()=>setCondForm(k)}
+                    style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${condForm===k?v.color:T.border}`,
+                      background:condForm===k?v.bg:"#fff",color:condForm===k?v.color:T.textSub,
+                      fontSize:12.5,fontWeight:condForm===k?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s"}}>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6}}>Nota clinica (opzionale)</div>
+              <input value={nota} onChange={e=>setNota(e.target.value)}
+                placeholder="Es. Otturazione mesiale, corona provvisoria..."
+                onKeyDown={e=>e.key==="Enter"&&applica()}
+                style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,
+                  outline:"none",fontFamily:"inherit",boxSizing:"border-box",color:T.text}}/>
+            </div>
+
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              {denti[selected]&&<button onClick={rimuovi} style={{padding:"9px 14px",fontSize:12.5,fontWeight:600,background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA",borderRadius:T.r,cursor:"pointer",fontFamily:"inherit"}}>🗑 Rimuovi</button>}
+              <button onClick={()=>setSelected(null)} style={{padding:"9px 14px",fontSize:12.5,fontWeight:600,background:"#fff",color:T.textSub,border:`1px solid ${T.border}`,borderRadius:T.r,cursor:"pointer",fontFamily:"inherit"}}>Annulla</button>
+              <button onClick={applica} style={{flex:1,padding:"10px 20px",fontSize:14,fontWeight:700,
+                background:T.brand,color:"#fff",border:"none",borderRadius:T.r,cursor:"pointer",fontFamily:"inherit",
+                boxShadow:`0 2px 8px ${T.brand}50`,transition:"background 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background=T.brandDark}
+                onMouseLeave={e=>e.currentTarget.style.background=T.brand}>
+                ✓ Applica — {CONDIZIONI[condForm]?.label} su dente {selected}
               </button>
-            ))}
+            </div>
           </div>
+        )}
 
-          {/* Nota clinica */}
-          <div style={{marginBottom:12}}>
-            <label style={{fontSize:12,fontWeight:600,color:T.textSub,display:"block",marginBottom:5}}>Nota clinica</label>
-            <input value={nota} onChange={e=>setNota(e.target.value)} placeholder="Es. Otturazione mesiale, corona provvisoria..."
-              style={{width:"100%",padding:"8px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box",color:T.text}}
-              onKeyDown={e=>{if(e.key==="Enter")applica();}}/>
+        {/* Registro trattamenti */}
+        {Object.keys(denti).length>0&&!selected&&(
+          <div style={{marginTop:12}}>
+            <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>Trattamenti registrati</div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {Object.entries(denti).sort((a,b)=>Number(a[0])-Number(b[0])).map(([num,val])=>{
+                const c=CONDIZIONI[val.stato];
+                if(!c) return null;
+                return <div key={num} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#fff",borderRadius:T.r,border:`1px solid ${c.color}33`}}>
+                  <span style={{fontSize:13,fontWeight:700,color:c.color,minWidth:32}}>#{num}</span>
+                  <span style={{padding:"2px 8px",borderRadius:20,background:c.bg,color:c.color,fontSize:12,fontWeight:600}}>{c.label}</span>
+                  {val.nota&&<span style={{fontSize:12,color:T.textMuted,flex:1,fontStyle:"italic"}}>{val.nota}</span>}
+                  <span style={{fontSize:11,color:T.textMuted,flexShrink:0}}>{fmtDateShort(val.data)}</span>
+                  <button onClick={()=>clickDente(Number(num))} style={{background:`${c.color}15`,border:"none",borderRadius:6,padding:"3px 10px",cursor:"pointer",fontSize:11.5,color:c.color,fontWeight:600,fontFamily:"inherit"}}>Modifica</button>
+                </div>;
+              })}
+            </div>
           </div>
-
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            {denti[selected]&&<Btn variant="danger" size="sm" onClick={rimuovi}>🗑 Rimuovi</Btn>}
-            <Btn variant="secondary" size="sm" onClick={()=>setSelected(null)}>Annulla</Btn>
-            <button
-              onClick={applica}
-              style={{padding:"8px 20px",fontSize:13,fontWeight:700,background:T.brand,color:"#fff",border:"none",borderRadius:T.r,cursor:"pointer",fontFamily:"inherit",boxShadow:"0 2px 8px rgba(91,191,181,0.35)",flex:1,minWidth:120}}>
-              ✓ Applica al dente {selected}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Elenco denti trattati */}
-      {Object.keys(denti).length > 0 && !selected && (
-        <div style={{marginTop:14,padding:"14px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
-          <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Registro trattamenti</div>
-          <div style={{display:"flex",flexDirection:"column",gap:6}}>
-            {Object.entries(denti).sort((a,b)=>Number(a[0])-Number(b[0])).map(([num,val])=>{
-              const c = CONDIZIONI[val.stato];
-              if (!c) return null;
-              return (
-                <div key={num} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 10px",background:T.surface,borderRadius:T.r,border:`1px solid ${c.color}33`}}>
-                  <span style={{fontSize:13,fontWeight:700,color:c.color,minWidth:28}}>#{num}</span>
-                  <span style={{flex:1,fontSize:13,color:c.color,fontWeight:600}}>{c.label}</span>
-                  {val.nota&&<span style={{fontSize:12,color:T.textMuted,fontStyle:"italic"}}>{val.nota}</span>}
-                  <span style={{fontSize:11,color:T.textMuted}}>{fmtDateShort(val.data)}</span>
-                  <button onClick={()=>clickDente(Number(num))} style={{background:`${c.color}15`,border:"none",borderRadius:6,padding:"3px 8px",cursor:"pointer",fontSize:11,color:c.color,fontWeight:600}}>Modifica</button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        )}
+      </>}
     </div>
   );
 }
 
-
-function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, fatture}) {
+function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, listino, onNav}) {
   const [search, setSearch] = useState("");
+  const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
   const [detail, setDetail] = useState(null);
   const [editId, setEditId] = useState(null);
   const [tab, setTab] = useState("overview");
-  const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",gruppoSanguigno:"",medicoBase:"",patologie:"",farmaci:""});
+  const [prevModal, setPrevModal] = useState(false);
+  const [prevVoci, setPrevVoci] = useState([]);
+  const [prevNote, setPrevNote] = useState("");
+  const [addVoce, setAddVoce] = useState({listinoId:"",qty:1});
+  const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
-  const filtered = useMemo(()=>pazienti.filter(p=>{
-    const q=search.toLowerCase();
-    return `${p.nome} ${p.cognome}`.toLowerCase().includes(q)||p.telefono?.includes(q)||p.email?.toLowerCase().includes(q)||p.codiceFiscale?.toLowerCase().includes(q);
-  }).sort((a,b)=>a.cognome.localeCompare(b.cognome)),[pazienti,search]);
+  const filtered = useMemo(()=>{
+    const res = pazienti.filter(p=>{
+      const q=search.toLowerCase();
+      return `${p.nome} ${p.cognome}`.toLowerCase().includes(q)||p.telefono?.includes(q)||p.email?.toLowerCase().includes(q)||p.codiceFiscale?.toLowerCase().includes(q);
+    });
+    return res.sort((a,b)=>sortAZ?a.cognome.localeCompare(b.cognome):b.cognome.localeCompare(a.cognome));
+  },[pazienti,search,sortAZ]);
 
-  function openNew(){setForm({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",gruppoSanguigno:"",medicoBase:"",patologie:"",farmaci:""});setEditId(null);setModal(true);}
-  function openEdit(p){setForm(p);setEditId(p.id);setModal(true);}
+  function openNew(){setForm({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});setEditId(null);setModal(true);}
+  function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||""});setEditId(p.id);setModal(true);}
   function save(){
     if(!form.nome||!form.cognome)return alert("Nome e cognome obbligatori");
     if(editId)setPazienti(p=>p.map(x=>x.id===editId?{...form,id:editId}:x));
@@ -695,66 +724,80 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, fatture}
   function del(id){if(confirm("Eliminare questo paziente?"))setPazienti(p=>p.filter(x=>x.id!==id));}
   function updateDenti(denti){setPazienti(p=>p.map(x=>x.id===detail?{...x,dentiStato:denti}:x));}
 
-  const pd = detail ? pazienti.find(p=>p.id===detail) : null;
-  const pApts = detail ? appuntamenti.filter(a=>a.pazienteId===detail).sort((a,b)=>b.data.localeCompare(a.data)) : [];
-  const pPrev = detail ? preventivi.filter(p=>p.pazienteId===detail) : [];
-  const pFatt = detail ? fatture.filter(f=>f.pazienteId===detail) : [];
-  const totFatturato = pFatt.filter(f=>f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
-  const ultimaVisita = pApts.length>0?pApts[0].data:null;
-  const prossimaVisita = detail ? appuntamenti.filter(a=>a.pazienteId===detail&&a.data>=todayISO()).sort((a,b)=>a.data.localeCompare(b.data))[0] : null;
+  // Preventivo diretto dalla scheda
+  function addVoceToPreventivo(){
+    if(!addVoce.listinoId)return;
+    const item=listino.find(l=>l.id===Number(addVoce.listinoId));
+    if(!item)return;
+    setPrevVoci(v=>[...v,{listinoId:item.id,nome:item.nome,prezzo:item.prezzo,qty:Number(addVoce.qty)||1}]);
+    setAddVoce({listinoId:"",qty:1});
+  }
+  function savePrev(){
+    if(!prevVoci.length)return alert("Aggiungi almeno una voce");
+    const totale=prevVoci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+    setPreventivi(p=>[...p,{id:uid(),pazienteId:detail,data:todayISO(),voci:prevVoci,totale,stato:"in_attesa",note:prevNote}]);
+    setPrevModal(false);setPrevVoci([]);setPrevNote("");
+  }
 
-  /* ── DETTAGLIO PAZIENTE (layout ispirato screenshot) ── */
-  if (detail && pd) return (
+  const pd=detail?pazienti.find(p=>p.id===detail):null;
+  const pApts=detail?appuntamenti.filter(a=>a.pazienteId===detail).sort((a,b)=>b.data.localeCompare(a.data)):[];
+  const pPrev=detail?preventivi.filter(p=>p.pazienteId===detail).sort((a,b)=>b.data.localeCompare(a.data)):[];
+  const pFatt=detail?fatture.filter(f=>f.pazienteId===detail).sort((a,b)=>b.data.localeCompare(a.data)):[];
+  const ultimaVisita=pApts.length>0?pApts[0].data:null;
+  const prossimaVisita=detail?appuntamenti.filter(a=>a.pazienteId===detail&&a.data>=todayISO()).sort((a,b)=>a.data.localeCompare(b.data))[0]:null;
+  const prevTotale=prevVoci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+
+  /* DETTAGLIO PAZIENTE */
+  if(detail&&pd) return (
     <div style={{maxWidth:1100}}>
       {/* Breadcrumb */}
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18,fontSize:13,color:T.textSub}}>
-        <button onClick={()=>setDetail(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.brand,fontSize:13,padding:0,fontWeight:600}}>Pazienti</button>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,fontSize:13}}>
+        <button onClick={()=>setDetail(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.brand,fontSize:13,padding:0,fontWeight:600}}>← Pazienti</button>
         <span style={{color:T.textMuted}}>›</span>
-        <span style={{color:T.text,fontWeight:600}}>{pd.nome} {pd.cognome}</span>
+        <span style={{color:T.text,fontWeight:600}}>{pd.cognome} {pd.nome}</span>
       </div>
 
-      {/* Header paziente — stile screenshot */}
-      <div style={{background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,boxShadow:T.shadow,marginBottom:0,overflow:"hidden"}}>
-        <div style={{padding:"20px 28px 0"}}>
-          {/* Info principale */}
-          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:16,flexWrap:"wrap"}}>
-            <Av name={`${pd.nome} ${pd.cognome}`} size={52} fs={18}/>
-            <div style={{flex:1,minWidth:200}}>
-              <div style={{fontSize:12,color:T.textMuted,marginBottom:2}}>ID {String(pd.id).padStart(6,"0")}</div>
-              <h1 style={{fontSize:24,fontWeight:700,color:T.text,margin:0}}>{pd.nome} {pd.cognome}</h1>
+      {/* Card principale */}
+      <div style={{background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,boxShadow:T.shadow,overflow:"hidden"}}>
+        {/* Header */}
+        <div style={{padding:"22px 28px 0"}}>
+          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,flexWrap:"wrap"}}>
+            <Av name={`${pd.nome} ${pd.cognome}`} size={54} fs={18}/>
+            <div style={{flex:1,minWidth:180}}>
+              <div style={{fontSize:11.5,color:T.textMuted,marginBottom:2}}>ID {String(pd.id).padStart(6,"0")}</div>
+              <h1 style={{fontSize:24,fontWeight:700,color:T.text,margin:0}}>{pd.cognome} {pd.nome}</h1>
+              <div style={{display:"flex",gap:14,marginTop:6,flexWrap:"wrap"}}>
+                {pd.telefono&&<span style={{fontSize:13,color:T.textSub}}>📞 {pd.telefono}</span>}
+                {pd.email&&<span style={{fontSize:13,color:T.textSub}}>✉️ {pd.email}</span>}
+              </div>
             </div>
-            {/* Quick stats — stile screenshot */}
-            <div style={{display:"flex",gap:24,flexWrap:"wrap"}}>
+            {/* Quick stats */}
+            <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
               {[
                 {l:"Età",v:pd.dataNascita?Math.floor((new Date()-new Date(pd.dataNascita))/(365.25*24*60*60*1000))+" anni":"—"},
-                {l:"Gruppo sang.",v:pd.gruppoSanguigno||"—"},
                 {l:"Ultima visita",v:fmtDateShort(ultimaVisita)},
-                {l:"Prossima visita",v:prossimaVisita?fmtDateShort(prossimaVisita.data):"—",accent:true},
-              ].map((k,i)=>(
-                <div key={i} style={{minWidth:80}}>
-                  <div style={{fontSize:11,color:T.textMuted,marginBottom:2}}>{k.l}</div>
-                  <div style={{fontSize:13.5,fontWeight:700,color:k.accent?T.brand:T.text}}>{k.v}</div>
-                </div>
-              ))}
+                {l:"Prossima",v:prossimaVisita?fmtDateShort(prossimaVisita.data):"Non fissata",accent:!!prossimaVisita},
+                {l:"Fatturato",v:fmtEur(pFatt.filter(f=>f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0)),accent:true},
+              ].map((k,i)=><div key={i} style={{minWidth:80}}>
+                <div style={{fontSize:11,color:T.textMuted,marginBottom:2}}>{k.l}</div>
+                <div style={{fontSize:13.5,fontWeight:700,color:k.accent?T.brand:T.text}}>{k.v}</div>
+              </div>)}
             </div>
-            <div style={{display:"flex",gap:8,flexShrink:0}}>
-              <Btn variant="secondary" size="sm" icon="✏️" onClick={()=>openEdit(pd)}>Modifica</Btn>
-            </div>
+            <Btn variant="secondary" size="sm" icon="✏️" onClick={()=>openEdit(pd)}>Modifica</Btn>
           </div>
 
-          {/* Tab bar — stile screenshot */}
-          <div style={{display:"flex",gap:0,borderBottom:"none",marginBottom:0}}>
-            {[
-              {id:"overview",label:"Overview"},
-              {id:"dentale",label:"Dentale"},
-              {id:"clinica",label:"Dati clinici"},
-              {id:"storico",label:"Storico visite",count:pApts.length},
-              {id:"docs",label:"Documenti",count:pPrev.length+pFatt.length},
-            ].map(t=>(
+          {/* Allergie warning */}
+          {pd.allergie&&<div style={{padding:"8px 14px",background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:T.r,marginBottom:14,display:"flex",gap:8,alignItems:"center"}}>
+            <span style={{fontSize:16}}>⚠️</span>
+            <span style={{fontSize:13,color:"#92400E",fontWeight:600}}>Allergie: {pd.allergie}</span>
+          </div>}
+
+          {/* Tabs */}
+          <div style={{display:"flex",gap:0,overflowX:"auto"}}>
+            {[{id:"overview",label:"Overview"},{id:"dentale",label:"🦷 Dentale"},{id:"preventivi",label:"Preventivi",count:pPrev.length},{id:"fatture",label:"Fatture",count:pFatt.length},{id:"clinica",label:"Dati Clinici"}].map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
-                style={{padding:"12px 18px",fontSize:13.5,fontWeight:tab===t.id?600:400,border:"none",background:"none",cursor:"pointer",
-                  color:tab===t.id?T.brand:T.textSub,
-                  borderBottom:tab===t.id?`2px solid ${T.brand}`:"2px solid transparent",
+                style={{padding:"11px 18px",fontSize:13.5,fontWeight:tab===t.id?600:400,border:"none",background:"none",cursor:"pointer",
+                  color:tab===t.id?T.brand:T.textSub,borderBottom:tab===t.id?`2px solid ${T.brand}`:"2px solid transparent",
                   marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap"}}>
                 {t.label}
                 {t.count>0&&<span style={{marginLeft:5,fontSize:11,background:tab===t.id?T.brandLight:"#F3F4F6",color:tab===t.id?T.brandDark:T.textSub,padding:"1px 6px",borderRadius:10}}>{t.count}</span>}
@@ -762,147 +805,179 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, fatture}
             ))}
           </div>
         </div>
-
-        {/* Border bottom of header */}
         <div style={{height:1,background:T.border}}/>
 
-        {/* Content area */}
-        <div style={{padding:"24px 28px"}}>
+        {/* Content */}
+        <div style={{padding:"22px 28px"}}>
 
-          {/* OVERVIEW TAB */}
-          {tab==="overview"&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Informazioni personali</div>
-                {[["📞","Telefono",pd.telefono],["✉️","Email",pd.email],["📍","Indirizzo",pd.indirizzo],["🎂","Data di nascita",fmtDate(pd.dataNascita)],["🪪","Codice fiscale",pd.codiceFiscale]].filter(x=>x[2]).map(([icon,l,v],i)=>(
-                  <div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:`1px solid ${T.border}`}}>
-                    <span style={{fontSize:16,width:20,textAlign:"center"}}>{icon}</span>
-                    <div><div style={{fontSize:11,color:T.textMuted}}>{l}</div><div style={{fontSize:13.5,color:T.text,marginTop:1,fontFamily:l==="Codice fiscale"?"monospace":"inherit"}}>{v}</div></div>
-                  </div>
-                ))}
-                {pd.note&&<div style={{marginTop:12,padding:"12px 14px",background:T.warningBg,borderRadius:T.r,border:`1px solid #FDE68A`}}>
-                  <div style={{fontSize:11.5,fontWeight:600,color:"#92400E",marginBottom:4}}>⚠️ NOTE IMPORTANTI</div>
-                  <div style={{fontSize:13,color:"#78350F"}}>{pd.note}</div>
-                </div>}
-              </div>
-              <div>
-                <div style={{fontSize:13,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo clinico</div>
-                {[{icon:"📅",l:"Appuntamenti totali",v:pApts.length},{icon:"📄",l:"Preventivi",v:pPrev.length},{icon:"🧾",l:"Fatture",v:pFatt.length},{icon:"💰",l:"Totale fatturato",v:fmtEur(totFatturato)}].map((k,i)=>(
-                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",borderRadius:T.r,background:T.bg,marginBottom:6}}>
-                    <span style={{fontSize:13,color:T.textSub}}>{k.icon} {k.l}</span>
-                    <span style={{fontSize:14,fontWeight:700,color:T.text}}>{k.v}</span>
-                  </div>
-                ))}
-                {/* Ultimi 3 appuntamenti */}
-                {pApts.slice(0,3).length>0&&<div style={{marginTop:14}}>
-                  <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8}}>Visite recenti</div>
-                  {pApts.slice(0,3).map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} style={{display:"flex",gap:10,alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
-                    <div style={{fontSize:12,color:T.textSub,minWidth:72}}>{fmtDateShort(a.data)}</div>
-                    <div style={{flex:1,fontSize:13,color:T.text}}>{a.tipo}</div>
-                    <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{a.stato}</span>
-                  </div>;})}
-                </div>}
-              </div>
-            </div>
-          )}
-
-          {/* DENTALE TAB — con odontogramma */}
-          {tab==="dentale"&&(
-            <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:20}}>
-              <div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-                  <div style={{fontSize:13,fontWeight:600,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5}}>Odontogramma FDI</div>
-                  <div style={{fontSize:12,color:T.textMuted}}>Clicca su un dente per modificarne lo stato</div>
-                </div>
-                <Odontogramma
-                  denti={pd.dentiStato||{}}
-                  setDenti={updateDenti}
-                />
-              </div>
-              <div>
-                <div style={{fontSize:13,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo dentale</div>
-                {Object.values(CONDIZIONI).filter(c=>c.label!=="Sano").map((c,i)=>{
-                  const cnt=Object.values(pd.dentiStato||{}).filter(d=>d?.stato===Object.keys(CONDIZIONI)[i+1]).length;
-                  if(cnt===0) return null;
-                  return <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderRadius:T.r,background:c.bg,marginBottom:6,border:`1px solid ${c.dot}33`}}>
-                    <span style={{fontSize:13,color:c.color,fontWeight:600}}>{c.label}</span>
-                    <span style={{fontSize:14,fontWeight:700,color:c.color,background:"white",padding:"2px 8px",borderRadius:20}}>{cnt}</span>
-                  </div>;
-                })}
-                {Object.keys(pd.dentiStato||{}).length===0&&<div style={{textAlign:"center",padding:30,color:T.textMuted,fontSize:13}}>Nessuna condizione registrata.<br/>Clicca sui denti per aggiungere.</div>}
-              </div>
-            </div>
-          )}
-
-          {/* DATI CLINICI TAB */}
-          {tab==="clinica"&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
-              {[["Gruppo sanguigno","gruppoSanguigno"],["Medico di base","medicoBase"]].map(([l,k])=>(
-                <div key={k}><div style={{fontSize:11.5,fontWeight:600,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{l}</div><div style={{fontSize:14,color:pd[k]?T.text:T.textMuted,padding:"8px 0"}}>{pd[k]||"Non specificato"}</div><div style={{height:1,background:T.border}}/></div>
-              ))}
-              <div style={{gridColumn:"1/-1"}}><div style={{fontSize:11.5,fontWeight:600,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Patologie note</div><div style={{padding:"12px 14px",background:T.bg,borderRadius:T.r,fontSize:13,color:pd.patologie?T.text:T.textMuted}}>{pd.patologie||"Nessuna patologia registrata"}</div></div>
-              <div style={{gridColumn:"1/-1"}}><div style={{fontSize:11.5,fontWeight:600,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>Farmaci in uso</div><div style={{padding:"12px 14px",background:T.bg,borderRadius:T.r,fontSize:13,color:pd.farmaci?T.text:T.textMuted}}>{pd.farmaci||"Nessun farmaco registrato"}</div></div>
-            </div>
-          )}
-
-          {/* STORICO VISITE TAB */}
-          {tab==="storico"&&(
-            <Tbl columns={[
-              {label:"Data",render:r=><b>{fmtDate(r.data)}</b>,nowrap:true},
-              {label:"Ora",key:"oraInizio",nowrap:true},
-              {label:"Trattamento",key:"tipo"},
-              {label:"Durata",render:r=>`${r.durata}m`,nowrap:true},
-              {label:"Operatore",key:"operatore"},
-              {label:"Stato",render:r=>{const bs=BADGE[r.stato]||{};return <span style={{fontSize:11,padding:"3px 8px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{r.stato}</span>;},nowrap:true},
-              {label:"Note",render:r=>r.note?<span style={{fontSize:12,color:T.textSub,fontStyle:"italic"}}>{r.note}</span>:null},
-            ]} data={pApts} emptyText="Nessun appuntamento registrato" emptyIcon="📅"/>
-          )}
-
-          {/* DOCUMENTI TAB */}
-          {tab==="docs"&&(
+          {/* OVERVIEW */}
+          {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:20}}>
             <div>
-              {pPrev.length>0&&<div style={{marginBottom:20}}>
-                <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:12}}>Preventivi</div>
-                <Tbl columns={[{label:"Data",render:r=>fmtDate(r.data),nowrap:true},{label:"Trattamenti",render:r=>r.voci.map(v=>v.nome).join(", ")},{label:"Totale",render:r=><b>{fmtEur(r.totale)}</b>,nowrap:true},{label:"Stato",render:r=>{const bs=BADGE[r.stato]||{};return <span style={{fontSize:11,padding:"3px 8px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{r.stato.replace("_"," ")}</span>;},nowrap:true}]} data={pPrev} emptyText="" emptyIcon=""/>
-              </div>}
-              {pFatt.length>0&&<div>
-                <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:12}}>Fatture</div>
-                <Tbl columns={[{label:"N°",key:"numero",nowrap:true},{label:"Data",render:r=>fmtDate(r.data),nowrap:true},{label:"Totale",render:r=><b>{fmtEur(r.totale)}</b>,nowrap:true},{label:"Metodo",key:"metodoPagamento",nowrap:true},{label:"Stato",render:r=>{const bs=BADGE[r.statoPagamento]||{};return <span style={{fontSize:11,padding:"3px 8px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{r.statoPagamento.replace("_"," ")}</span>;},nowrap:true}]} data={pFatt} emptyText="" emptyIcon=""/>
-              </div>}
-              {pPrev.length===0&&pFatt.length===0&&<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun documento disponibile</div>}
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Informazioni personali</div>
+              {[["📞","Telefono",pd.telefono],["✉️","Email",pd.email],["📍","Indirizzo",pd.indirizzo],["🎂","Nascita",fmtDate(pd.dataNascita)],["🪪","CF",pd.codiceFiscale]].filter(x=>x[2]).map(([icon,l,v],i)=>(
+                <div key={i} style={{display:"flex",gap:10,padding:"8px 0",borderBottom:`1px solid ${T.border}`}}>
+                  <span style={{fontSize:15,width:22,textAlign:"center"}}>{icon}</span>
+                  <div><div style={{fontSize:11,color:T.textMuted}}>{l}</div><div style={{fontSize:13.5,color:T.text,marginTop:1}}>{v}</div></div>
+                </div>
+              ))}
             </div>
-          )}
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo</div>
+              {[{icon:"📅",l:"Appuntamenti",v:pApts.length},{icon:"📄",l:"Preventivi",v:pPrev.length},{icon:"🧾",l:"Fatture",v:pFatt.length}].map((k,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"9px 12px",borderRadius:T.r,background:T.bg,marginBottom:6}}>
+                  <span style={{fontSize:13,color:T.textSub}}>{k.icon} {k.l}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:T.text}}>{k.v}</span>
+                </div>
+              ))}
+              {pApts.slice(0,3).length>0&&<div style={{marginTop:14}}>
+                <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8}}>Visite recenti</div>
+                {pApts.slice(0,3).map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} style={{display:"flex",gap:8,alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${T.border}`}}>
+                  <div style={{fontSize:12,color:T.textSub,minWidth:68}}>{fmtDateShort(a.data)}</div>
+                  <div style={{flex:1,fontSize:12.5,color:T.text}}>{a.tipo}</div>
+                  <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{a.stato}</span>
+                </div>;})}
+              </div>}
+            </div>
+          </div>}
+
+          {/* DENTALE */}
+          {tab==="dentale"&&<div style={{display:"grid",gridTemplateColumns:"minmax(0,2fr) minmax(0,1fr)",gap:20}}>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Odontogramma FDI · clicca un dente per registrare</div>
+              <Odontogramma denti={pd.dentiStato||{}} setDenti={updateDenti}/>
+            </div>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo dentale</div>
+              {Object.entries(CONDIZIONI).map(([k,v])=>{
+                const cnt=Object.values(pd.dentiStato||{}).filter(d=>d?.stato===k).length;
+                if(cnt===0) return null;
+                return <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",borderRadius:T.r,background:v.bg,marginBottom:6,border:`1px solid ${v.color}33`}}>
+                  <span style={{fontSize:13,color:v.color,fontWeight:600}}>{v.label}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:"#fff",background:v.color,padding:"2px 8px",borderRadius:20}}>{cnt}</span>
+                </div>;
+              })}
+              {!Object.keys(pd.dentiStato||{}).length&&<div style={{textAlign:"center",padding:30,color:T.textMuted,fontSize:13}}>Nessun trattamento registrato</div>}
+            </div>
+          </div>}
+
+          {/* PREVENTIVI */}
+          {tab==="preventivi"&&<div>
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+              <Btn icon="+" onClick={()=>setPrevModal(true)}>Nuovo preventivo</Btn>
+            </div>
+            {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
+            pPrev.map(p=>{const bs=BADGE[p.stato]||{};return <div key={p.id} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:10}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div><div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{fmtDate(p.data)}</div><div style={{fontSize:12,color:T.textSub,marginTop:2}}>{p.voci.length} trattamenti</div></div>
+                <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{fontFamily:"Georgia,serif",fontSize:20,fontWeight:700,color:T.text}}>{fmtEur(p.totale)}</span>
+                  <span style={{fontSize:11.5,padding:"3px 9px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{p.stato.replace("_"," ")}</span>
+                </div>
+              </div>
+              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                {p.voci.map((v,i)=><span key={i} style={{fontSize:11.5,background:T.brandLight,color:T.brandDark,padding:"2px 8px",borderRadius:20}}>{v.nome} ×{v.qty}</span>)}
+              </div>
+              {p.nota&&<div style={{marginTop:8,fontSize:12,color:T.textSub,fontStyle:"italic"}}>{p.nota}</div>}
+            </div>;})}
+          </div>}
+
+          {/* FATTURE */}
+          {tab==="fatture"&&<div>
+            {pFatt.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessuna fattura</div>:
+            pFatt.map(f=>{const bs=BADGE[f.statoPagamento]||{};return <div key={f.id} style={{padding:"12px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8,display:"flex",gap:12,alignItems:"center"}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>N° {f.numero}</div>
+                <div style={{fontSize:12,color:T.textSub}}>{fmtDate(f.data)} · {f.metodoPagamento}</div>
+              </div>
+              <span style={{fontFamily:"Georgia,serif",fontSize:18,fontWeight:700,color:T.text}}>{fmtEur(f.totale)}</span>
+              <span style={{fontSize:11.5,padding:"3px 9px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{f.statoPagamento.replace("_"," ")}</span>
+            </div>;})}
+          </div>}
+
+          {/* DATI CLINICI */}
+          {tab==="clinica"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>⚠️ Allergie</div>
+              <textarea
+                value={pd.allergie||""}
+                onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,allergie:e.target.value}:x))}
+                placeholder="Inserisci allergie note (farmaci, materiali, lattice...)"
+                rows={5}
+                style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+            </div>
+            <div>
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>💊 Farmaci in uso</div>
+              <textarea
+                value={pd.farmaci||""}
+                onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,farmaci:e.target.value}:x))}
+                placeholder="Inserisci farmaci attualmente in uso..."
+                rows={5}
+                style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+            </div>
+          </div>}
         </div>
       </div>
 
-      {/* Modal modifica */}
+      {/* Modal nuovo preventivo dalla scheda */}
+      <Modal open={prevModal} onClose={()=>{setPrevModal(false);setPrevVoci([]);}} title="Nuovo Preventivo" subtitle={`Per ${pd.cognome} ${pd.nome}`} width={560}
+        footer={<><Btn variant="secondary" onClick={()=>{setPrevModal(false);setPrevVoci([]); }}>Annulla</Btn><Btn onClick={savePrev}>Crea preventivo</Btn></>}>
+        <div style={{background:T.bg,borderRadius:T.r,padding:14,marginBottom:14}}>
+          <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Aggiungi dal listino</div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <select style={{flex:2,minWidth:200,padding:"8px 10px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,background:"#fff",fontFamily:"inherit",color:T.text}}
+              value={addVoce.listinoId} onChange={e=>setAddVoce(v=>({...v,listinoId:e.target.value}))}>
+              <option value="">— Seleziona trattamento —</option>
+              {[...new Set(listino.map(l=>l.categoria))].map(cat=><optgroup key={cat} label={cat}>{listino.filter(l=>l.categoria===cat).map(l=><option key={l.id} value={l.id}>{l.nome} — {fmtEur(l.prezzo)}</option>)}</optgroup>)}
+            </select>
+            <input type="number" min="1" style={{width:60,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit",textAlign:"center"}} value={addVoce.qty} onChange={e=>setAddVoce(v=>({...v,qty:e.target.value}))} placeholder="Qty"/>
+            <Btn onClick={addVoceToPreventivo} icon="+">Aggiungi</Btn>
+          </div>
+        </div>
+        {prevVoci.length>0&&<div style={{marginBottom:14,border:`1px solid ${T.border}`,borderRadius:T.r,overflow:"hidden"}}>
+          {prevVoci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<prevVoci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":T.bg}}>
+            <div style={{flex:1,fontSize:13,color:T.text,fontWeight:500}}>{v.nome}</div>
+            <span style={{fontSize:12,color:T.textSub}}>×{v.qty}</span>
+            <span style={{fontSize:13,fontWeight:700,color:T.text}}>{fmtEur(v.prezzo*v.qty)}</span>
+            <button onClick={()=>setPrevVoci(vs=>vs.filter((_,idx)=>idx!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>✕</button>
+          </div>)}
+          <div style={{display:"flex",justifyContent:"flex-end",padding:"10px 14px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
+            <span style={{fontSize:16,fontWeight:700,color:T.text}}>Totale: {fmtEur(prevTotale)}</span>
+          </div>
+        </div>}
+        <FTextarea label="Note" value={prevNote} onChange={e=>setPrevNote(e.target.value)} rows={2}/>
+      </Modal>
+
+      {/* Modal modifica paziente */}
       <Modal open={modal} onClose={()=>setModal(false)} title="Modifica Paziente" width={560}
-        footer={<><Btn variant="danger" onClick={()=>{del(editId);setModal(false);setDetail(null);}}>🗑️ Elimina</Btn><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>Salva modifiche</Btn></>}>
+        footer={<><Btn variant="danger" onClick={()=>{del(editId);setModal(false);setDetail(null);}}>🗑️ Elimina</Btn><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>Salva</Btn></>}>
         <Grid2><FInput label="Nome" required value={form.nome} onChange={ff("nome")}/><FInput label="Cognome" required value={form.cognome} onChange={ff("cognome")}/></Grid2>
         <Grid2><FInput label="Telefono" value={form.telefono} onChange={ff("telefono")} placeholder="340 000 0000"/><FInput label="Email" type="email" value={form.email} onChange={ff("email")}/></Grid2>
         <Grid2><FInput label="Data di nascita" type="date" value={form.dataNascita} onChange={ff("dataNascita")}/><FInput label="Codice fiscale" value={form.codiceFiscale} onChange={ff("codiceFiscale")}/></Grid2>
         <FInput label="Indirizzo" value={form.indirizzo} onChange={ff("indirizzo")}/>
-        <Grid2><FInput label="Gruppo sanguigno" value={form.gruppoSanguigno} onChange={ff("gruppoSanguigno")}/><FInput label="Medico di base" value={form.medicoBase} onChange={ff("medicoBase")}/></Grid2>
-        <FTextarea label="Patologie note" value={form.patologie} onChange={ff("patologie")} rows={2}/>
-        <FTextarea label="Farmaci in uso" value={form.farmaci} onChange={ff("farmaci")} rows={2}/>
-        <FTextarea label="Note importanti (allergie, avvisi)" value={form.note} onChange={ff("note")} rows={2}/>
+        <FTextarea label="⚠️ Allergie" value={form.allergie} onChange={ff("allergie")} rows={2} placeholder="Penicillina, lattice..."/>
+        <FTextarea label="💊 Farmaci in uso" value={form.farmaci} onChange={ff("farmaci")} rows={2}/>
       </Modal>
     </div>
   );
 
-  /* ── LISTA PAZIENTI ── */
+  /* LISTA PAZIENTI */
   return (
     <div>
       <PageHdr title="Pazienti" subtitle={`${pazienti.length} pazienti registrati`} action={<Btn icon="+" onClick={openNew}>Nuovo paziente</Btn>}/>
       <Card p={0}>
-        <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:10}}><SBar value={search} onChange={setSearch} placeholder="Cerca per nome, telefono, CF..."/></div>
+        <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:10,alignItems:"center"}}>
+          <SBar value={search} onChange={setSearch} placeholder="Cerca per nome, telefono, CF..."/>
+          <button onClick={()=>setSortAZ(!sortAZ)}
+            style={{padding:"8px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",fontSize:12.5,fontWeight:600,color:T.textSub,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>
+            {sortAZ?"A → Z ↓":"Z → A ↑"}
+          </button>
+        </div>
         <Tbl
           columns={[
             {label:"Paziente",render:r=><div style={{display:"flex",alignItems:"center",gap:12}}><Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/><div><div style={{fontWeight:600,fontSize:14}}>{r.cognome} {r.nome}</div><div style={{fontSize:12,color:T.textSub}}>{r.codiceFiscale||"CF non inserito"}</div></div></div>},
             {label:"Telefono",render:r=><span style={{color:T.textSub}}>{r.telefono||"—"}</span>,nowrap:true},
             {label:"Email",render:r=><span style={{color:T.textSub,fontSize:12.5}}>{r.email||"—"}</span>},
             {label:"Nato il",render:r=><span style={{color:T.textSub}}>{fmtDate(r.dataNascita)}</span>,nowrap:true},
-            {label:"Registrato",render:r=><span style={{color:T.textSub}}>{fmtDate(r.dataRegistrazione)}</span>,nowrap:true},
             {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn></div>,nowrap:true},
           ]}
           data={filtered}
@@ -912,13 +987,13 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, fatture}
       </Card>
 
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica paziente":"Nuovo paziente"} width={540}
-        footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva modifiche":"Crea paziente"}</Btn></>}>
+        footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea paziente"}</Btn></>}>
         <Grid2><FInput label="Nome" required value={form.nome} onChange={ff("nome")}/><FInput label="Cognome" required value={form.cognome} onChange={ff("cognome")}/></Grid2>
         <Grid2><FInput label="Telefono" value={form.telefono} onChange={ff("telefono")} placeholder="340 000 0000"/><FInput label="Email" type="email" value={form.email} onChange={ff("email")}/></Grid2>
         <Grid2><FInput label="Data di nascita" type="date" value={form.dataNascita} onChange={ff("dataNascita")}/><FInput label="Codice fiscale" value={form.codiceFiscale} onChange={ff("codiceFiscale")} placeholder="XXXYYY00X00X000X"/></Grid2>
         <FInput label="Indirizzo" value={form.indirizzo} onChange={ff("indirizzo")}/>
-        <Grid2><FInput label="Gruppo sanguigno" value={form.gruppoSanguigno} onChange={ff("gruppoSanguigno")}/><FInput label="Medico di base" value={form.medicoBase} onChange={ff("medicoBase")}/></Grid2>
-        <FTextarea label="Note importanti (allergie, avvisi)" value={form.note} onChange={ff("note")} rows={2}/>
+        <FTextarea label="⚠️ Allergie" value={form.allergie} onChange={ff("allergie")} rows={2} placeholder="Penicillina, lattice..."/>
+        <FTextarea label="💊 Farmaci in uso" value={form.farmaci} onChange={ff("farmaci")} rows={2}/>
       </Modal>
     </div>
   );
@@ -976,7 +1051,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
                 {apts.map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer"}}>
                   <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
-                  <div style={{fontSize:10.5,color:bs.color||T.brandDark,opacity:0.8}}>{a.durata}m</div>
+                  <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.tipo||a.durata+"m"}</div>
                 </div>;})}
               </div>;
             })}
@@ -1020,6 +1095,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
     </Modal>
   </div>;
 }
+
 
 function PreventiviView({preventivi, setPreventivi, pazienti, listino}) {
   const [filter, setFilter]=useState("tutti"); const [search, setSearch]=useState(""); const [modal, setModal]=useState(false); const [editId, setEditId]=useState(null);
@@ -1080,13 +1156,24 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino}) {
   </div>;
 }
 
-
 function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
-  const [filter,setFilter]=useState("tutti"); const [search,setSearch]=useState(""); const [modal,setModal]=useState(false); const [editId,setEditId]=useState(null);
-  const [form,setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
-  const [addVoce,setAddVoce]=useState({nome:"",prezzo:"",qty:1});
+  const [subtab, setSubtab] = useState("fatture");
+  const [filter, setFilter]=useState("tutti");
+  const [bancaPeriod, setBancaPeriod]=useState("mese");
+  const [search, setSearch]=useState("");
+  const [modal, setModal]=useState(false);
+  const [editId, setEditId]=useState(null);
+  const [form, setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
+  const [addVoce, setAddVoce]=useState({nome:"",prezzo:"",qty:1});
   const ff=k=>v=>setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
-  const filtered=useMemo(()=>{let res=fatture;if(filter!=="tutti")res=res.filter(f=>f.statoPagamento===filter);if(search){const q=search.toLowerCase();res=res.filter(f=>{const paz=pazienti.find(x=>x.id===f.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q)||f.numero?.includes(q);});}return res.sort((a,b)=>b.data.localeCompare(a.data));},[fatture,filter,search,pazienti]);
+
+  const filtered=useMemo(()=>{
+    let res=fatture;
+    if(filter!=="tutti")res=res.filter(f=>f.statoPagamento===filter);
+    if(search){const q=search.toLowerCase();res=res.filter(f=>{const paz=pazienti.find(x=>x.id===f.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q)||f.numero?.includes(q);});}
+    return res.sort((a,b)=>b.data.localeCompare(a.data));
+  },[fatture,filter,search,pazienti]);
+
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
   function nextN(){return `${new Date().getFullYear()}/${String(fatture.length+1).padStart(3,"0")}`;}
   function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setEditId(null);setModal(true);}
@@ -1097,47 +1184,157 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
   function save(){if(!form.pazienteId)return alert("Seleziona paziente");if(!form.voci.length)return alert("Aggiungi almeno una voce");const fatt={...form,pazienteId:Number(form.pazienteId),totale};if(editId)setFatture(p=>p.map(x=>x.id===editId?{...fatt,id:editId,numero:x.numero}:x));else setFatture(p=>[...p,{...fatt,id:uid(),numero:nextN()}]);setModal(false);}
   function cambiaStato(id,stato){setFatture(p=>p.map(x=>x.id===id?{...x,statoPagamento:stato}:x));}
   function del(id){if(confirm("Eliminare?"))setFatture(p=>p.filter(x=>x.id!==id));}
+
   const now=new Date();
   const meseInc=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
   const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
   const daPagare=fatture.filter(f=>f.statoPagamento!=="pagato").reduce((s,f)=>s+f.totale,0);
+
+  // PRIMA NOTA / BANCA
+  const bancaRanges={
+    oggi:iso=>iso===todayISO(),
+    settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;},
+    mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();},
+    anno:iso=>new Date(iso).getFullYear()===now.getFullYear(),
+  };
+  const bancaFatture=useMemo(()=>fatture.filter(f=>bancaRanges[bancaPeriod](f.data)&&f.statoPagamento==="pagato").sort((a,b)=>a.data.localeCompare(b.data)||a.numero?.localeCompare(b.numero||"")),[fatture,bancaPeriod]);
+  const bancaTotale=bancaFatture.reduce((s,f)=>s+f.totale,0);
+
+  // Group banca by day
+  const bancaByDay=useMemo(()=>{
+    const m={};
+    bancaFatture.forEach(f=>{if(!m[f.data])m[f.data]=[];m[f.data].push(f);});
+    return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0]));
+  },[bancaFatture]);
+
   const ttabs=[{id:"tutti",label:"Tutte",count:fatture.length},{id:"pagato",label:"Pagate",count:fatture.filter(f=>f.statoPagamento==="pagato").length},{id:"non_pagato",label:"Da pagare",count:fatture.filter(f=>f.statoPagamento==="non_pagato").length},{id:"parziale",label:"Parziale",count:fatture.filter(f=>f.statoPagamento==="parziale").length}];
+
   return <div>
     <PageHdr title="Fatturazione" subtitle={`${fatture.length} fatture totali`} action={<Btn icon="+" onClick={openNew}>Nuova fattura</Btn>}/>
+
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:20}}>
       <StatCard icon="💰" label="Incasso mese" value={fmtEur(meseInc)} color={T.success}/>
       <StatCard icon="📅" label="Incasso anno" value={fmtEur(annInc)} color={T.brand}/>
       <StatCard icon="⏳" label="Da incassare" value={fmtEur(daPagare)} color={daPagare>0?T.danger:T.success}/>
       <StatCard icon="🧾" label="Totale fatture" value={fatture.length} color={T.info}/>
     </div>
-    <Card p={0}>
-      <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`}}><Tabs tabs={ttabs} active={filter} onChange={setFilter}/><SBar value={search} onChange={setSearch} placeholder="Cerca per paziente o numero..."/></div>
+
+    {/* Sub-tabs Fatture / Banca */}
+    <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20}}>
+      {[{id:"fatture",label:"📋 Registro fatture"},{id:"banca",label:"🏦 Prima nota / Banca"}].map(t=>(
+        <button key={t.id} onClick={()=>setSubtab(t.id)}
+          style={{padding:"10px 22px",fontSize:13.5,fontWeight:subtab===t.id?700:400,border:"none",background:"none",cursor:"pointer",color:subtab===t.id?T.brand:T.textSub,borderBottom:subtab===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit"}}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+
+    {/* FATTURE TAB */}
+    {subtab==="fatture"&&<Card p={0}>
+      <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`}}>
+        <Tabs tabs={ttabs} active={filter} onChange={setFilter}/>
+        <SBar value={search} onChange={setSearch} placeholder="Cerca per paziente o numero..."/>
+      </div>
       <Tbl columns={[
         {label:"N°",key:"numero",nowrap:true},
         {label:"Paziente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={getPaz(r.pazienteId)} size={28} fs={10}/><span style={{fontWeight:600}}>{getPaz(r.pazienteId)}</span></div>},
         {label:"Data",render:r=>fmtDate(r.data),nowrap:true},
         {label:"Metodo",key:"metodoPagamento",nowrap:true},
         {label:"Totale",render:r=><b style={{fontSize:15}}>{fmtEur(r.totale)}</b>,nowrap:true},
-        {label:"Stato",render:r=><Badge label={r.statoPagamento.replace("_"," ")} status={r.statoPagamento}/>,nowrap:true},
-        {label:"Azioni",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>{r.statoPagamento!=="pagato"&&<Btn size="xs" variant="success" onClick={()=>cambiaStato(r.id,"pagato")}>✓ Pagato</Btn>}{r.statoPagamento==="non_pagato"&&<Btn size="xs" variant="ghost" onClick={()=>cambiaStato(r.id,"parziale")}>Parz.</Btn>}<Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn></div>,nowrap:true},
+        {label:"Stato",render:r=>(
+          <select value={r.statoPagamento} onChange={e=>{e.stopPropagation();cambiaStato(r.id,e.target.value);}}
+            onClick={e=>e.stopPropagation()}
+            style={{padding:"5px 10px",fontSize:12.5,fontWeight:600,border:`1.5px solid ${BADGE[r.statoPagamento]?.dot||T.border}`,borderRadius:20,fontFamily:"inherit",
+              color:BADGE[r.statoPagamento]?.color||T.text,background:BADGE[r.statoPagamento]?.bg||T.surface,cursor:"pointer"}}>
+            <option value="non_pagato">Non pagato</option>
+            <option value="parziale">Parziale</option>
+            <option value="pagato">Pagato</option>
+          </select>
+        ),nowrap:true},
+        {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
+          <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
+          <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
+        </div>,nowrap:true},
       ]} data={filtered} emptyText="Nessuna fattura" emptyIcon="🧾"/>
-    </Card>
+    </Card>}
+
+    {/* PRIMA NOTA / BANCA TAB */}
+    {subtab==="banca"&&<div>
+      {/* Periodo */}
+      <div style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,width:"fit-content",overflow:"hidden",marginBottom:18}}>
+        {[["oggi","Oggi"],["settimana","Settimana"],["mese","Mese"],["anno","Anno"]].map(([k,l])=><button key={k} onClick={()=>setBancaPeriod(k)} style={{padding:"8px 18px",border:"none",background:bancaPeriod===k?T.brand:"transparent",color:bancaPeriod===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:bancaPeriod===k?600:400}}>{l}</button>)}
+      </div>
+
+      {bancaFatture.length===0?(
+        <Card><div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessuna transazione nel periodo selezionato</div></Card>
+      ):(
+        <div>
+          {bancaByDay.map(([date,dayFatture])=>(
+            <div key={date} style={{marginBottom:18}}>
+              {/* Intestazione giorno */}
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <div style={{fontSize:13,fontWeight:700,color:T.text}}>{fmtDate(date)}</div>
+                <div style={{flex:1,height:1,background:T.border}}/>
+                <div style={{fontSize:12.5,fontWeight:600,color:T.success}}>{fmtEur(dayFatture.reduce((s,f)=>s+f.totale,0))}</div>
+              </div>
+              <div style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rLg,overflow:"hidden",boxShadow:T.shadow}}>
+                {/* Header colonne */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 140px 100px 100px",gap:0,padding:"8px 16px",background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+                  {["N° Fattura","Paziente","Metodo","Importo",""].map((h,i)=><div key={i} style={{fontSize:11,fontWeight:600,color:T.textSub,textTransform:"uppercase",letterSpacing:0.4}}>{h}</div>)}
+                </div>
+                {dayFatture.map((f,i)=>(
+                  <div key={f.id} style={{display:"grid",gridTemplateColumns:"1fr 2fr 140px 100px 100px",gap:0,padding:"10px 16px",borderBottom:i<dayFatture.length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":"#FAFBFC"}}>
+                    <div style={{fontSize:13,fontWeight:600,color:T.text}}>{f.numero}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <Av name={getPaz(f.pazienteId)} size={24} fs={9}/>
+                      <span style={{fontSize:13,color:T.text}}>{getPaz(f.pazienteId)}</span>
+                    </div>
+                    <div style={{fontSize:13,color:T.textSub}}>{f.metodoPagamento}</div>
+                    <div style={{fontSize:14,fontWeight:700,color:T.success}}>{fmtEur(f.totale)}</div>
+                    <div style={{display:"flex",gap:4}}>
+                      <Btn size="xs" variant="ghost" onClick={()=>openEdit(f)}>✏️</Btn>
+                    </div>
+                  </div>
+                ))}
+                {/* Subtotale giorno */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 2fr 140px 100px 100px",gap:0,padding:"10px 16px",background:`${T.success}10`,borderTop:`1px solid ${T.success}30`}}>
+                  <div style={{gridColumn:"1/4",fontSize:12.5,fontWeight:600,color:T.success}}>Totale del giorno</div>
+                  <div style={{fontSize:14,fontWeight:700,color:T.success}}>{fmtEur(dayFatture.reduce((s,f)=>s+f.totale,0))}</div>
+                  <div/>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* TOTALE GENERALE */}
+          <div style={{marginTop:16,padding:"16px 20px",background:T.deep||"#1C2B3A",borderRadius:T.rLg,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,0.7)"}}>Totale periodo</div>
+              <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:2}}>{bancaFatture.length} transazioni · {Object.keys(bancaByDay).length} giorni</div>
+            </div>
+            <div style={{fontFamily:"Georgia,serif",fontSize:32,fontWeight:700,color:"#fff"}}>{fmtEur(bancaTotale)}</div>
+          </div>
+        </div>
+      )}
+    </div>}
+
+    {/* Modal fattura */}
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica fattura":"Nuova fattura"} width={560}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
       <Grid2><FSelect label="Paziente" required value={form.pazienteId} onChange={ff("pazienteId")}><option value="">— Seleziona —</option>{pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}</FSelect><FInput label="Data" type="date" value={form.data} onChange={ff("data")}/></Grid2>
-      <FSelect label="Importa da preventivo (opzionale)" value={form.preventivoId} onChange={e=>{ff("preventivoId")(e.target.value);if(e.target.value)loadPrev(e.target.value);}}><option value="">— Nessuno —</option>{preventivi.filter(p=>p.stato==="accettato").map(p=><option key={p.id} value={p.id}>{getPaz(p.pazienteId)} — {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}</FSelect>
+      <FSelect label="Importa da preventivo accettato" value={form.preventivoId} onChange={e=>{ff("preventivoId")(e.target.value);if(e.target.value)loadPrev(e.target.value);}}><option value="">— Nessuno —</option>{preventivi.filter(p=>p.stato==="accettato").map(p=><option key={p.id} value={p.id}>{getPaz(p.pazienteId)} — {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}</FSelect>
       <Grid2><FSelect label="Metodo pagamento" value={form.metodoPagamento} onChange={ff("metodoPagamento")}>{["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}</FSelect><FSelect label="Stato" value={form.statoPagamento} onChange={ff("statoPagamento")}><option value="non_pagato">Non pagato</option><option value="parziale">Parziale</option><option value="pagato">Pagato</option></FSelect></Grid2>
       <div style={{background:T.bg,borderRadius:T.r,padding:14,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Aggiungi voce</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <input style={{flex:2,minWidth:140,padding:"8px 10px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit"}} placeholder="Descrizione" value={addVoce.nome} onChange={e=>setAddVoce(v=>({...v,nome:e.target.value}))}/>
+          <input style={{flex:2,minWidth:140,padding:"8px 10px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text}} placeholder="Descrizione" value={addVoce.nome} onChange={e=>setAddVoce(v=>({...v,nome:e.target.value}))}/>
           <input type="number" style={{width:80,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit"}} placeholder="€" value={addVoce.prezzo} onChange={e=>setAddVoce(v=>({...v,prezzo:e.target.value}))}/>
           <input type="number" min="1" style={{width:50,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit",textAlign:"center"}} value={addVoce.qty} onChange={e=>setAddVoce(v=>({...v,qty:e.target.value}))}/>
           <Btn onClick={addV} icon="+">Aggiungi</Btn>
         </div>
       </div>
       {form.voci.length>0&&<div style={{marginBottom:14,border:`1px solid ${T.border}`,borderRadius:T.r,overflow:"hidden"}}>
-        {form.voci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<form.voci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?T.surface:T.bg}}>
+        {form.voci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<form.voci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":T.bg}}>
           <div style={{flex:1,fontSize:13}}>{v.qty}× {v.nome}</div>
           <div style={{fontSize:13,fontWeight:700}}>{fmtEur(v.prezzo*v.qty)}</div>
           <button onClick={()=>setForm(f=>({...f,voci:f.voci.filter((_,idx)=>idx!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>✕</button>
@@ -1149,6 +1346,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
   </div>;
 }
 
+
 function ListinoView({listino, setListino}) {
   const [modal,setModal]=useState(false); const [editId,setEditId]=useState(null); const [search,setSearch]=useState("");
   const [form,setForm]=useState({categoria:"Prevenzione",nome:"",prezzo:""});
@@ -1158,18 +1356,21 @@ function ListinoView({listino, setListino}) {
   function openNew(){setForm({categoria:"Prevenzione",nome:"",prezzo:""});setEditId(null);setModal(true);}
   function openEdit(l){setForm(l);setEditId(l.id);setModal(true);}
   function save(){if(!form.nome||!form.prezzo)return alert("Nome e prezzo obbligatori");const item={...form,prezzo:Number(form.prezzo)};if(editId)setListino(p=>p.map(x=>x.id===editId?{...item,id:editId}:x));else setListino(p=>[...p,{...item,id:uid()}]);setModal(false);}
-  function del(id){if(confirm("Eliminare?"))setListino(p=>p.filter(x=>x.id!==id));}
+  function del(id){if(confirm("Eliminare questa voce?"))setListino(p=>p.filter(x=>x.id!==id));}
   return <div>
     <PageHdr title="Listino prezzi" subtitle={`${listino.length} trattamenti`} action={<Btn icon="+" onClick={openNew}>Nuovo trattamento</Btn>}/>
     <div style={{marginBottom:16}}><SBar value={search} onChange={setSearch} placeholder="Cerca trattamento..."/></div>
     {Object.entries(bycat).map(([cat,items])=><Card key={cat} style={{marginBottom:14}} p={0}>
       <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}>
         <h3 style={{fontSize:14,fontWeight:700,color:T.text,margin:0}}>{cat}</h3>
-        <span style={{fontSize:12,color:T.textMuted}}>{items.length} trattamenti</span>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{fontSize:12,color:T.textMuted}}>{items.length} trattamenti</span>
+          <Btn size="xs" onClick={()=>{setForm({categoria:cat,nome:"",prezzo:""});setEditId(null);setModal(true);}}>+ Aggiungi in {cat}</Btn>
+        </div>
       </div>
       <Tbl columns={[{label:"Trattamento",render:r=><span style={{fontWeight:500}}>{r.nome}</span>},{label:"Prezzo",render:r=><b style={{fontSize:14}}>{fmtEur(r.prezzo)}</b>,nowrap:true},{label:"",render:r=><div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn></div>,nowrap:true}]} data={items} emptyText=""/>
     </Card>)}
-    <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica":"Nuovo trattamento"}
+    <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica trattamento":"Nuovo trattamento"}
       footer={<>{editId&&<Btn variant="danger" onClick={()=>{del(editId);setModal(false);}}>Elimina</Btn>}<Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Aggiungi"}</Btn></>}>
       <FSelect label="Categoria" value={form.categoria} onChange={ff("categoria")}>{["Prevenzione","Conservativa","Endodonzia","Chirurgia","Implantologia","Protesi","Ortodonzia","Estetica","Radiologia","Altro"].map(c=><option key={c}>{c}</option>)}</FSelect>
       <FInput label="Nome trattamento" required value={form.nome} onChange={ff("nome")} placeholder="Es. Visita di controllo"/>
@@ -1181,15 +1382,24 @@ function ListinoView({listino, setListino}) {
 function ReportView({fatture, appuntamenti, pazienti, listino}) {
   const [period,setPeriod]=useState("mese");
   const now=new Date();
-  const ranges={oggi:iso=>iso===todayISO(),settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;},mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();},anno:iso=>new Date(iso).getFullYear()===now.getFullYear(),sempre:()=>true};
+  const ranges={
+    oggi:iso=>iso===todayISO(),
+    settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;},
+    mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();},
+    anno:iso=>new Date(iso).getFullYear()===now.getFullYear(),
+    sempre:()=>true
+  };
   const filtFatt=fatture.filter(f=>ranges[period](f.data)&&f.statoPagamento==="pagato");
   const filtApts=appuntamenti.filter(a=>ranges[period](a.data)&&a.stato==="completato");
   const totale=filtFatt.reduce((s,f)=>s+f.totale,0);
   const byTipo=useMemo(()=>{const m={};filtApts.forEach(a=>{const item=listino.find(l=>l.nome===a.tipo);if(!m[a.tipo])m[a.tipo]={count:0,revenue:0};m[a.tipo].count++;m[a.tipo].revenue+=item?item.prezzo:0;});return Object.entries(m).sort((a,b)=>b[1].revenue-a[1].revenue);},[filtApts,listino]);
-  const last30=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return {label:d.getDate()+"/"+(d.getMonth()+1),rev,isToday:iso===todayISO()};});
+
+  const last30=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return{label:d.getDate()+"/"+(d.getMonth()+1),rev,isToday:iso===todayISO()};});
   const maxRev=Math.max(...last30.map(d=>d.rev),1);
-  const last6=Array.from({length:6},(_,i)=>{const dt=new Date();dt.setMonth(dt.getMonth()-(5-i));dt.setDate(1);const y=dt.getFullYear(),m=dt.getMonth();const rev=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===m&&d.getFullYear()===y&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);return {label:dt.toLocaleDateString("it-IT",{month:"short"}),rev};});
+
+  const last6=Array.from({length:6},(_,i)=>{const dt=new Date();dt.setMonth(dt.getMonth()-(5-i));dt.setDate(1);const y=dt.getFullYear(),m=dt.getMonth();const rev=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===m&&d.getFullYear()===y&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);return{label:dt.toLocaleDateString("it-IT",{month:"short"}),rev};});
   const maxMonth=Math.max(...last6.map(d=>d.rev),1);
+
   return <div>
     <PageHdr title="Report e statistiche" subtitle="Analisi performance dello studio"/>
     <div style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,width:"fit-content",overflow:"hidden",marginBottom:20}}>
@@ -1202,20 +1412,34 @@ function ReportView({fatture, appuntamenti, pazienti, listino}) {
       <StatCard icon="📅" label="Appuntamenti" value={filtApts.length} color={T.warning}/>
     </div>
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
+      {/* 30 giorni con label */}
       <Card>
         <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Incassi — 30 giorni</h3>
-        <div style={{display:"flex",alignItems:"flex-end",gap:3,height:110,marginBottom:6}}>
-          {last30.map((d,i)=><div key={i} style={{flex:1,borderRadius:"2px 2px 0 0",background:d.isToday?T.brand:d.rev>0?T.brandLight:"#F3F4F6",height:`${Math.max(d.rev/maxRev*100,d.rev>0?6:3)}%`,minHeight:3}} title={`${d.label}: ${fmtEur(d.rev)}`}/>)}
+        <div style={{display:"flex",alignItems:"flex-end",gap:3,height:120,marginBottom:6}}>
+          {last30.map((d,i)=>(
+            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
+              {d.rev>0&&<span style={{position:"absolute",top:-(i%3===0?14:0),fontSize:7.5,color:d.isToday?T.brand:T.textMuted,fontWeight:600,whiteSpace:"nowrap",transform:"rotate(-45deg)",transformOrigin:"bottom center",lineHeight:1}}>
+                {d.rev>=1000?(d.rev/1000).toFixed(1)+"k":d.rev}
+              </span>}
+              <div style={{width:"100%",borderRadius:"2px 2px 0 0",background:d.isToday?T.brand:d.rev>0?T.brandLight:"#F3F4F6",height:`${Math.max(d.rev/maxRev*100,d.rev>0?6:3)}%`,minHeight:3,marginTop:"auto"}} title={`${d.label}: ${fmtEur(d.rev)}`}/>
+            </div>
+          ))}
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted}}><span>{last30[0].label}</span><span>Oggi</span></div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted,marginTop:4}}>
+          <span>{last30[0].label}</span><span>Oggi</span>
+        </div>
       </Card>
+      {/* Mensile con label */}
       <Card>
         <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Incassi mensili</h3>
-        <div style={{display:"flex",alignItems:"flex-end",gap:8,height:110,marginBottom:6}}>
-          {last6.map((m,i)=><div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-            <div style={{width:"100%",borderRadius:"4px 4px 0 0",background:i===5?T.brand:T.brandLight,height:`${Math.max(m.rev/maxMonth*100,m.rev>0?8:4)}%`,minHeight:4}} title={`${m.label}: ${fmtEur(m.rev)}`}/>
-            <span style={{fontSize:11,color:T.textSub}}>{m.label}</span>
-          </div>)}
+        <div style={{display:"flex",alignItems:"flex-end",gap:8,height:120,marginBottom:6}}>
+          {last6.map((m,i)=>(
+            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+              {m.rev>0&&<span style={{fontSize:10,color:i===5?T.brand:T.textSub,fontWeight:600,whiteSpace:"nowrap"}}>{fmtEurShort(m.rev)}</span>}
+              <div style={{width:"100%",borderRadius:"4px 4px 0 0",background:i===5?T.brand:T.brandLight,height:`${Math.max(m.rev/maxMonth*100,m.rev>0?8:4)}%`,minHeight:4,flex:"none"}} title={`${m.label}: ${fmtEur(m.rev)}`}/>
+              <span style={{fontSize:11,color:T.textSub}}>{m.label}</span>
+            </div>
+          ))}
         </div>
       </Card>
     </div>
@@ -1337,7 +1561,7 @@ export default function App() {
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={setView}/>}
         {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino}/>}
-        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture}/>}
+        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} listino={listino} onNav={setView}/>}
         {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino}/>}
         {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi}/>}
         {view==="listino"&&<ListinoView listino={listino} setListino={setListino}/>}
