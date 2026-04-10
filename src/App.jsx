@@ -191,6 +191,7 @@ const BADGE = {
   rifiutato:{bg:"#FEF2F2",color:"#DC2626",dot:"#EF4444"},
   admin:{bg:"#EFF6FF",color:"#2563EB",dot:"#3B82F6"},
   assistente:{bg:"#F5F3FF",color:"#7C3AED",dot:"#8B5CF6"},
+  fatturato:{bg:"#EFF6FF",color:"#1D4ED8",dot:"#3B82F6"},
 };
 
 function Badge({label, status}) {
@@ -1132,34 +1133,132 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
 }
 
 
-function PreventiviView({preventivi, setPreventivi, pazienti, listino}) {
-  const [filter, setFilter]=useState("tutti"); const [search, setSearch]=useState(""); const [modal, setModal]=useState(false); const [editId, setEditId]=useState(null);
-  const [pazForm, setPazForm]=useState(""); const [voci, setVoci]=useState([]); const [note, setNote]=useState(""); const [addVoce, setAddVoce]=useState({listinoId:"",qty:1});
-  const filtered=useMemo(()=>{let res=preventivi;if(filter!=="tutti")res=res.filter(p=>p.stato===filter);if(search){const q=search.toLowerCase();res=res.filter(p=>{const paz=pazienti.find(x=>x.id===p.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q);});}return res.sort((a,b)=>b.data.localeCompare(a.data));},[preventivi,filter,search,pazienti]);
+function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture}) {
+  const [filter, setFilter]=useState("tutti");
+  const [search, setSearch]=useState("");
+  const [modal, setModal]=useState(false);
+  const [editId, setEditId]=useState(null);
+  const [pazForm, setPazForm]=useState("");
+  const [voci, setVoci]=useState([]);
+  const [note, setNote]=useState("");
+  const [addVoce, setAddVoce]=useState({listinoId:"",qty:1});
+
+  // Calcola quali preventivi hanno già una fattura emessa
+  const prevConFattura = useMemo(()=>{
+    const ids = new Set(fatture.map(f=>f.preventivoId).filter(Boolean));
+    return ids;
+  },[fatture]);
+
+  const filtered=useMemo(()=>{
+    let res=preventivi;
+    if(filter!=="tutti") res=res.filter(p=>p.stato===filter);
+    if(search){const q=search.toLowerCase();res=res.filter(p=>{const paz=pazienti.find(x=>x.id===p.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q);});}
+    return res.sort((a,b)=>b.data.localeCompare(a.data));
+  },[preventivi,filter,search,pazienti]);
+
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
+
   function openNew(){setPazForm("");setVoci([]);setNote("");setEditId(null);setModal(true);}
-  function openEdit(p){setPazForm(String(p.pazienteId));setVoci(p.voci);setNote(p.note||"");setEditId(p.id);setModal(true);}
-  function addV(){if(!addVoce.listinoId)return;const item=listino.find(l=>l.id===Number(addVoce.listinoId));if(!item)return;setVoci(v=>[...v,{listinoId:item.id,nome:item.nome,prezzo:item.prezzo,qty:Number(addVoce.qty)||1}]);setAddVoce({listinoId:"",qty:1});}
+
+  function openEdit(p){
+    // Preventivo con fattura emessa: non modificabile
+    if(prevConFattura.has(p.id)){
+      alert("⚠️ Fattura già emessa per questo preventivo.\nNon è possibile modificarlo o eliminarlo.");
+      return;
+    }
+    // Preventivo accettato senza fattura: non modificabile (già in lavorazione)
+    if(p.stato==="accettato"){
+      alert("⚠️ Il preventivo è già stato accettato.\nPer modificarlo occorre prima rifiutarlo.");
+      return;
+    }
+    setPazForm(String(p.pazienteId));setVoci(p.voci);setNote(p.note||"");setEditId(p.id);setModal(true);
+  }
+
+  function tryDelete(p){
+    if(prevConFattura.has(p.id)){
+      alert("⚠️ Fattura già emessa per questo preventivo.\nNon è possibile eliminarlo.");
+      return;
+    }
+    if(p.stato==="accettato"){
+      alert("⚠️ Non puoi eliminare un preventivo accettato.\nRifiutalo prima di eliminarlo.");
+      return;
+    }
+    if(confirm("Eliminare questo preventivo?")) setPreventivi(p=>p.filter(x=>x.id!==p.id));
+  }
+
+  function addV(){
+    if(!addVoce.listinoId)return;
+    const item=listino.find(l=>l.id===Number(addVoce.listinoId));
+    if(!item)return;
+    setVoci(v=>[...v,{listinoId:item.id,nome:item.nome,prezzo:item.prezzo,qty:Number(addVoce.qty)||1}]);
+    setAddVoce({listinoId:"",qty:1});
+  }
+
   const totale=voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
-  function save(){if(!pazForm)return alert("Seleziona paziente");if(!voci.length)return alert("Aggiungi almeno una voce");const prev={pazienteId:Number(pazForm),data:todayISO(),voci,totale,stato:"in_attesa",note};if(editId)setPreventivi(p=>p.map(x=>x.id===editId?{...prev,id:editId}:x));else setPreventivi(p=>[...p,{...prev,id:uid()}]);setModal(false);}
-  function cambia(id,stato){setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));}
-  function del(id){if(confirm("Eliminare?"))setPreventivi(p=>p.filter(x=>x.id!==id));}
-  const ttabs=[{id:"tutti",label:"Tutti",count:preventivi.length},{id:"in_attesa",label:"In attesa",count:preventivi.filter(p=>p.stato==="in_attesa").length},{id:"accettato",label:"Accettati",count:preventivi.filter(p=>p.stato==="accettato").length},{id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").length}];
+
+  function save(){
+    if(!pazForm)return alert("Seleziona un paziente");
+    if(!voci.length)return alert("Aggiungi almeno una voce");
+    const prev={pazienteId:Number(pazForm),data:todayISO(),voci,totale,stato:"in_attesa",note};
+    if(editId) setPreventivi(p=>p.map(x=>x.id===editId?{...prev,id:editId}:x));
+    else setPreventivi(p=>[...p,{...prev,id:uid()}]);
+    setModal(false);
+  }
+
+  function cambia(id,stato){
+    setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));
+  }
+
+  // Badge esteso con stato "fatturato"
+  function StatoBadge({prev}){
+    const hasFattura = prevConFattura.has(prev.id);
+    if(hasFattura) return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11.5,fontWeight:700,background:"#EFF6FF",color:"#1D4ED8",border:"1px solid #BFDBFE"}}>🧾 Fatturato</span>;
+    const bs=BADGE[prev.stato]||{};
+    return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:bs.bg,color:bs.color}}><span style={{width:5,height:5,borderRadius:"50%",background:bs.dot}}/>{prev.stato.replace("_"," ")}</span>;
+  }
+
+  const ttabs=[
+    {id:"tutti",label:"Tutti",count:preventivi.length},
+    {id:"in_attesa",label:"In attesa",count:preventivi.filter(p=>p.stato==="in_attesa").length},
+    {id:"accettato",label:"Accettati",count:preventivi.filter(p=>p.stato==="accettato"&&!prevConFattura.has(p.id)).length},
+    {id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").length},
+  ];
+
   return <div>
     <PageHdr title="Preventivi" subtitle={`${preventivi.length} preventivi totali`} action={<Btn icon="+" onClick={openNew}>Nuovo preventivo</Btn>}/>
     <Card p={0}>
-      <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`}}><Tabs tabs={ttabs} active={filter} onChange={setFilter}/><SBar value={search} onChange={setSearch} placeholder="Cerca per paziente..."/></div>
+      <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`}}>
+        <Tabs tabs={ttabs} active={filter} onChange={setFilter}/>
+        <SBar value={search} onChange={setSearch} placeholder="Cerca per paziente..."/>
+      </div>
       <Tbl columns={[
         {label:"Paziente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={getPaz(r.pazienteId)} size={30} fs={10}/><span style={{fontWeight:600}}>{getPaz(r.pazienteId)}</span></div>},
         {label:"Data",render:r=>fmtDate(r.data),nowrap:true},
         {label:"Trattamenti",render:r=><div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{r.voci.slice(0,2).map((v,i)=><span key={i} style={{fontSize:11,background:T.brandLight,color:T.brandDark,padding:"2px 7px",borderRadius:20}}>{v.nome}</span>)}{r.voci.length>2&&<span style={{fontSize:11,color:T.textMuted}}>+{r.voci.length-2}</span>}</div>},
         {label:"Totale",render:r=><b style={{fontSize:14}}>{fmtEur(r.totale)}</b>,nowrap:true},
-        {label:"Stato",render:r=><Badge label={r.stato.replace("_"," ")} status={r.stato}/>,nowrap:true},
-        {label:"Azioni",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>{r.stato==="in_attesa"&&<><Btn size="xs" variant="success" onClick={()=>cambia(r.id,"accettato")}>✓</Btn><Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗</Btn></>}<Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn></div>,nowrap:true},
+        {label:"Stato",render:r=><StatoBadge prev={r}/>,nowrap:true},
+        {label:"Azioni",render:r=>{
+          const hasFattura=prevConFattura.has(r.id);
+          return <div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
+            {/* Azioni solo se non fatturato */}
+            {!hasFattura&&r.stato==="in_attesa"&&<>
+              <Btn size="xs" variant="success" onClick={()=>cambia(r.id,"accettato")}>✓ Accetta</Btn>
+              <Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗</Btn>
+            </>}
+            {!hasFattura&&r.stato==="accettato"&&<Btn size="xs" variant="secondary" onClick={()=>cambia(r.id,"in_attesa")}>← Riapri</Btn>}
+            {/* Modifica/elimina disabilitati se fatturato */}
+            {hasFattura
+              ? <span style={{fontSize:11,color:"#1D4ED8",padding:"4px 8px",background:"#EFF6FF",borderRadius:6,fontWeight:600}}>🔒 Bloccato</span>
+              : <><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
+                 <Btn size="xs" variant="ghost" onClick={()=>tryDelete(r)}>🗑️</Btn></>
+            }
+          </div>;
+        },nowrap:true},
       ]} data={filtered} emptyText="Nessun preventivo" emptyIcon="📄"/>
     </Card>
+
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica preventivo":"Nuovo preventivo"} width={580}
-      footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
+      footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea preventivo"}</Btn></>}>
       <FSelect label="Paziente" required value={pazForm} onChange={e=>setPazForm(e.target.value)}>
         <option value="">— Seleziona paziente —</option>
         {pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}
@@ -1167,31 +1266,32 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino}) {
       <div style={{background:T.bg,borderRadius:T.r,padding:14,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Aggiungi dal listino</div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <select style={{flex:2,minWidth:200,padding:"8px 10px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,background:T.surface,fontFamily:"inherit",color:T.text}} value={addVoce.listinoId} onChange={e=>setAddVoce(v=>({...v,listinoId:e.target.value}))}>
+          <select style={{flex:2,minWidth:200,padding:"8px 10px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,background:"#fff",fontFamily:"inherit",color:T.text}}
+            value={addVoce.listinoId} onChange={e=>setAddVoce(v=>({...v,listinoId:e.target.value}))}>
             <option value="">— Seleziona trattamento —</option>
             {[...new Set(listino.map(l=>l.categoria))].map(cat=><optgroup key={cat} label={cat}>{listino.filter(l=>l.categoria===cat).map(l=><option key={l.id} value={l.id}>{l.nome} — {fmtEur(l.prezzo)}</option>)}</optgroup>)}
           </select>
-          <input type="number" min="1" style={{width:60,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit",textAlign:"center"}} value={addVoce.qty} onChange={e=>setAddVoce(v=>({...v,qty:e.target.value}))} placeholder="Qta"/>
+          <input type="number" min="1" style={{width:60,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit",textAlign:"center"}} value={addVoce.qty} onChange={e=>setAddVoce(v=>({...v,qty:e.target.value}))} placeholder="Qty"/>
           <Btn onClick={addV} icon="+">Aggiungi</Btn>
         </div>
       </div>
       {voci.length>0&&<div style={{marginBottom:14,border:`1px solid ${T.border}`,borderRadius:T.r,overflow:"hidden"}}>
-        {voci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<voci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?T.surface:T.bg}}>
+        {voci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<voci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":T.bg}}>
           <div style={{flex:1,fontSize:13,color:T.text,fontWeight:500}}>{v.nome}</div>
-          <input type="number" min="1" style={{width:50,padding:"4px 8px",border:`1px solid ${T.border}`,borderRadius:6,fontSize:12,textAlign:"center",fontFamily:"inherit"}} value={v.qty} onChange={e=>setVoci(vs=>vs.map((x,idx)=>idx===i?{...x,qty:Number(e.target.value)||1}:x))}/>
-          <span style={{fontSize:12,color:T.textMuted}}>×</span>
-          <input type="number" style={{width:75,padding:"4px 8px",border:`1px solid ${T.border}`,borderRadius:6,fontSize:12,textAlign:"right",fontFamily:"inherit"}} value={v.prezzo} onChange={e=>setVoci(vs=>vs.map((x,idx)=>idx===i?{...x,prezzo:Number(e.target.value)||0}:x))}/>
-          <span style={{fontSize:13,fontWeight:700,color:T.text,minWidth:70,textAlign:"right"}}>{fmtEur(v.prezzo*v.qty)}</span>
+          <span style={{fontSize:12,color:T.textSub}}>×{v.qty}</span>
+          <span style={{fontSize:13,fontWeight:700,color:T.text}}>{fmtEur(v.prezzo*v.qty)}</span>
           <button onClick={()=>setVoci(vs=>vs.filter((_,idx)=>idx!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>✕</button>
         </div>)}
-        <div style={{display:"flex",justifyContent:"flex-end",padding:"10px 14px",background:T.bg}}><span style={{fontSize:16,fontWeight:700,color:T.text}}>Totale: {fmtEur(totale)}</span></div>
+        <div style={{display:"flex",justifyContent:"flex-end",padding:"10px 14px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
+          <span style={{fontSize:16,fontWeight:700,color:T.text}}>Totale: {fmtEur(totale)}</span>
+        </div>
       </div>}
       <FTextarea label="Note" value={note} onChange={e=>setNote(e.target.value)} rows={2}/>
     </Modal>
   </div>;
 }
 
-function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
+function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi}) {
   const [subtab, setSubtab] = useState("fatture");
   const [filter, setFilter]=useState("tutti");
   const [bancaPeriod, setBancaPeriod]=useState("mese");
@@ -1229,10 +1329,25 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
   function nextN(){return `${new Date().getFullYear()}/${String(fatture.length+1).padStart(3,"0")}`;}
   function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setEditId(null);setModal(true);}
   function openEdit(f){setForm(f);setEditId(f.id);setModal(true);}
-  function loadPrev(prevId){const prev=preventivi.find(p=>p.id===Number(prevId));if(!prev)return;setForm(f=>({...f,preventivoId:prevId,pazienteId:String(prev.pazienteId),voci:prev.voci}));}
+  function loadPrev(prevId){const prev=preventivi.find(p=>p.id===Number(prevId));if(!prev)return;setForm(f=>({...f,preventivoId:Number(prevId),pazienteId:String(prev.pazienteId),voci:[...prev.voci]}));}
   function addV(){if(!addVoce.nome||!addVoce.prezzo)return;setForm(f=>({...f,voci:[...f.voci,{nome:addVoce.nome,prezzo:Number(addVoce.prezzo)||0,qty:Number(addVoce.qty)||1}]}));setAddVoce({nome:"",prezzo:"",qty:1});}
   const totale=form.voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
-  function save(){if(!form.pazienteId)return alert("Seleziona paziente");if(!form.voci.length)return alert("Aggiungi almeno una voce");const fatt={...form,pazienteId:Number(form.pazienteId),totale};if(editId)setFatture(p=>p.map(x=>x.id===editId?{...fatt,id:editId,numero:x.numero}:x));else setFatture(p=>[...p,{...fatt,id:uid(),numero:nextN()}]);setModal(false);}
+  function save(){
+    if(!form.pazienteId)return alert("Seleziona paziente");
+    if(!form.voci.length)return alert("Aggiungi almeno una voce");
+    const fattData={...form,pazienteId:Number(form.pazienteId),totale};
+    if(editId){
+      setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
+    } else {
+      const newId=uid();
+      setFatture(p=>[...p,{...fattData,id:newId,numero:nextN()}]);
+      // Marca il preventivo come fatturato se importato da preventivo
+      if(form.preventivoId){
+        setPreventivi(p=>p.map(x=>x.id===Number(form.preventivoId)?{...x,stato:"fatturato"}:x));
+      }
+    }
+    setModal(false);
+  }
   function cambiaStato(id,stato){setFatture(p=>p.map(x=>x.id===id?{...x,statoPagamento:stato}:x));}
   function del(id){if(confirm("Eliminare?"))setFatture(p=>p.filter(x=>x.id!==id));}
 
@@ -1395,7 +1510,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica fattura":"Nuova fattura"} width={560}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
       <Grid2><FSelect label="Paziente" required value={form.pazienteId} onChange={ff("pazienteId")}><option value="">— Seleziona —</option>{pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}</FSelect><FInput label="Data" type="date" value={form.data} onChange={ff("data")}/></Grid2>
-      <FSelect label="Importa da preventivo accettato" value={form.preventivoId} onChange={e=>{ff("preventivoId")(e.target.value);if(e.target.value)loadPrev(e.target.value);}}><option value="">— Nessuno —</option>{preventivi.filter(p=>p.stato==="accettato").map(p=><option key={p.id} value={p.id}>{getPaz(p.pazienteId)} — {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}</FSelect>
+      <FSelect label="Importa da preventivo accettato" value={form.preventivoId} onChange={e=>{ff("preventivoId")(e.target.value);if(e.target.value)loadPrev(e.target.value);}}><option value="">— Nessuno —</option>{preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))).map(p=><option key={p.id} value={p.id}>{getPaz(p.pazienteId)} — {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}</FSelect>
       <Grid2><FSelect label="Metodo pagamento" value={form.metodoPagamento} onChange={ff("metodoPagamento")}>{["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}</FSelect><FSelect label="Stato" value={form.statoPagamento} onChange={ff("statoPagamento")}><option value="non_pagato">Non pagato</option><option value="parziale">Parziale</option><option value="pagato">Pagato</option></FSelect></Grid2>
       <div style={{background:T.bg,borderRadius:T.r,padding:14,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Aggiungi voce</div>
@@ -1635,8 +1750,8 @@ export default function App() {
         {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={setView}/>}
         {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino}/>}
         {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} listino={listino} onNav={setView}/>}
-        {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino}/>}
-        {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi}/>}
+        {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture}/>}
+        {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi}/>}
         {view==="listino"&&<ListinoView listino={listino} setListino={setListino}/>}
         {view==="report"&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
