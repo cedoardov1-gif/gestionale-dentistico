@@ -177,7 +177,7 @@ function Btn({children, onClick, variant="primary", size="md", icon, disabled=fa
   const v = {
     primary:{bg:hov?T.brandDark:T.brand,color:"#fff",border:"none"},
     secondary:{bg:hov?"#F3F4F6":T.surface,color:T.text,border:`1px solid ${T.border}`},
-    ghost:{bg:hov?"#F3F4F6":"transparent",color:T.textSub,border:"none"},
+    ghost:{bg:hov?T.brandLight:"transparent",color:T.brand,border:"none"},
     danger:{bg:hov?"#FEE2E2":T.dangerBg,color:T.danger,border:`1px solid #FECACA`},
     success:{bg:hov?"#D1FAE5":T.successBg,color:T.success,border:`1px solid #A7F3D0`},
   }[variant];
@@ -1161,6 +1161,11 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
   const [filter, setFilter]=useState("tutti");
   const [bancaPeriod, setBancaPeriod]=useState("mese");
   const [search, setSearch]=useState("");
+  const [sortCol, setSortCol]=useState("data");
+  const [sortAsc, setSortAsc]=useState(false);
+
+  function toggleSort(col){ if(sortCol===col)setSortAsc(!sortAsc); else{setSortCol(col);setSortAsc(true);} }
+  function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
   const [modal, setModal]=useState(false);
   const [editId, setEditId]=useState(null);
   const [form, setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
@@ -1171,8 +1176,19 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
     let res=fatture;
     if(filter!=="tutti")res=res.filter(f=>f.statoPagamento===filter);
     if(search){const q=search.toLowerCase();res=res.filter(f=>{const paz=pazienti.find(x=>x.id===f.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q)||f.numero?.includes(q);});}
-    return res.sort((a,b)=>b.data.localeCompare(a.data));
-  },[fatture,filter,search,pazienti]);
+    res=[...res].sort((a,b)=>{
+      let va,vb;
+      if(sortCol==="paziente"){const pa=pazienti.find(x=>x.id===a.pazienteId),pb=pazienti.find(x=>x.id===b.pazienteId);va=(pa?.cognome||"");vb=(pb?.cognome||"");}
+      else if(sortCol==="numero"){va=a.numero||"";vb=b.numero||"";}
+      else if(sortCol==="data"){va=a.data||"";vb=b.data||"";}
+      else if(sortCol==="metodo"){va=a.metodoPagamento||"";vb=b.metodoPagamento||"";}
+      else if(sortCol==="totale"){return sortAsc?(a.totale-b.totale):(b.totale-a.totale);}
+      else if(sortCol==="stato"){va=a.statoPagamento||"";vb=b.statoPagamento||"";}
+      else{va=a.data||"";vb=b.data||"";}
+      return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    });
+    return res;
+  },[fatture,filter,search,pazienti,sortCol,sortAsc]);
 
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
   function nextN(){return `${new Date().getFullYear()}/${String(fatture.length+1).padStart(3,"0")}`;}
@@ -1235,27 +1251,49 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi}) {
         <Tabs tabs={ttabs} active={filter} onChange={setFilter}/>
         <SBar value={search} onChange={setSearch} placeholder="Cerca per paziente o numero..."/>
       </div>
-      <Tbl columns={[
-        {label:"N°",key:"numero",nowrap:true},
-        {label:"Paziente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={getPaz(r.pazienteId)} size={28} fs={10}/><span style={{fontWeight:600}}>{getPaz(r.pazienteId)}</span></div>},
-        {label:"Data",render:r=>fmtDate(r.data),nowrap:true},
-        {label:"Metodo",key:"metodoPagamento",nowrap:true},
-        {label:"Totale",render:r=><b style={{fontSize:15}}>{fmtEur(r.totale)}</b>,nowrap:true},
-        {label:"Stato",render:r=>(
-          <select value={r.statoPagamento} onChange={e=>{e.stopPropagation();cambiaStato(r.id,e.target.value);}}
-            onClick={e=>e.stopPropagation()}
-            style={{padding:"5px 10px",fontSize:12.5,fontWeight:600,border:`1.5px solid ${BADGE[r.statoPagamento]?.dot||T.border}`,borderRadius:20,fontFamily:"inherit",
-              color:BADGE[r.statoPagamento]?.color||T.text,background:BADGE[r.statoPagamento]?.bg||T.surface,cursor:"pointer"}}>
-            <option value="non_pagato">Non pagato</option>
-            <option value="parziale">Parziale</option>
-            <option value="pagato">Pagato</option>
-          </select>
-        ),nowrap:true},
-        {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}>
-          <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
-          <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
-        </div>,nowrap:true},
-      ]} data={filtered} emptyText="Nessuna fattura" emptyIcon="🧾"/>
+      {filtered.length===0?<div style={{textAlign:"center",padding:"50px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:10}}>🧾</div><div style={{fontSize:14,color:T.textSub}}>Nessuna fattura</div></div>:<div style={{overflowX:"auto"}}>
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead>
+            <tr style={{borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+              {[["numero","N°"],["paziente","Paziente"],["data","Data"],["metodo","Metodo pag."],["totale","Totale"],["stato","Stato"],["",""]].map(([col,lbl],i)=>(
+                <th key={i} onClick={col?()=>toggleSort(col):undefined}
+                  style={{padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,color:sortCol===col?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap",cursor:col?"pointer":"default",userSelect:"none"}}>
+                  {lbl}{col&&sortIcon(col)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r,i)=>(
+              <tr key={r.id} style={{borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <td style={{padding:"12px 16px",fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap"}}>{r.numero}</td>
+                <td style={{padding:"12px 16px",fontSize:13}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}><Av name={getPaz(r.pazienteId)} size={28} fs={10}/><span style={{fontWeight:600,color:T.text}}>{getPaz(r.pazienteId)}</span></div>
+                </td>
+                <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{fmtDate(r.data)}</td>
+                <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{r.metodoPagamento}</td>
+                <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:15,color:T.text}}>{fmtEur(r.totale)}</b></td>
+                <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
+                  <select value={r.statoPagamento} onChange={e=>{e.stopPropagation();cambiaStato(r.id,e.target.value);}} onClick={e=>e.stopPropagation()}
+                    style={{padding:"5px 10px",fontSize:12.5,fontWeight:600,border:`1.5px solid ${BADGE[r.statoPagamento]?.dot||T.border}`,borderRadius:20,fontFamily:"inherit",color:BADGE[r.statoPagamento]?.color||T.text,background:BADGE[r.statoPagamento]?.bg||T.surface,cursor:"pointer"}}>
+                    <option value="non_pagato">Non pagato</option>
+                    <option value="parziale">Parziale</option>
+                    <option value="pagato">Pagato</option>
+                  </select>
+                </td>
+                <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
+                  <div style={{display:"flex",gap:4}}>
+                    <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
+                    <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>}
     </Card>}
 
     {/* PRIMA NOTA / BANCA TAB */}
