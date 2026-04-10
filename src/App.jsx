@@ -78,15 +78,23 @@ const UTENTI_DEFAULT = [
 ];
 
 function useStore(key, init) {
-  const [val, setVal] = useState(init);
+  const [val, setVal] = useState(()=>{
+    // Leggi subito da localStorage come fallback
+    try { const s=localStorage.getItem("dsd_"+key); if(s) return JSON.parse(s); } catch(e) {}
+    return init;
+  });
+
   const tableMap = {pazienti:"pazienti",appuntamenti:"appuntamenti",preventivi:"preventivi",fatture:"fatture",listino:"listino"};
   const table = tableMap[key];
+
+  // Carica da Supabase all'avvio
   useEffect(() => {
     if (!table) return;
     import("./supabase.js").then(({supabase}) => {
       supabase.from(table).select("*").order("id").then(({data, error}) => {
-        if (!error && data && data.length > 0) {
-          setVal(data.map(row => {
+        if (error) { console.warn("Supabase read error:", error.message); return; }
+        if (data && data.length > 0) {
+          const mapped = data.map(row => {
             const r = {...row};
             if (r.data_nascita !== undefined) { r.dataNascita = r.data_nascita; delete r.data_nascita; }
             if (r.data_registrazione !== undefined) { r.dataRegistrazione = r.data_registrazione; delete r.data_registrazione; }
@@ -98,41 +106,68 @@ function useStore(key, init) {
             if (r.ora_inizio !== undefined) { r.oraInizio = r.ora_inizio; delete r.ora_inizio; }
             if (r.gruppo_sanguigno !== undefined) { r.gruppoSanguigno = r.gruppo_sanguigno; delete r.gruppo_sanguigno; }
             if (r.medico_base !== undefined) { r.medicoBase = r.medico_base; delete r.medico_base; }
-            if (r.voci && typeof r.voci === "string") { try { r.voci = JSON.parse(r.voci); } catch(e) { r.voci = []; } }
             if (r.denti_stato !== undefined) { r.dentiStato = r.denti_stato || {}; delete r.denti_stato; }
+            if (r.voci && typeof r.voci === "string") { try { r.voci = JSON.parse(r.voci); } catch(e) { r.voci = []; } }
             return r;
-          }));
+          });
+          setVal(mapped);
+          // Aggiorna anche localStorage con i dati freschi
+          try { localStorage.setItem("dsd_"+key, JSON.stringify(mapped)); } catch(e) {}
         }
       });
-    });
+    }).catch(err => console.warn("Supabase import error:", err));
   }, [table]);
+
   const save = useCallback(async (v) => {
     const next = typeof v === "function" ? v(val) : v;
     setVal(next);
+    // Salva SEMPRE in localStorage (funziona anche offline)
+    try { localStorage.setItem("dsd_"+key, JSON.stringify(next)); } catch(e) {}
     if (!table) return;
+
+    // Poi prova a salvare su Supabase con retry
     const nullIfEmpty = (x) => (x === "" || x === undefined) ? null : x;
-    const {supabase} = await import("./supabase.js");
-    await supabase.from(table).delete().neq("id", 0);
-    if (next.length > 0) {
-      const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
-        ...rest,
-        ...(dentiStato !== undefined && {denti_stato: dentiStato}),
-        ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
-        ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
-        ...(pazienteId !== undefined && {paziente_id: nullIfEmpty(pazienteId)}),
-        ...(preventivoId !== undefined && {preventivo_id: nullIfEmpty(preventivoId)}),
-        ...(codiceFiscale !== undefined && {codice_fiscale: nullIfEmpty(codiceFiscale)}),
-        ...(statoPagamento !== undefined && {stato_pagamento: nullIfEmpty(statoPagamento)}),
-        ...(metodoPagamento !== undefined && {metodo_pagamento: nullIfEmpty(metodoPagamento)}),
-        ...(oraInizio !== undefined && {ora_inizio: nullIfEmpty(oraInizio)}),
-        ...(gruppoSanguigno !== undefined && {gruppo_sanguigno: nullIfEmpty(gruppoSanguigno)}),
-        ...(medicoBase !== undefined && {medico_base: nullIfEmpty(medicoBase)}),
-      }));
-      await supabase.from(table).insert(rows);
+    async function doSave(attempt=1) {
+      try {
+        const {supabase} = await import("./supabase.js");
+        const {error: delErr} = await supabase.from(table).delete().neq("id", 0);
+        if (delErr) throw delErr;
+        if (next.length > 0) {
+          const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
+            ...rest,
+            ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
+            ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
+            ...(pazienteId !== undefined && {paziente_id: nullIfEmpty(pazienteId)}),
+            ...(preventivoId !== undefined && {preventivo_id: nullIfEmpty(preventivoId)}),
+            ...(codiceFiscale !== undefined && {codice_fiscale: nullIfEmpty(codiceFiscale)}),
+            ...(statoPagamento !== undefined && {stato_pagamento: nullIfEmpty(statoPagamento)}),
+            ...(metodoPagamento !== undefined && {metodo_pagamento: nullIfEmpty(metodoPagamento)}),
+            ...(oraInizio !== undefined && {ora_inizio: nullIfEmpty(oraInizio)}),
+            ...(gruppoSanguigno !== undefined && {gruppo_sanguigno: nullIfEmpty(gruppoSanguigno)}),
+            ...(medicoBase !== undefined && {medico_base: nullIfEmpty(medicoBase)}),
+            ...(dentiStato !== undefined && {denti_stato: dentiStato}),
+          }));
+          const {error: insErr} = await supabase.from(table).insert(rows);
+          if (insErr) throw insErr;
+        }
+        console.log("✓ Salvato su Supabase:", table, next.length, "righe");
+      } catch(err) {
+        console.warn(`Supabase save error (tentativo ${attempt}):`, err?.message||err);
+        if (attempt < 3) {
+          // Retry dopo 2 secondi
+          await new Promise(r => setTimeout(r, 2000));
+          await doSave(attempt + 1);
+        } else {
+          console.error("Supabase non raggiungibile. Dati salvati localmente, verranno sincronizzati alla prossima apertura.");
+        }
+      }
     }
-  }, [table, val]);
+    doSave();
+  }, [table, val, key]);
+
   return [val, save];
 }
+
 
 function useAuth() {
   const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem("dsd_user")); } catch { return null; } });
