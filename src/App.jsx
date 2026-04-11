@@ -463,7 +463,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
           </div>
           <div style={{width:3,height:32,borderRadius:2,background:bs.dot||T.brand,flexShrink:0}}/>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:13.5,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
+            <div onClick={()=>onNav("pazienti",a.pazienteId)} style={{fontSize:13.5,fontWeight:600,color:T.brand,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer",textDecoration:"underline"}}>{getPaz(a.pazienteId)}</div>
             <div style={{fontSize:12,color:T.textSub}}>{a.tipo}</div>
           </div>
           <Badge label={a.stato} status={a.stato}/>
@@ -792,7 +792,7 @@ function Odontogramma({denti={}, setDenti, readOnly=false}) {
   );
 }
 
-function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav}) {
+function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -810,6 +810,14 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   const [fattNote, setFattNote] = useState("");
   const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
+
+  useEffect(()=>{
+    if(initialDetail){
+      setDetail(initialDetail);
+      setTab("overview");
+      if(onDetailOpened) onDetailOpened();
+    }
+  },[initialDetail]);
 
   const filtered = useMemo(()=>{
     const res = pazienti.filter(p=>{
@@ -982,23 +990,64 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
 
           {/* PREVENTIVI */}
           {tab==="preventivi"&&<div>
-            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:13,color:T.textSub}}>{pPrev.length} preventivi</div>
               <Btn icon="+" onClick={()=>setPrevModal(true)}>Nuovo preventivo</Btn>
             </div>
-            {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
-            pPrev.map(p=>{const bs=BADGE[p.stato]||{};return <div key={p.id} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                <div><div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{fmtDate(p.data)}</div><div style={{fontSize:12,color:T.textSub,marginTop:2}}>{p.voci.length} trattamenti</div></div>
-                <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{fontFamily:"Georgia,serif",fontSize:20,fontWeight:700,color:T.text}}>{fmtEur(p.totale)}</span>
-                  <span style={{fontSize:11.5,padding:"3px 9px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{p.stato.replace("_"," ")}</span>
+            {/* Banner accettati in attesa di fattura */}
+            {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length>0&&(
+              <div style={{padding:"10px 14px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",
+                marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
+                <span style={{fontSize:16}}>📋</span>
+                <div style={{flex:1,fontSize:13,color:"#92400E",fontWeight:600}}>
+                  {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length} preventivo/i accettato/i in attesa di fattura
                 </div>
+                <Btn size="sm" onClick={openFattModal}>Emetti fattura</Btn>
               </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {p.voci.map((v,i)=><span key={i} style={{fontSize:11.5,background:T.brandLight,color:T.brandDark,padding:"2px 8px",borderRadius:20}}>{v.nome} ×{v.qty}</span>)}
-              </div>
-              {p.nota&&<div style={{marginTop:8,fontSize:12,color:T.textSub,fontStyle:"italic"}}>{p.nota}</div>}
-            </div>;})}
+            )}
+            {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
+            pPrev.map(p=>{
+              const prevConFatt=pFatt.some(f=>String(f.preventivoId)===String(p.id));
+              const bs=BADGE[p.stato]||{};
+              return <div key={p.id} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,
+                border:`1px solid ${p.stato==="accettato"&&!prevConFatt?T.warning:T.border}`,marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div>
+                    <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{fmtDate(p.data)}</div>
+                    <div style={{fontSize:12,color:T.textSub,marginTop:2}}>{p.voci.length} trattamenti</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <span style={{fontFamily:"Georgia,serif",fontSize:20,fontWeight:700,color:T.text}}>{fmtEur(p.totale)}</span>
+                    {prevConFatt
+                      ? <span style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:"#EFF6FF",color:"#1D4ED8",fontWeight:700}}>🔒 Fatturato</span>
+                      : <span style={{fontSize:11.5,padding:"3px 9px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{p.stato.replace("_"," ")}</span>
+                    }
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:8}}>
+                  {p.voci.map((v,i)=><span key={i} style={{fontSize:11.5,background:T.brandLight,color:T.brandDark,padding:"2px 8px",borderRadius:20}}>{v.nome} ×{v.qty}</span>)}
+                </div>
+                {p.nota&&<div style={{fontSize:12,color:T.textSub,fontStyle:"italic",marginBottom:8}}>{p.nota}</div>}
+                {/* Bottoni cambio stato — solo se non fatturato */}
+                {!prevConFatt&&<div style={{display:"flex",gap:6,flexWrap:"wrap",borderTop:`1px solid ${T.border}`,paddingTop:8}}>
+                  <span style={{fontSize:11,color:T.textMuted,alignSelf:"center"}}>Stato:</span>
+                  {p.stato==="in_attesa"&&<>
+                    <button onClick={()=>setPreventivi(pr=>pr.map(x=>x.id===p.id?{...x,stato:"accettato"}:x))}
+                      style={{padding:"4px 12px",borderRadius:20,border:"1px solid #A7F3D0",background:"#ECFDF5",color:"#059669",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✓ Accetta</button>
+                    <button onClick={()=>setPreventivi(pr=>pr.map(x=>x.id===p.id?{...x,stato:"rifiutato"}:x))}
+                      style={{padding:"4px 12px",borderRadius:20,border:"1px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✗ Rifiuta</button>
+                  </>}
+                  {p.stato==="accettato"&&<>
+                    <button onClick={()=>setPreventivi(pr=>pr.map(x=>x.id===p.id?{...x,stato:"in_attesa"}:x))}
+                      style={{padding:"4px 12px",borderRadius:20,border:`1px solid ${T.border}`,background:T.surface,color:T.textSub,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>← Riapri</button>
+                  </>}
+                  {p.stato==="rifiutato"&&<>
+                    <button onClick={()=>setPreventivi(pr=>pr.map(x=>x.id===p.id?{...x,stato:"in_attesa"}:x))}
+                      style={{padding:"4px 12px",borderRadius:20,border:`1px solid ${T.border}`,background:T.surface,color:T.textSub,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>← Riapri</button>
+                  </>}
+                </div>}
+              </div>;
+            })}
           </div>}
 
           {/* FATTURE */}
@@ -1166,7 +1215,7 @@ const HOURS=Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2
 const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const GIORNI=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
-function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
+function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino, onNav}) {
   const [curDate, setCurDate] = useState(new Date()); const [calView, setCalView] = useState("week"); const [modal, setModal] = useState(false); const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({pazienteId:"",data:todayISO(),oraInizio:"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
@@ -1210,7 +1259,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
                 {apts.map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer"}}>
-                  <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
+                  <div style={{fontSize:11.5,fontWeight:700,color:T.brand,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(onNav)onNav("pazienti",a.pazienteId);}}>{getPaz(a.pazienteId)}</div>
                   <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.tipo||a.durata+"m"}</div>
                 </div>;})}
               </div>;
@@ -1257,7 +1306,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
 }
 
 
-function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture}) {
+function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav}) {
   const [filter, setFilter]=useState("tutti");
   const [search, setSearch]=useState("");
   const [sortCol, setSortCol]=useState("data");
@@ -1387,7 +1436,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
                     <td style={{padding:"12px 16px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
                         <Av name={getPaz(r.pazienteId)} size={30} fs={10}/>
-                        <span style={{fontWeight:600,fontSize:13,color:T.text}}>{getPaz(r.pazienteId)}</span>
+                        <span onClick={e=>{e.stopPropagation();if(onNav)onNav("pazienti",r.pazienteId);}} style={{fontWeight:600,fontSize:13,color:T.brand,cursor:"pointer",textDecoration:"underline"}}>{getPaz(r.pazienteId)}</span>
                       </div>
                     </td>
                     <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{fmtDate(r.data)}</td>
@@ -1499,7 +1548,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
   </div>;
 }
 
-function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi}) {
+function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav}) {
   const [subtab, setSubtab] = useState("fatture");
   const [filter, setFilter]=useState("tutti");
   const [bancaPeriod, setBancaPeriod]=useState("mese");
@@ -1676,7 +1725,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <td style={{padding:"12px 16px",fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap"}}>{r.numero}</td>
                 <td style={{padding:"12px 16px",fontSize:13}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}><Av name={getPaz(r.pazienteId)} size={28} fs={10}/><span style={{fontWeight:600,color:T.text}}>{getPaz(r.pazienteId)}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={e=>{e.stopPropagation();if(onNav)onNav("pazienti",r.pazienteId);}}><Av name={getPaz(r.pazienteId)} size={28} fs={10}/><span style={{fontWeight:600,color:T.brand,textDecoration:"underline"}}>{getPaz(r.pazienteId)}</span></div>
                 </td>
                 <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{fmtDate(r.data)}</td>
                 <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{r.metodoPagamento}</td>
@@ -2014,6 +2063,7 @@ export default function App() {
   const {user, login, logout} = useAuth();
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openPazienteId, setOpenPazienteId] = useState(null);
   const [pazienti, setPazienti] = useStore("pazienti", INIT_PAZIENTI);
   const [appuntamenti, setAppuntamenti] = useStore("appuntamenti", INIT_APPUNTAMENTI);
   const [preventivi, setPreventivi] = useStore("preventivi", INIT_PREVENTIVI);
@@ -2024,6 +2074,8 @@ export default function App() {
 
   const isMobile = typeof window!=="undefined"&&window.innerWidth<768;
   const titles={dashboard:"Dashboard",agenda:"Agenda",pazienti:"Pazienti",preventivi:"Preventivi",fatture:"Fatturazione",listino:"Listino prezzi",report:"Report",utenti:"Utenti"};
+
+  function navTo(v, pazId){setView(v); if(pazId!==undefined)setOpenPazienteId(pazId); setSidebarOpen(false);}
 
   return <div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
     {sidebarOpen&&isMobile&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:90}}/>}
@@ -2041,11 +2093,11 @@ export default function App() {
         </div>
       </header>
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
-        {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={setView}/>}
-        {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino}/>}
-        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={setView}/>}
-        {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture}/>}
-        {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi}/>}
+        {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
+        {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino} onNav={navTo}/>}
+        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)}/>}
+        {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo}/>}
+        {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo}/>}
         {view==="listino"&&<ListinoView listino={listino} setListino={setListino}/>}
         {view==="report"&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
