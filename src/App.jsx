@@ -1260,12 +1260,10 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
     {id:"tutti",label:"Tutti",count:preventivi.length},
     {id:"in_attesa",label:"In attesa",count:preventivi.filter(p=>p.stato==="in_attesa").length},
     {id:"accettato",label:"Accettati",count:preventivi.filter(p=>p.stato==="accettato").length},
-    {id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").lfunction thStyle(col){return {hStyle=(col)=>({
-    padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,
-    color:sortCol===col?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5,
-    whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",background:T.bg,
-    borderBottom:`1px solid ${T.border}`
-  });}
+    {id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").length},
+  ];
+
+  function thStyle(col){return {padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600, color:sortCol===col?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5, whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",background:T.bg, borderBottom:`1px solid ${T.border}` };}
 
   return <div>
     <PageHdr title="Preventivi" subtitle={`${preventivi.length} preventivi totali`} action={<Btn icon="+" onClick={openNew}>Nuovo preventivo</Btn>}/>
@@ -1938,6 +1936,4 @@ export default function App() {
       </nav>}
     </div>
   </div>;
-}
-}
 }
