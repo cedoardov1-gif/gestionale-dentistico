@@ -792,7 +792,7 @@ function Odontogramma({denti={}, setDenti, readOnly=false}) {
   );
 }
 
-function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, listino, onNav}) {
+function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -803,6 +803,11 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   const [prevVoci, setPrevVoci] = useState([]);
   const [prevNote, setPrevNote] = useState("");
   const [addVoce, setAddVoce] = useState({listinoId:"",qty:1});
+  const [fattModal, setFattModal] = useState(false);
+  const [fattPrevId, setFattPrevId] = useState("");
+  const [fattMetodo, setFattMetodo] = useState("Contanti");
+  const [fattStato, setFattStato] = useState("non_pagato");
+  const [fattNote, setFattNote] = useState("");
   const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
@@ -838,6 +843,20 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
     const totale=prevVoci.reduce((s,v)=>s+v.prezzo*v.qty,0);
     setPreventivi(p=>[...p,{id:uid(),pazienteId:detail,data:todayISO(),voci:prevVoci,totale,stato:"in_attesa",note:prevNote}]);
     setPrevModal(false);setPrevVoci([]);setPrevNote("");
+  }
+
+  function openFattModal(){setFattPrevId("");setFattMetodo("Contanti");setFattStato("non_pagato");setFattNote("");setFattModal(true);}
+
+  function saveFatt(){
+    const prev=preventivi.find(p=>String(p.id)===String(fattPrevId));
+    if(!prev)return alert("Seleziona un preventivo");
+    const nextN=`${new Date().getFullYear()}/${String(fatture.length+1).padStart(3,"0")}`;
+    const newFatt={id:uid(),numero:nextN,pazienteId:detail,preventivoId:prev.id,data:todayISO(),
+      voci:prev.voci,totale:prev.totale,totalelordo:prev.totalelordo||prev.totale,sconto:prev.sconto||0,
+      statoPagamento:fattStato,metodoPagamento:fattMetodo,note:fattNote};
+    setFatture(f=>[...f,newFatt]);
+    setPreventivi(p=>p.map(x=>String(x.id)===String(prev.id)?{...x,stato:"fatturato"}:x));
+    setFattModal(false);
   }
 
   const pd=detail?pazienti.find(p=>p.id===detail):null;
@@ -984,6 +1003,10 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
 
           {/* FATTURE */}
           {tab==="fatture"&&<div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontSize:13,color:T.textSub}}>{pFatt.length} {pFatt.length===1?"fattura":"fatture"}</div>
+              <Btn icon="+" onClick={openFattModal}>Nuova fattura</Btn>
+            </div>
             {pFatt.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessuna fattura</div>:
             pFatt.map(f=>{const bs=BADGE[f.statoPagamento]||{};return <div key={f.id} style={{padding:"12px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8,display:"flex",gap:12,alignItems:"center"}}>
               <div style={{flex:1}}>
@@ -1046,6 +1069,42 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           </div>
         </div>}
         <FTextarea label="Note" value={prevNote} onChange={e=>setPrevNote(e.target.value)} rows={2}/>
+      </Modal>
+
+      {/* Modal nuova fattura da scheda paziente */}
+      <Modal open={fattModal} onClose={()=>setFattModal(false)} title="Nuova Fattura" subtitle={pd?`Per ${pd.cognome} ${pd.nome}`:""} width={500}
+        footer={<><Btn variant="secondary" onClick={()=>setFattModal(false)}>Annulla</Btn><Btn onClick={saveFatt}>Emetti fattura</Btn></>}>
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6}}>Preventivo accettato</label>
+          <select value={fattPrevId} onChange={e=>setFattPrevId(e.target.value)}
+            style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
+            <option value="">— Seleziona preventivo —</option>
+            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).map(p=>(
+              <option key={p.id} value={p.id}>{fmtDate(p.data)} — {p.voci.length} tratt. — {fmtEur(p.totale)}</option>
+            ))}
+          </select>
+          {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).length===0&&
+            <p style={{fontSize:12,color:T.warning,marginTop:6}}>⚠️ Nessun preventivo accettato disponibile. Vai nei Preventivi e accetta un preventivo prima.</p>}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:14}}>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6}}>Metodo pagamento</label>
+            <select value={fattMetodo} onChange={e=>setFattMetodo(e.target.value)}
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
+              {["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6}}>Stato pagamento</label>
+            <select value={fattStato} onChange={e=>setFattStato(e.target.value)}
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
+              <option value="non_pagato">Non pagato</option>
+              <option value="parziale">Parziale</option>
+              <option value="pagato">Pagato</option>
+            </select>
+          </div>
+        </div>
+        <FTextarea label="Note" value={fattNote} onChange={e=>setFattNote(e.target.value)} rows={2}/>
       </Modal>
 
       {/* Modal modifica paziente */}
@@ -1507,7 +1566,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
       setFatture(p=>[...p,{...fattData,id:newId,numero:nextN()}]);
       // Marca il preventivo come fatturato se importato da preventivo
       if(form.preventivoId){
-        setPreventivi(p=>p.map(x=>x.id===Number(form.preventivoId)?{...x,stato:"fatturato"}:x));
+        setPreventivi(p=>p.map(x=>String(x.id)===String(form.preventivoId)?{...x,stato:"fatturato"}:x));
       }
     }
     setModal(false);
@@ -1521,7 +1580,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     if(!window.confirm(msg)) return;
     setFatture(p=>p.filter(x=>x.id!==id));
     if(fatt?.preventivoId){
-      setPreventivi(p=>p.map(x=>Number(x.id)===Number(fatt.preventivoId)?{...x,stato:"accettato"}:x));
+      setPreventivi(p=>p.map(x=>String(x.id)===String(fatt.preventivoId)?{...x,stato:"accettato"}:x));
     }
   }
 
@@ -1529,6 +1588,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const meseInc=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
   const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
   const daPagare=fatture.filter(f=>f.statoPagamento!=="pagato").reduce((s,f)=>s+f.totale,0);
+  const prevDaFatturare=preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)));
 
   // PRIMA NOTA / BANCA
   const bancaRanges={
@@ -1557,7 +1617,29 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
       <StatCard icon="📅" label="Incasso anno" value={fmtEur(annInc)} color={T.brand}/>
       <StatCard icon="⏳" label="Da incassare" value={fmtEur(daPagare)} color={daPagare>0?T.danger:T.success}/>
       <StatCard icon="🧾" label="Totale fatture" value={fatture.length} color={T.info}/>
+      <StatCard icon="📄" label="Prev. da fatturare" value={prevDaFatturare.length} color={prevDaFatturare.length>0?T.warning:T.success}/>
     </div>
+
+    {/* Banner preventivi accettati in attesa di fattura */}
+    {prevDaFatturare.length>0&&<div style={{padding:"12px 16px",background:"#FFFBEB",borderRadius:T.r,
+      border:"1px solid #FDE68A",marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:18}}>📋</span>
+      <div style={{flex:1}}>
+        <span style={{fontSize:13.5,fontWeight:700,color:"#92400E"}}>{prevDaFatturare.length} {prevDaFatturare.length===1?"preventivo accettato":"preventivi accettati"} in attesa di fattura</span>
+        <div style={{display:"flex",gap:6,marginTop:5,flexWrap:"wrap"}}>
+          {prevDaFatturare.slice(0,4).map(p=>{const paz=pazienti.find(x=>x.id===p.pazienteId);return <button key={p.id}
+            onClick={()=>{setSubtab("fatture");openNew();setTimeout(()=>{},50);}}
+            style={{fontSize:12,padding:"3px 10px",borderRadius:20,border:"1px solid #F59E0B",
+              background:"#FEF3C7",color:"#92400E",cursor:"pointer",fontFamily:"inherit",fontWeight:600}}>
+            {paz?`${paz.cognome} ${paz.nome}`:p.id} — {fmtEur(p.totale)}
+          </button>;})}
+        </div>
+      </div>
+      <button onClick={openNew} style={{padding:"8px 16px",borderRadius:T.r,border:"none",
+        background:"#F59E0B",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+        + Nuova fattura
+      </button>
+    </div>}
 
     {/* Sub-tabs Fatture / Banca */}
     <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20}}>
@@ -1961,7 +2043,7 @@ export default function App() {
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={setView}/>}
         {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino}/>}
-        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} listino={listino} onNav={setView}/>}
+        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={setView}/>}
         {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture}/>}
         {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi}/>}
         {view==="listino"&&<ListinoView listino={listino} setListino={setListino}/>}
