@@ -208,19 +208,52 @@ function Card({children, style={}, p=20}) {
 }
 
 function Btn({children, onClick, variant="primary", size="md", icon, disabled=false, style={}, full=false}) {
-  const [hov, setHov] = useState(false);
   const sz = {xs:{p:"4px 10px",fs:11},sm:{p:"6px 12px",fs:12},md:{p:"8px 16px",fs:13},lg:{p:"10px 20px",fs:14}}[size];
-  const v = {
-    primary:{bg:hov?T.brandDark:T.brand,color:"#fff",border:"none"},
-    secondary:{bg:hov?"#F3F4F6":T.surface,color:T.text,border:`1px solid ${T.border}`},
-    ghost:{bg:hov?T.brandLight:"transparent",color:T.brand,border:"none"},
-    danger:{bg:hov?"#FEE2E2":T.dangerBg,color:T.danger,border:`1px solid #FECACA`},
-    success:{bg:hov?"#D1FAE5":T.successBg,color:T.success,border:`1px solid #A7F3D0`},
-  }[variant];
-  return <button onClick={onClick} disabled={disabled} onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-    style={{display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,padding:sz.p,fontSize:sz.fs,fontWeight:600,fontFamily:"inherit",borderRadius:T.r,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.5:1,...v,transition:"all 0.15s",width:full?"100%":"auto",whiteSpace:"nowrap",...style}}>
-    {icon&&<span>{icon}</span>}{children}
-  </button>;
+  const variants = {
+    primary:{backgroundColor:T.brand,color:"#fff",border:"none"},
+    secondary:{backgroundColor:"#F3F4F6",color:T.text,border:`1px solid ${T.border}`},
+    ghost:{backgroundColor:"transparent",color:T.brand,border:"none"},
+    danger:{backgroundColor:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"},
+    success:{backgroundColor:"#ECFDF5",color:"#059669",border:"1px solid #A7F3D0"},
+  };
+  const v = variants[variant] || variants.primary;
+  const baseStyle = {
+    display:"inline-flex",
+    alignItems:"center",
+    justifyContent:"center",
+    gap:6,
+    padding:sz.p,
+    fontSize:sz.fs,
+    fontWeight:600,
+    fontFamily:"-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+    borderRadius:"8px",
+    cursor:disabled?"not-allowed":"pointer",
+    opacity:disabled?0.5:1,
+    width:full?"100%":"auto",
+    whiteSpace:"nowrap",
+    textDecoration:"none",
+    boxSizing:"border-box",
+    lineHeight:1.2,
+    ...v,
+    ...style,
+  };
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={baseStyle}
+      onMouseEnter={e=>{
+        if(variant==="primary") e.currentTarget.style.backgroundColor=T.brandDark;
+        else if(variant==="secondary") e.currentTarget.style.backgroundColor="#E5E7EB";
+      }}
+      onMouseLeave={e=>{
+        e.currentTarget.style.backgroundColor = v.backgroundColor;
+      }}
+    >
+      {icon&&<span style={{fontSize:sz.fs+1}}>{icon}</span>}
+      {children}
+    </button>
+  );
 }
 
 function FInput({label, required, ...props}) {
@@ -1213,7 +1246,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
 
   function cambia(id,stato){setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));}
 
-  function StatoBadge3({p}){
+  function StatoBadgePrev({p}){
     if(prevConFattura.has(p.id)) return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11.5,fontWeight:700,background:"#EFF6FF",color:"#1D4ED8"}}>🧾 Fatturato</span>;
     const bs=BADGE[p.stato]||{};
     return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:bs.bg,color:bs.color}}><span style={{width:5,height:5,borderRadius:"50%",background:bs.dot}}/>{p.stato.replace("_"," ")}</span>;
@@ -1275,7 +1308,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
                       </div>
                     </td>
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:14,color:T.text}}>{fmtEur(r.totale)}</b></td>
-                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge3 p={r}/></td>
+                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadgePrev p={r}/></td>
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                       <div style={{display:"flex",gap:5,alignItems:"center"}}>
                         {/* Accetta/Rifiuta solo se in_attesa e non fatturato */}
@@ -1474,7 +1507,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
 
   function cambia(id,stato){setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));}
 
-  function StatoBadge2({p}){
+  function StatoBadge({p}){
     if(prevConFattura.has(p.id)) return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11.5,fontWeight:700,background:"#EFF6FF",color:"#1D4ED8"}}>🧾 Fatturato</span>;
     const bs=BADGE[p.stato]||{};
     return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:bs.bg,color:bs.color}}><span style={{width:5,height:5,borderRadius:"50%",background:bs.dot}}/>{p.stato.replace("_"," ")}</span>;
@@ -1536,7 +1569,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
                       </div>
                     </td>
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:14,color:T.text}}>{fmtEur(r.totale)}</b></td>
-                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge2 p={r}/></td>
+                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge p={r}/></td>
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                       <div style={{display:"flex",gap:5,alignItems:"center"}}>
                         {/* Accetta/Rifiuta solo se in_attesa e non fatturato */}
@@ -1922,10 +1955,10 @@ function ReportView({fatture, appuntamenti, pazienti, listino}) {
   const byTipo=useMemo(()=>{const m={};filtApts.forEach(a=>{const item=listino.find(l=>l.nome===a.tipo);if(!m[a.tipo])m[a.tipo]={count:0,revenue:0};m[a.tipo].count++;m[a.tipo].revenue+=item?item.prezzo:0;});return Object.entries(m).sort((a,b)=>b[1].revenue-a[1].revenue);},[filtApts,listino]);
 
   const last30=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return{label:d.getDate()+"/"+(d.getMonth()+1),rev,isToday:iso===todayISO()};});
-  const maxRev=Math.max(...last30.map(d=>d.rev),1);
+  const maxRev=2500;
 
   const last6=Array.from({length:6},(_,i)=>{const dt=new Date();dt.setMonth(dt.getMonth()-(5-i));dt.setDate(1);const y=dt.getFullYear(),m=dt.getMonth();const rev=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===m&&d.getFullYear()===y&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);return{label:dt.toLocaleDateString("it-IT",{month:"short"}),rev};});
-  const maxMonth=Math.max(...last6.map(d=>d.rev),1);
+  const maxMonth=2500;
 
   return <div>
     <PageHdr title="Report e statistiche" subtitle="Analisi performance dello studio"/>
