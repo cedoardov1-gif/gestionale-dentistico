@@ -1150,6 +1150,8 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
   },[fatture]);
 
   function toggleSort(col){ if(sortCol===col)setSortAsc(a=>!a); else{setSortCol(col);setSortAsc(true);} }
+  function sor
+  const thStyle=(col)=>({padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap",cursor:col?"pointer":"default",userSelect:"none",color:sortCol===col?T.brand:T.textSub});
   function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
 
   const filtered=useMemo(()=>{
@@ -1211,7 +1213,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
 
   function cambia(id,stato){setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));}
 
-  function StatoBadge({p}){
+  function StatoBadge3({p}){
     if(prevConFattura.has(p.id)) return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11.5,fontWeight:700,background:"#EFF6FF",color:"#1D4ED8"}}>🧾 Fatturato</span>;
     const bs=BADGE[p.stato]||{};
     return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:bs.bg,color:bs.color}}><span style={{width:5,height:5,borderRadius:"50%",background:bs.dot}}/>{p.stato.replace("_"," ")}</span>;
@@ -1224,12 +1226,12 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
     {id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").length},
   ];
 
-  function thStyle(col){return {
+  const thStyle=(col)=>({
     padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,
     color:sortCol===col?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5,
     whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",background:T.bg,
     borderBottom:`1px solid ${T.border}`
-  };}
+  });
 
   return <div>
     <PageHdr title="Preventivi" subtitle={`${preventivi.length} preventivi totali`} action={<Btn icon="+" onClick={openNew}>Nuovo preventivo</Btn>}/>
@@ -1273,7 +1275,268 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
                       </div>
                     </td>
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:14,color:T.text}}>{fmtEur(r.totale)}</b></td>
-                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge p={r}/></td>
+                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge3 p={r}/></td>
+                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
+                      <div style={{display:"flex",gap:5,alignItems:"center"}}>
+                        {/* Accetta/Rifiuta solo se in_attesa e non fatturato */}
+                        {!hasFattura&&r.stato==="in_attesa"&&<>
+                          <Btn size="xs" variant="success" onClick={()=>cambia(r.id,"accettato")}>✓ Accetta</Btn>
+                          <Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗ Rifiuta</Btn>
+                        </>}
+                        {/* Riapri se accettato e non fatturato */}
+                        {!hasFattura&&r.stato==="accettato"&&
+                          <Btn size="xs" variant="secondary" onClick={()=>cambia(r.id,"in_attesa")}>← Riapri</Btn>
+                        }
+                        {/* Modifica */}
+                        {!hasFattura&&r.stato!=="accettato"&&
+                          <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
+                        }
+                        {/* Elimina — solo se rifiutato e non fatturato */}
+                        {!hasFattura&&r.stato==="rifiutato"&&
+                          <button onClick={()=>tryDelete(r)}
+                            style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+                            🗑️ Elimina
+                          </button>
+                        }
+                        {/* Bloccato se fatturato */}
+                        {hasFattura&&
+                          <span style={{fontSize:11.5,color:"#1D4ED8",padding:"4px 10px",background:"#EFF6FF",borderRadius:6,fontWeight:600}}>🔒 Fatturato</span>
+                        }
+                      </div>
+                    </td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+      }
+    </Card>
+
+    <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica preventivo":"Nuovo preventivo"} width={580}
+      footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea preventivo"}</Btn></>}>
+      <FSelect label="Paziente" required value={pazForm} onChange={e=>setPazForm(e.target.value)}>
+        <option value="">— Seleziona paziente —</option>
+        {pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}
+      </FSelect>
+      <div style={{background:T.bg,borderRadius:T.r,padding:14,marginBottom:14}}>
+        <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Aggiungi dal listino</div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <select style={{flex:2,minWidth:200,padding:"8px 10px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,background:"#fff",fontFamily:"inherit",color:T.text}}
+            value={addVoce.listinoId} onChange={e=>setAddVoce(v=>({...v,listinoId:e.target.value}))}>
+            <option value="">— Seleziona trattamento —</option>
+            {[...new Set(listino.map(l=>l.categoria))].map(cat=><optgroup key={cat} label={cat}>{listino.filter(l=>l.categoria===cat).map(l=><option key={l.id} value={l.id}>{l.nome} — {fmtEur(l.prezzo)}</option>)}</optgroup>)}
+          </select>
+          <input type="number" min="1" style={{width:60,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit",textAlign:"center"}} value={addVoce.qty} onChange={e=>setAddVoce(v=>({...v,qty:e.target.value}))} placeholder="Qty"/>
+          <Btn onClick={addV} icon="+">Aggiungi</Btn>
+        </div>
+      </div>
+      {voci.length>0&&<div style={{marginBottom:14,border:`1px solid ${T.border}`,borderRadius:T.r,overflow:"hidden"}}>
+        {voci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<voci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":T.bg}}>
+          <div style={{flex:1,fontSize:13,color:T.text,fontWeight:500}}>{v.nome}</div>
+          <span style={{fontSize:12,color:T.textSub}}>×{v.qty}</span>
+          <span style={{fontSize:13,fontWeight:700,color:T.text}}>{fmtEur(v.prezzo*v.qty)}</span>
+          <button onClick={()=>setVoci(vs=>vs.filter((_,idx)=>idx!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>✕</button>
+        </div>)}
+        <div style={{display:"flex",justifyContent:"flex-end",padding:"10px 14px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
+          <span style={{fontSize:16,fontWeight:700,color:T.text}}>Totale: {fmtEur(totale)}</span>
+        </div>
+      </div>}
+      <FTextarea label="Note" value={note} onChange={e=>setNote(e.target.value)} rows={2}/>
+    </Modal>
+  </div>;
+}<div style={{overflowX:"auto"}}>
+        {filtered.length===0?<div style={{textAlign:"center",padding:"50px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:10}}>📄</div><div style={{fontSize:14,color:T.textSub}}>Nessun preventivo</div></div>:
+        <table style={{width:"100%",borderCollapse:"collapse"}}>
+          <thead>
+            <tr style={{borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+              {[["paziente","Paziente"],["data","Data"],["","Trattamenti"],["totale","Totale"],["stato","Stato"],["","Azioni"]].map(([col,lbl],i)=>(
+                <th key={i} onClick={col?()=>toggleSort(col):undefined}
+                  style={{padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,color:sortCol===col?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap",cursor:col?"pointer":"default",userSelect:"none"}}>
+                  {lbl}{col&&sortIcon(col)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r)=>{
+              const hasFattura=prevConFattura.has(r.id);
+              return <tr key={r.id} style={{borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
+                onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                <td style={{padding:"12px 16px"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <Av name={getPaz(r.pazienteId)} size={30} fs={10}/>
+                    <span style={{fontWeight:600,color:T.text}}>{getPaz(r.pazienteId)}</span>
+                  </div>
+                </td>
+                <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{fmtDate(r.data)}</td>
+                <td style={{padding:"12px 16px"}}>
+                  <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                    {r.voci.slice(0,2).map((v,i)=><span key={i} style={{fontSize:11,background:T.brandLight,color:T.brandDark,padding:"2px 7px",borderRadius:20}}>{v.nome}</span>)}
+                    {r.voci.length>2&&<span style={{fontSize:11,color:T.textMuted}}>+{r.voci.length-2}</span>}
+                  </div>
+                </td>
+                <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:14,color:T.text}}>{fmtEur(r.totale)}</b></td>
+                <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge prev={r}/></td>
+                <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
+                  <div style={{display:"flex",gap:4}}>
+                    {!hasFattura&&r.stato==="in_attesa"&&<>
+                      <Btn size="xs" variant="success" onClick={()=>cambia(r.id,"accettato")}>✓ Accetta</Btn>
+                      <Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗</Btn>
+                    </>}
+                    {!hasFattura&&r.stato==="accettato"&&<Btn size="xs" variant="secondary" onClick={()=>cambia(r.id,"in_attesa")}>← Riapri</Btn>}
+                    {hasFattura
+                      ? <span style={{fontSize:11,color:"#1D4ED8",padding:"4px 8px",background:"#EFF6FF",borderRadius:6,fontWeight:600}}>🔒 Bloccato</span>
+                      : <><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
+                         <Btn size="xs" variant="ghost" onClick={()=>tryDelete(r)}>🗑️</Btn></>
+                    }
+                  </div>
+                </td>
+              </tr>;
+            })}
+          </tbody>
+        </table>}
+      </div>entiviView({preventivi, setPreventivi, pazienti, listino, fatture}) {
+  const [filter, setFilter]=useState("tutti");
+  const [search, setSearch]=useState("");
+  const [sortCol, setSortCol]=useState("data");
+  const [sortAsc, setSortAsc]=useState(false);
+  const [modal, setModal]=useState(false);
+  const [editId, setEditId]=useState(null);
+  const [pazForm, setPazForm]=useState("");
+  const [voci, setVoci]=useState([]);
+  const [note, setNote]=useState("");
+  const [addVoce, setAddVoce]=useState({listinoId:"",qty:1});
+
+  const prevConFattura = useMemo(()=>{
+    return new Set(fatture.map(f=>Number(f.preventivoId)).filter(Boolean));
+  },[fatture]);
+
+  function toggleSort(col){ if(sortCol===col)setSortAsc(a=>!a); else{setSortCol(col);setSortAsc(true);} }
+  function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
+
+  const filtered=useMemo(()=>{
+    let res=preventivi;
+    if(filter!=="tutti") res=res.filter(p=>p.stato===filter);
+    if(search){
+      const q=search.toLowerCase();
+      res=res.filter(p=>{const paz=pazienti.find(x=>x.id===p.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q);});
+    }
+    res=[...res].sort((a,b)=>{
+      let va,vb;
+      if(sortCol==="paziente"){const pa=pazienti.find(x=>x.id===a.pazienteId),pb=pazienti.find(x=>x.id===b.pazienteId);va=pa?.cognome||"";vb=pb?.cognome||"";}
+      else if(sortCol==="data"){va=a.data||"";vb=b.data||"";}
+      else if(sortCol==="totale"){return sortAsc?(a.totale-b.totale):(b.totale-a.totale);}
+      else if(sortCol==="stato"){va=a.stato||"";vb=b.stato||"";}
+      else{va=a.data||"";vb=b.data||"";}
+      return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    });
+    return res;
+  },[preventivi,filter,search,pazienti,sortCol,sortAsc]);
+
+  function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
+
+  function openNew(){setPazForm("");setVoci([]);setNote("");setEditId(null);setModal(true);}
+
+  function openEdit(p){
+    if(prevConFattura.has(p.id)){alert("⚠️ Fattura già emessa.\nQuesto preventivo non è modificabile.");return;}
+    if(p.stato==="accettato"){alert("⚠️ Il preventivo è già stato accettato.\nPer modificarlo devi prima riaprirlo.");return;}
+    setPazForm(String(p.pazienteId));setVoci(p.voci);setNote(p.note||"");setEditId(p.id);setModal(true);
+  }
+
+  function tryDelete(p){
+    if(prevConFattura.has(p.id)){alert("⚠️ Fattura già emessa.\nQuesto preventivo non è eliminabile.");return;}
+    if(p.stato==="accettato"){alert("⚠️ Non puoi eliminare un preventivo accettato.\nRifiutalo prima.");return;}
+    if(p.stato==="in_attesa"){alert("⚠️ Non puoi eliminare un preventivo in attesa.\nRifiutalo prima.");return;}
+    if(confirm(`Eliminare il preventivo di ${getPaz(p.pazienteId)}?`)){
+      setPreventivi(prev=>prev.filter(x=>x.id!==p.id));
+    }
+  }
+
+  function addV(){
+    if(!addVoce.listinoId)return;
+    const item=listino.find(l=>l.id===Number(addVoce.listinoId));
+    if(!item)return;
+    setVoci(v=>[...v,{listinoId:item.id,nome:item.nome,prezzo:item.prezzo,qty:Number(addVoce.qty)||1}]);
+    setAddVoce({listinoId:"",qty:1});
+  }
+
+  const totale=voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+
+  function save(){
+    if(!pazForm)return alert("Seleziona un paziente");
+    if(!voci.length)return alert("Aggiungi almeno una voce");
+    const prev={pazienteId:Number(pazForm),data:todayISO(),voci,totale,stato:"in_attesa",note};
+    if(editId) setPreventivi(p=>p.map(x=>x.id===editId?{...prev,id:editId}:x));
+    else setPreventivi(p=>[...p,{...prev,id:uid()}]);
+    setModal(false);
+  }
+
+  function cambia(id,stato){setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));}
+
+  function StatoBadge2({p}){
+    if(prevConFattura.has(p.id)) return <span style={{display:"inline-flex",alignItems:"center",gap:4,padding:"3px 10px",borderRadius:20,fontSize:11.5,fontWeight:700,background:"#EFF6FF",color:"#1D4ED8"}}>🧾 Fatturato</span>;
+    const bs=BADGE[p.stato]||{};
+    return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:bs.bg,color:bs.color}}><span style={{width:5,height:5,borderRadius:"50%",background:bs.dot}}/>{p.stato.replace("_"," ")}</span>;
+  }
+
+  const ttabs=[
+    {id:"tutti",label:"Tutti",count:preventivi.length},
+    {id:"in_attesa",label:"In attesa",count:preventivi.filter(p=>p.stato==="in_attesa").length},
+    {id:"accettato",label:"Accettati",count:preventivi.filter(p=>p.stato==="accettato").length},
+    {id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").length},
+  ];
+
+  const thStyle=(col)=>({
+    padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,
+    color:sortCol===col?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5,
+    whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",background:T.bg,
+    borderBottom:`1px solid ${T.border}`
+  });
+
+  return <div>
+    <PageHdr title="Preventivi" subtitle={`${preventivi.length} preventivi totali`} action={<Btn icon="+" onClick={openNew}>Nuovo preventivo</Btn>}/>
+    <Card p={0}>
+      <div style={{padding:"14px 20px",borderBottom:`1px solid ${T.border}`}}>
+        <Tabs tabs={ttabs} active={filter} onChange={setFilter}/>
+        <SBar value={search} onChange={setSearch} placeholder="Cerca per paziente..."/>
+      </div>
+
+      {filtered.length===0
+        ? <div style={{textAlign:"center",padding:"50px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:10}}>📄</div><div style={{fontSize:14,color:T.textSub}}>Nessun preventivo</div></div>
+        : <div style={{overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr>
+                  <th style={thStyle("paziente")} onClick={()=>toggleSort("paziente")}>Paziente{sortIcon("paziente")}</th>
+                  <th style={thStyle("data")} onClick={()=>toggleSort("data")}>Data{sortIcon("data")}</th>
+                  <th style={{...thStyle(""),cursor:"default"}}>Trattamenti</th>
+                  <th style={thStyle("totale")} onClick={()=>toggleSort("totale")}>Totale{sortIcon("totale")}</th>
+                  <th style={thStyle("stato")} onClick={()=>toggleSort("stato")}>Stato{sortIcon("stato")}</th>
+                  <th style={{...thStyle(""),cursor:"default"}}>Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((r,i)=>{
+                  const hasFattura=prevConFattura.has(r.id);
+                  return <tr key={r.id} style={{borderBottom:`1px solid ${T.border}`}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{padding:"12px 16px"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <Av name={getPaz(r.pazienteId)} size={30} fs={10}/>
+                        <span style={{fontWeight:600,fontSize:13,color:T.text}}>{getPaz(r.pazienteId)}</span>
+                      </div>
+                    </td>
+                    <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{fmtDate(r.data)}</td>
+                    <td style={{padding:"12px 16px"}}>
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {r.voci.slice(0,2).map((v,i)=><span key={i} style={{fontSize:11,background:T.brandLight,color:T.brandDark,padding:"2px 7px",borderRadius:20}}>{v.nome}</span>)}
+                        {r.voci.length>2&&<span style={{fontSize:11,color:T.textMuted}}>+{r.voci.length-2}</span>}
+                      </div>
+                    </td>
+                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:14,color:T.text}}>{fmtEur(r.totale)}</b></td>
+                    <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge2 p={r}/></td>
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                       <div style={{display:"flex",gap:5,alignItems:"center"}}>
                         {/* Accetta/Rifiuta solo se in_attesa e non fatturato */}
@@ -1383,7 +1646,18 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   function nextN(){return `${new Date().getFullYear()}/${String(fatture.length+1).padStart(3,"0")}`;}
   function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setEditId(null);setModal(true);}
   function openEdit(f){setForm(f);setEditId(f.id);setModal(true);}
-  function loadPrev(prevId){const prev=preventivi.find(p=>p.id===Number(prevId));if(!prev)return;setForm(f=>({...f,preventivoId:Number(prevId),pazienteId:String(prev.pazienteId),voci:[...prev.voci]}));}
+  function loadPrev(prevId){
+    if(!prevId) { setForm(f=>({...f,preventivoId:'',voci:[]})); return; }
+    const prev=preventivi.find(p=>p.id===Number(prevId));
+    if(!prev) return;
+    if(prev.stato!=='accettato'){
+      alert('⚠️ Devi prima accettare il preventivo prima di emettere la fattura.
+Vai nella sezione Preventivi e imposta lo stato su 'Accettato'.');
+      setForm(f=>({...f,preventivoId:''}));
+      return;
+    }
+    setForm(f=>({...f,preventivoId:Number(prevId),pazienteId:String(prev.pazienteId),voci:[...prev.voci]}));
+  }
   function addV(){if(!addVoce.nome||!addVoce.prezzo)return;setForm(f=>({...f,voci:[...f.voci,{nome:addVoce.nome,prezzo:Number(addVoce.prezzo)||0,qty:Number(addVoce.qty)||1}]}));setAddVoce({nome:"",prezzo:"",qty:1});}
   const totale=form.voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
   function save(){
@@ -1564,7 +1838,18 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica fattura":"Nuova fattura"} width={560}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
       <Grid2><FSelect label="Paziente" required value={form.pazienteId} onChange={e=>{ff("pazienteId")(e.target.value);setForm(f=>({...f,preventivoId:"",voci:[]}));}}><option value="">— Seleziona —</option>{pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}</FSelect><FInput label="Data" type="date" value={form.data} onChange={ff("data")}/></Grid2>
-      <FSelect label={form.pazienteId?`📋 Preventivi accettati di ${getPaz(Number(form.pazienteId))}`:"📋 Seleziona prima il paziente per vedere i preventivi"} value={form.preventivoId} onChange={e=>{ff("preventivoId")(e.target.value);if(e.target.value)loadPrev(e.target.value);}}><option value="">— Nessuno —</option>{preventivi.filter(p=>p.stato==="accettato"&&Number(p.pazienteId)===Number(form.pazienteId)&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))).map(p=><option key={p.id} value={p.id}>{fmtDate(p.data)} · {fmtEur(p.totale)} — {p.voci.map(v=>v.nome).join(", ").slice(0,50)}</option>)}</FSelect>
+      <div style={{marginBottom:14}}>
+        <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5}}>
+          Importa da preventivo accettato{form.pazienteId?" — "+getPaz(Number(form.pazienteId)):""} <span style={{fontWeight:400,color:T.textMuted}}>(opzionale)</span>
+        </label>
+        <select value={form.preventivoId||""} onChange={e=>{ff("preventivoId")(e.target.value);loadPrev(e.target.value);}}
+          style={{width:"100%",padding:"9px 12px",fontSize:13,color:T.text,background:T.surface,border:"1.5px solid "+T.border,borderRadius:T.r,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}>
+          <option value="">— Nessun preventivo —</option>
+          {preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))&&(form.pazienteId===""||Number(p.pazienteId)===Number(form.pazienteId))).map(p=><option key={p.id} value={p.id}>Prev. {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}
+        </select>
+        {form.pazienteId&&preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))&&Number(p.pazienteId)===Number(form.pazienteId)).length===0&&
+          <p style={{margin:"5px 0 0",fontSize:12,color:T.warning}}>⚠️ Nessun preventivo accettato per questo paziente. Vai nei Preventivi e imposta lo stato su Accettato.</p>}
+      </div>
       <Grid2><FSelect label="Metodo pagamento" value={form.metodoPagamento} onChange={ff("metodoPagamento")}>{["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}</FSelect><FSelect label="Stato" value={form.statoPagamento} onChange={ff("statoPagamento")}><option value="non_pagato">Non pagato</option><option value="parziale">Parziale</option><option value="pagato">Pagato</option></FSelect></Grid2>
       <div style={{background:T.bg,borderRadius:T.r,padding:14,marginBottom:14}}>
         <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Aggiungi voce</div>
