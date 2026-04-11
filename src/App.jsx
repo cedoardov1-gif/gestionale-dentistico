@@ -1415,8 +1415,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     const prev=preventivi.find(p=>p.id===Number(prevId));
     if(!prev) return;
     if(prev.stato!=='accettato'){
-      alert('⚠️ Devi prima accettare il preventivo prima di emettere la fattura.
-Vai nella sezione Preventivi e imposta lo stato su 'Accettato'.');
+      alert('⚠️ Devi prima accettare il preventivo.\nVai nei Preventivi e imposta lo stato su Accettato.');
       setForm(f=>({...f,preventivoId:''}));
       return;
     }
