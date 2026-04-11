@@ -323,3 +323,17 @@ select:focus-visible {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Print styles for documenti ──────────────────────── */
+@media print {
+  body * { visibility: hidden; }
+  #documento-stampa, #documento-stampa * { visibility: visible; }
+  #documento-stampa {
+    position: fixed !important;
+    left: 0; top: 0;
+    width: 100%;
+    padding: 20mm 25mm !important;
+    font-size: 11pt !important;
+  }
+  .no-print { display: none !important; }
+}

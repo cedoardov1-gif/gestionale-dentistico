@@ -793,6 +793,397 @@ function Odontogramma({denti={}, setDenti, readOnly=false}) {
   );
 }
 
+/* ══════════════════════════════════════════════
+   DOCUMENTI TAB — template documenti legali
+══════════════════════════════════════════════ */
+
+const TEMPLATES_DOCUMENTI = [
+  {
+    id: "consenso_privacy",
+    label: "Consenso al trattamento dei dati personali",
+    categoria: "Privacy & GDPR",
+    icona: "🔒",
+    genera: (paz) => ({
+      titolo: "INFORMATIVA E CONSENSO AL TRATTAMENTO DEI DATI PERSONALI",
+      sottotitolo: "Ai sensi del Regolamento UE 2016/679 (GDPR) e del D.Lgs. 196/2003",
+      sezioni: [
+        {
+          titolo: "TITOLARE DEL TRATTAMENTO",
+          testo: "Studio Dentistico Sardo
+Cagliari (CA)
+Tel: — · Email: —"
+        },
+        {
+          titolo: "FINALITÀ DEL TRATTAMENTO",
+          testo: "I dati personali e sanitari da Lei forniti vengono trattati esclusivamente per:
+• Erogazione delle prestazioni sanitarie richieste
+• Adempimento di obblighi di legge in materia sanitaria e fiscale
+• Gestione amministrativa e contabile del rapporto
+• Invio di comunicazioni relative agli appuntamenti"
+        },
+        {
+          titolo: "BASE GIURIDICA",
+          testo: "Il trattamento è fondato sul consenso esplicito dell'interessato (art. 6, par. 1, lett. a e art. 9, par. 2, lett. a del GDPR) e sull'esecuzione del contratto di prestazione professionale."
+        },
+        {
+          titolo: "CONSERVAZIONE DEI DATI",
+          testo: "I dati sanitari vengono conservati per un periodo di 10 anni dalla data dell'ultima prestazione, salvo diversi obblighi di legge."
+        },
+        {
+          titolo: "DIRITTI DELL'INTERESSATO",
+          testo: "Lei ha diritto di: accedere ai propri dati, rettificarli, cancellarli (nei limiti di legge), limitarne il trattamento, opporsi al trattamento, richiedere la portabilità. Può esercitare tali diritti scrivendo al Titolare del trattamento."
+        },
+      ],
+      firmaLabel: "Il/La sottoscritto/a",
+      paziente: paz
+    })
+  },
+  {
+    id: "consenso_trattamento_canalare",
+    label: "Consenso informato al trattamento canalare (endodonzia)",
+    categoria: "Consensi Clinici",
+    icona: "🦷",
+    genera: (paz) => ({
+      titolo: "CONSENSO INFORMATO AL TRATTAMENTO ENDODONTICO",
+      sottotitolo: "Devitalizzazione / Terapia canalare",
+      sezioni: [
+        {
+          titolo: "DESCRIZIONE DEL TRATTAMENTO",
+          testo: "Il trattamento endodontico (comunemente detto 'devitalizzazione') consiste nella rimozione della polpa dentale (nervo), nella sagomatura e disinfezione dei canali radicolari e nella loro otturazione con materiale biocompatibile."
+        },
+        {
+          titolo: "INDICAZIONI",
+          testo: "Il trattamento è indicato in caso di:
+• Polpite irreversibile (dolore spontaneo persistente)
+• Necrosi pulpare con o senza lesione periapicale
+• Necessità di riabilitazione protesica su dente vitale
+• Trauma dentale con interessamento pulpare"
+        },
+        {
+          titolo: "RISCHI E COMPLICANZE POSSIBILI",
+          testo: "• Rottura strumentale nel canale (rara ma possibile)
+• Perforazione radicolare (eccezionale)
+• Insuccesso terapeutico con necessità di ritrattamento o estrazione
+• Dolore post-operatorio nelle prime 48-72 ore
+• Gonfiore transitorio dei tessuti circostanti
+• Frattura del dente devitalizzato (ridurre con corona protesica)"
+        },
+        {
+          titolo: "ALTERNATIVE TERAPEUTICHE",
+          testo: "L'alternativa principale è l'estrazione del dente seguita da riabilitazione (impianto, ponte o protesi mobile). Il paziente è libero di scegliere l'alternativa preferita dopo adeguata informazione."
+        },
+        {
+          titolo: "COMPORTAMENTO POST-OPERATORIO",
+          testo: "Evitare cibi duri fino al completamento della riabilitazione. Assumere antidolorifici solo se prescritti. Contattare lo studio in caso di dolore severo, gonfiore o fuoriuscita di liquidi."
+        },
+      ],
+      firmaLabel: "Il/La sottoscritto/a",
+      paziente: paz
+    })
+  },
+  {
+    id: "consenso_estrazione",
+    label: "Consenso informato all'estrazione dentaria",
+    categoria: "Consensi Clinici",
+    icona: "🦷",
+    genera: (paz) => ({
+      titolo: "CONSENSO INFORMATO ALL'ESTRAZIONE DENTARIA",
+      sottotitolo: "Chirurgia estrattiva",
+      sezioni: [
+        {
+          titolo: "DESCRIZIONE DEL TRATTAMENTO",
+          testo: "L'estrazione dentaria è una procedura chirurgica che consiste nella rimozione di un dente dalla sua sede alveolare, eseguita in anestesia locale."
+        },
+        {
+          titolo: "RISCHI E COMPLICANZE POSSIBILI",
+          testo: "• Dolore e gonfiore post-operatorio (normale nelle prime 48-72h)
+• Sanguinamento prolungato
+• Trisma (limitazione dell'apertura della bocca)
+• Alveolite secca (rara, trattabile)
+• Lesioni ai denti adiacenti
+• Comunicazione oro-sinusale (denti del mascellare)
+• Parestesia temporanea del nervo (denti del mandibolare)"
+        },
+        {
+          titolo: "ISTRUZIONI POST-OPERATORIE",
+          testo: "• Mordere la garza per 30 minuti dopo l'estrazione
+• Non sciacquare la bocca nelle prime 24 ore
+• Applicare ghiaccio esternamente nelle prime 6 ore
+• Non fumare per almeno 48 ore
+• Assumere gli antidolorifici prescritti
+• Alimentazione liquida e fredda nelle prime 24 ore"
+        },
+      ],
+      firmaLabel: "Il/La sottoscritto/a",
+      paziente: paz
+    })
+  },
+  {
+    id: "consenso_impianto",
+    label: "Consenso informato all'implantologia",
+    categoria: "Consensi Clinici",
+    icona: "🔩",
+    genera: (paz) => ({
+      titolo: "CONSENSO INFORMATO AL TRATTAMENTO IMPLANTARE",
+      sottotitolo: "Implantologia osteointegrata",
+      sezioni: [
+        {
+          titolo: "DESCRIZIONE DEL TRATTAMENTO",
+          testo: "L'implantologia consiste nell'inserimento chirurgico di una vite in titanio nell'osso mascellare o mandibolare, che fungerà da radice artificiale per il successivo restauro protesico."
+        },
+        {
+          titolo: "RISCHI E COMPLICANZE",
+          testo: "• Mancata osteointegrazione (3-5% dei casi)
+• Infezione peri-implantare (peri-implantite)
+• Lesione dei nervi alveolari (parestesia)
+• Comunicazione con il seno mascellare
+• Rottura dell'impianto (eccezionale)
+• Necessità di rimozione e reimpianto"
+        },
+        {
+          titolo: "CONTROINDICAZIONI",
+          testo: "Il paziente dichiara di NON essere affetto da: diabete scompensato, osteoporosi grave, terapie con bifosfonati, radioterapia cervico-facciale, immuno-soppressione grave, fumo pesante (>20 sigarette/die)."
+        },
+      ],
+      firmaLabel: "Il/La sottoscritto/a",
+      paziente: paz
+    })
+  }
+];
+
+function DocumentiTab({paziente}) {
+  const [docSelezionato, setDocSelezionato] = useState(null);
+  const [showSelector, setShowSelector] = useState(false);
+  const [documentiEmessi, setDocumentiEmessi] = useState([]);
+  const [preview, setPreview] = useState(null);
+
+  const oggi = new Date().toLocaleDateString("it-IT", {day:"2-digit",month:"long",year:"numeric"});
+  const eta = paziente.dataNascita
+    ? Math.floor((new Date()-new Date(paziente.dataNascita))/(365.25*24*60*60*1000))
+    : null;
+
+  function generaEStampa(template) {
+    const doc = template.genera(paziente);
+    setPreview(doc);
+  }
+
+  function stampa() {
+    window.print();
+  }
+
+  function salvaDoc(template) {
+    const nuovoDoc = {
+      id: Date.now(),
+      templateId: template.id,
+      label: template.label,
+      data: new Date().toISOString().slice(0,10),
+      pazienteId: paziente.id
+    };
+    setDocumentiEmessi(d=>[...d,nuovoDoc]);
+    setShowSelector(false);
+  }
+
+  const byCategoria = TEMPLATES_DOCUMENTI.reduce((acc,t)=>{
+    if(!acc[t.categoria]) acc[t.categoria]=[];
+    acc[t.categoria].push(t);
+    return acc;
+  },{});
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:13,color:T.textSub}}>{documentiEmessi.length} documenti generati</div>
+        <button onClick={()=>setShowSelector(!showSelector)}
+          style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:T.brand,
+            color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+            display:"flex",alignItems:"center",gap:6}}>
+          + Nuovo documento
+        </button>
+      </div>
+
+      {/* Selettore documenti */}
+      {showSelector&&<div style={{background:"#fff",border:`1.5px solid ${T.border}`,borderRadius:T.rLg,
+        padding:16,marginBottom:16,boxShadow:T.shadowMd}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:12}}>Seleziona il documento da generare</div>
+        {Object.entries(byCategoria).map(([cat,templates])=>(
+          <div key={cat} style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",
+              letterSpacing:0.5,marginBottom:8}}>{cat}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {templates.map(t=>(
+                <div key={t.id} onClick={()=>{generaEStampa(t);salvaDoc(t);}}
+                  style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",
+                    borderRadius:T.r,border:`1px solid ${T.border}`,cursor:"pointer",
+                    background:T.bg,transition:"all 0.12s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.borderColor=T.brand;e.currentTarget.style.background=T.brandLight;}}
+                  onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.bg;}}>
+                  <span style={{fontSize:22}}>{t.icona}</span>
+                  <span style={{fontSize:13,fontWeight:500,color:T.text}}>{t.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <button onClick={()=>setShowSelector(false)}
+          style={{marginTop:4,padding:"7px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,
+            backgroundColor:"#fff",color:T.textSub,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+          Annulla
+        </button>
+      </div>}
+
+      {/* Lista documenti emessi */}
+      {documentiEmessi.length===0&&!showSelector&&(
+        <div style={{textAlign:"center",padding:"40px 20px",color:T.textMuted,
+          border:`1px dashed ${T.border}`,borderRadius:T.rLg}}>
+          <div style={{fontSize:36,marginBottom:10}}>📄</div>
+          <div style={{fontSize:14,fontWeight:600,color:T.textSub}}>Nessun documento generato</div>
+          <div style={{fontSize:12,marginTop:4}}>Clicca "Nuovo documento" per generare consensi e moduli</div>
+        </div>
+      )}
+      {documentiEmessi.map((d,i)=>(
+        <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",
+          background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8}}>
+          <span style={{fontSize:20}}>📄</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{d.label}</div>
+            <div style={{fontSize:12,color:T.textSub,marginTop:2}}>Generato il {fmtDate(d.data)}</div>
+          </div>
+          <button onClick={()=>{
+            const t=TEMPLATES_DOCUMENTI.find(x=>x.id===d.templateId);
+            if(t) generaEStampa(t);
+          }} style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,
+            backgroundColor:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,
+            cursor:"pointer",fontFamily:"inherit"}}>
+            🖨️ Visualizza
+          </button>
+          <button onClick={()=>setDocumentiEmessi(ds=>ds.filter(x=>x.id!==d.id))}
+            style={{padding:"6px 12px",borderRadius:T.r,border:"1px solid #FECACA",
+              backgroundColor:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,
+              cursor:"pointer",fontFamily:"inherit"}}>
+            🗑
+          </button>
+        </div>
+      ))}
+
+      {/* Preview / Stampa documento */}
+      {preview&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",
+          display:"flex",alignItems:"flex-start",justifyContent:"center",
+          zIndex:1000,padding:"20px",overflowY:"auto"}}>
+          <div style={{background:"#fff",borderRadius:T.rLg,maxWidth:760,width:"100%",
+            boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+            {/* Toolbar */}
+            <div className="no-print" style={{display:"flex",justifyContent:"space-between",
+              alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,
+              background:T.bg,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}>
+              <div style={{fontSize:14,fontWeight:700,color:T.text}}>Anteprima documento</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={stampa}
+                  style={{padding:"8px 18px",borderRadius:T.r,border:"none",
+                    backgroundColor:T.brand,color:"#fff",fontSize:13,fontWeight:700,
+                    cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+                  🖨️ Stampa / Salva PDF
+                </button>
+                <button onClick={()=>setPreview(null)}
+                  style={{padding:"8px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,
+                    backgroundColor:"#fff",color:T.textSub,fontSize:13,fontWeight:600,
+                    cursor:"pointer",fontFamily:"inherit"}}>
+                  ✕ Chiudi
+                </button>
+              </div>
+            </div>
+
+            {/* Documento */}
+            <div id="documento-stampa" style={{padding:"40px 50px",fontFamily:"Georgia, serif",
+              fontSize:11.5,lineHeight:1.7,color:"#1a1a1a"}}>
+              {/* Intestazione studio */}
+              <div style={{textAlign:"center",marginBottom:28,paddingBottom:16,
+                borderBottom:"2px solid #1a1a1a"}}>
+                <div style={{fontSize:18,fontWeight:700,letterSpacing:1,marginBottom:4}}>
+                  STUDIO DENTISTICO SARDO
+                </div>
+                <div style={{fontSize:11,color:"#555"}}>
+                  Via — · Cagliari (CA) · Tel: — · Email: —
+                </div>
+              </div>
+
+              {/* Titolo documento */}
+              <div style={{textAlign:"center",marginBottom:24}}>
+                <div style={{fontSize:15,fontWeight:700,textTransform:"uppercase",
+                  letterSpacing:0.5,marginBottom:6}}>{preview.titolo}</div>
+                <div style={{fontSize:11,color:"#555",fontStyle:"italic"}}>{preview.sottotitolo}</div>
+              </div>
+
+              {/* Dati paziente */}
+              <div style={{background:"#f5f5f5",padding:"14px 18px",borderRadius:6,
+                marginBottom:22,border:"1px solid #ddd"}}>
+                <div style={{fontSize:12,fontWeight:700,marginBottom:8,textTransform:"uppercase",
+                  letterSpacing:0.5}}>Dati del paziente</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 20px",fontSize:11.5}}>
+                  <div><b>Cognome e Nome:</b> {paziente.cognome} {paziente.nome}</div>
+                  <div><b>Data di nascita:</b> {fmtDate(paziente.dataNascita)||"—"}</div>
+                  <div><b>Codice Fiscale:</b> {paziente.codiceFiscale||"—"}</div>
+                  <div><b>Indirizzo:</b> {paziente.indirizzo||"—"}</div>
+                  {eta&&<div><b>Età:</b> {eta} anni</div>}
+                  <div><b>Telefono:</b> {paziente.telefono||"—"}</div>
+                </div>
+              </div>
+
+              {/* Sezioni documento */}
+              {preview.sezioni.map((s,i)=>(
+                <div key={i} style={{marginBottom:16}}>
+                  <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",
+                    letterSpacing:0.4,marginBottom:6,color:"#1a1a1a",
+                    borderBottom:"1px solid #ccc",paddingBottom:4}}>
+                    {i+1}. {s.titolo}
+                  </div>
+                  <div style={{fontSize:11.5,color:"#333",whiteSpace:"pre-line",
+                    lineHeight:1.7}}>{s.testo}</div>
+                </div>
+              ))}
+
+              {/* Firma */}
+              <div style={{marginTop:36,paddingTop:20,borderTop:"1px solid #ccc"}}>
+                <div style={{fontSize:11.5,marginBottom:20}}>
+                  {preview.firmaLabel} <b>{paziente.cognome} {paziente.nome}</b>,
+                  nato/a il {fmtDate(paziente.dataNascita)||"—"},
+                  dichiara di aver letto e compreso le informazioni riportate nel presente documento
+                  e presta il proprio consenso consapevole.
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:30,marginTop:30}}>
+                  <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>
+                    Luogo e data<br/>
+                    <span style={{fontSize:11.5}}>Cagliari, {oggi}</span>
+                  </div>
+                  <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>
+                    Firma del paziente<br/>
+                    <span style={{fontSize:24,color:"#ccc"}}>________________________</span>
+                  </div>
+                </div>
+                <div style={{marginTop:20,display:"grid",gridTemplateColumns:"1fr 1fr",gap:30}}>
+                  <div/>
+                  <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>
+                    Timbro e firma del professionista<br/>
+                    <span style={{fontSize:40,color:"#ccc"}}>_________________</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div style={{marginTop:30,paddingTop:10,borderTop:"1px solid #eee",
+                textAlign:"center",fontSize:10,color:"#888"}}>
+                Documento generato il {oggi} · Studio Dentistico Sardo · Cagliari
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
@@ -923,7 +1314,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
 
           {/* Tabs */}
           <div style={{display:"flex",gap:0,overflowX:"auto"}}>
-            {[{id:"overview",label:"Overview"},{id:"dentale",label:"🦷 Dentale"},{id:"preventivi",label:"Preventivi",count:pPrev.length},{id:"fatture",label:"Fatture",count:pFatt.length},{id:"clinica",label:"Dati Clinici"}].map(t=>(
+            {[{id:"overview",label:"Overview"},{id:"dentale",label:"🦷 Dentale"},{id:"preventivi",label:"Preventivi",count:pPrev.length},{id:"fatture",label:"Fatture",count:pFatt.length},{id:"clinica",label:"Dati Clinici"},{id:"documenti",label:"📄 Documenti"}].map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
                 style={{padding:"11px 18px",fontSize:13.5,fontWeight:tab===t.id?600:400,border:"none",background:"none",cursor:"pointer",
                   color:tab===t.id?T.brand:T.textSub,borderBottom:tab===t.id?`2px solid ${T.brand}`:"2px solid transparent",
@@ -1089,6 +1480,9 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
                 style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
             </div>
           </div>}
+
+          {/* DOCUMENTI */}
+          {tab==="documenti"&&<DocumentiTab paziente={pd}/>}
         </div>
       </div>
 
