@@ -209,7 +209,7 @@ function Card({children, style={}, p=20}) {
 
 function Btn({children, onClick, variant="primary", size="md", icon, disabled=false, style={}, full=false}) {
   const sz = {xs:{p:"4px 10px",fs:11},sm:{p:"6px 12px",fs:12},md:{p:"8px 16px",fs:13},lg:{p:"10px 20px",fs:14}}[size];
-  const v = {primary:{backgroundColor:T.brand,color:"#fff",border:"none"},secondary:{backgroundColor:"#F3F4F6",color:T.text,border:},ghost:{backgroundColor:"transparent",color:T.brand,border:"none"},danger:{backgroundColor:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"},success:{backgroundColor:"#ECFDF5",color:"#059669",border:"1px solid #A7F3D0"}}[variant]||{backgroundColor:T.brand,color:"#fff",border:"none"};
+  const v = {primary:{backgroundColor:T.brand,color:"#fff",border:"none"},secondary:{backgroundColor:"#F3F4F6",color:T.text,border:`1px solid ${T.border}`},ghost:{backgroundColor:"transparent",color:T.brand,border:"none"},danger:{backgroundColor:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"},success:{backgroundColor:"#ECFDF5",color:"#059669",border:"1px solid #A7F3D0"}}[variant]||{backgroundColor:T.brand,color:"#fff",border:"none"};
     const v = variants[variant] || variants.primary;
   const baseStyle = {
     display:"inline-flex",
