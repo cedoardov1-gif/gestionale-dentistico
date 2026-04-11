@@ -209,7 +209,14 @@ function Card({children, style={}, p=20}) {
 
 function Btn({children, onClick, variant="primary", size="md", icon, disabled=false, style={}, full=false}) {
   const sz = {xs:{p:"4px 10px",fs:11},sm:{p:"6px 12px",fs:12},md:{p:"8px 16px",fs:13},lg:{p:"10px 20px",fs:14}}[size];
-  const v = {primary:{backgroundColor:T.brand,color:"#fff",border:"none"},secondary:{backgroundColor:"#F3F4F6",color:T.text,border:`1px solid ${T.border}`},ghost:{backgroundColor:"transparent",color:T.brand,border:"none"},danger:{backgroundColor:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"},success:{backgroundColor:"#ECFDF5",color:"#059669",border:"1px solid #A7F3D0"}}[variant]||{backgroundColor:T.brand,color:"#fff",border:"none"};
+  const variants = {
+    primary:{backgroundColor:T.brand,color:"#fff",border:"none"},
+    secondary:{backgroundColor:"#F3F4F6",color:T.text,border:`1px solid ${T.border}`},
+    ghost:{backgroundColor:"transparent",color:T.brand,border:"none"},
+    danger:{backgroundColor:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"},
+    success:{backgroundColor:"#ECFDF5",color:"#059669",border:"1px solid #A7F3D0"},
+  };
+  const v = variants[variant] || variants.primary;
   const baseStyle = {
     display:"inline-flex",
     alignItems:"center",
@@ -1170,6 +1177,8 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
   const [voci, setVoci]=useState([]);
   const [note, setNote]=useState("");
   const [addVoce, setAddVoce]=useState({listinoId:"",qty:1});
+  const [scontoAttivo, setScontoAttivo]=useState(false);
+  const [scontoValore, setScontoValore]=useState("");
 
   const prevConFattura = useMemo(()=>{
     return new Set(fatture.map(f=>Number(f.preventivoId)).filter(Boolean));
@@ -1199,12 +1208,14 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
 
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
 
-  function openNew(){setPazForm("");setVoci([]);setNote("");setEditId(null);setModal(true);}
+  function openNew(){setPazForm("");setVoci([]);setNote("");setScontoAttivo(false);setScontoValore("");setEditId(null);setModal(true);}
 
   function openEdit(p){
     if(prevConFattura.has(p.id)){alert("⚠️ Fattura già emessa.\nQuesto preventivo non è modificabile.");return;}
     if(p.stato==="accettato"){alert("⚠️ Il preventivo è già stato accettato.\nPer modificarlo devi prima riaprirlo.");return;}
-    setPazForm(String(p.pazienteId));setVoci(p.voci);setNote(p.note||"");setEditId(p.id);setModal(true);
+    setPazForm(String(p.pazienteId));setVoci(p.voci);setNote(p.note||"");
+    const sc=p.sconto||0;setScontoAttivo(sc>0);setScontoValore(sc>0?String(sc):"");
+    setEditId(p.id);setModal(true);
   }
 
   function tryDelete(p){
@@ -1224,12 +1235,14 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
     setAddVoce({listinoId:"",qty:1});
   }
 
-  const totale=voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+  const totalelordo=voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+  const scontoNum=scontoAttivo?(Number(scontoValore)||0):0;
+  const totale=Math.max(0,totalelordo-scontoNum);
 
   function save(){
     if(!pazForm)return alert("Seleziona un paziente");
     if(!voci.length)return alert("Aggiungi almeno una voce");
-    const prev={pazienteId:Number(pazForm),data:todayISO(),voci,totale,stato:"in_attesa",note};
+    const prev={pazienteId:Number(pazForm),data:todayISO(),voci,totalelordo,sconto:scontoNum,totale,stato:"in_attesa",note};
     if(editId) setPreventivi(p=>p.map(x=>x.id===editId?{...prev,id:editId}:x));
     else setPreventivi(p=>[...p,{...prev,id:uid()}]);
     setModal(false);
@@ -1247,15 +1260,12 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
     {id:"tutti",label:"Tutti",count:preventivi.length},
     {id:"in_attesa",label:"In attesa",count:preventivi.filter(p=>p.stato==="in_attesa").length},
     {id:"accettato",label:"Accettati",count:preventivi.filter(p=>p.stato==="accettato").length},
-    {id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").length},
-  ];
-
-  function thStyle(col){return {
+    {id:"rifiutato",label:"Rifiutati",count:preventivi.filter(p=>p.stato==="rifiutato").lfunction thStyle(col){return {hStyle=(col)=>({
     padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,
     color:sortCol===col?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5,
     whiteSpace:"nowrap",cursor:"pointer",userSelect:"none",background:T.bg,
     borderBottom:`1px solid ${T.border}`
-  };}
+  });}
 
   return <div>
     <PageHdr title="Preventivi" subtitle={`${preventivi.length} preventivi totali`} action={<Btn icon="+" onClick={openNew}>Nuovo preventivo</Btn>}/>
@@ -1361,11 +1371,41 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
           <span style={{fontSize:13,fontWeight:700,color:T.text}}>{fmtEur(v.prezzo*v.qty)}</span>
           <button onClick={()=>setVoci(vs=>vs.filter((_,idx)=>idx!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>✕</button>
         </div>)}
-        <div style={{display:"flex",justifyContent:"flex-end",padding:"10px 14px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
-          <span style={{fontSize:16,fontWeight:700,color:T.text}}>Totale: {fmtEur(totale)}</span>
+        <div style={{padding:"10px 14px",background:T.bg,borderTop:`1px solid ${T.border}`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:scontoAttivo&&scontoNum>0?6:0}}>
+            <span style={{fontSize:13,color:T.textSub}}>{scontoAttivo&&scontoNum>0?"Totale lordo:":"Totale:"}</span>
+            <span style={{fontSize:16,fontWeight:700,color:scontoAttivo&&scontoNum>0?T.textSub:T.text,textDecoration:scontoAttivo&&scontoNum>0?"line-through":"none"}}>{fmtEur(totalelordo)}</span>
+          </div>
+          {scontoAttivo&&scontoNum>0&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0 4px",borderTop:`1px dashed ${T.border}`}}>
+            <span style={{fontSize:15,fontWeight:700,color:T.success}}>Totale con sconto:</span>
+            <span style={{fontSize:18,fontWeight:700,color:T.success}}>{fmtEur(totale)}</span>
+          </div>}
         </div>
       </div>}
       <FTextarea label="Note" value={note} onChange={e=>setNote(e.target.value)} rows={2}/>
+
+      {/* Sezione sconto */}
+      <div style={{padding:"12px 14px",background:scontoAttivo?T.successBg:T.bg,borderRadius:T.r,border:`1px solid ${scontoAttivo?T.success+"44":T.border}`,marginTop:4}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:scontoAttivo?10:0}}>
+          <input type="checkbox" id="sconto-check" checked={scontoAttivo} onChange={e=>setScontoAttivo(e.target.checked)}
+            style={{width:16,height:16,cursor:"pointer",accentColor:T.success}}/>
+          <label htmlFor="sconto-check" style={{fontSize:13.5,fontWeight:600,color:T.text,cursor:"pointer"}}>
+            Applica sconto
+          </label>
+        </div>
+        {scontoAttivo&&<div style={{display:"flex",alignItems:"center",gap:10,marginTop:6}}>
+          <span style={{fontSize:13,color:T.textSub,flexShrink:0}}>Sconto di</span>
+          <div style={{position:"relative",width:120}}>
+            <input type="number" min="0" step="0.01" value={scontoValore} onChange={e=>setScontoValore(e.target.value)}
+              placeholder="0.00"
+              style={{width:"100%",padding:"8px 28px 8px 10px",fontSize:14,fontWeight:600,border:`1.5px solid ${T.success}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box",color:T.text}}/>
+            <span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:13,color:T.textSub}}>€</span>
+          </div>
+          {scontoNum>0&&totalelordo>0&&<span style={{fontSize:12,color:T.success,fontWeight:600}}>
+            ({Math.round(scontoNum/totalelordo*100)}% di sconto)
+          </span>}
+        </div>}
+      </div>
     </Modal>
   </div>;
 }
@@ -1381,6 +1421,8 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const [editId, setEditId]=useState(null);
   const [form, setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
   const [addVoce, setAddVoce]=useState({nome:"",prezzo:"",qty:1});
+  const [scontoAttivo, setScontoAttivo]=useState(false);
+  const [scontoValore, setScontoValore]=useState("");
 
   function toggleSort(col){ if(sortCol===col)setSortAsc(!sortAsc); else{setSortCol(col);setSortAsc(true);} }
   function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
@@ -1407,21 +1449,23 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
 
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
   function nextN(){return `${new Date().getFullYear()}/${String(fatture.length+1).padStart(3,"0")}`;}
-  function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setEditId(null);setModal(true);}
-  function openEdit(f){setForm(f);setEditId(f.id);setModal(true);}
+  function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setScontoAttivo(false);setScontoValore("");setEditId(null);setModal(true);}
+  function openEdit(f){setForm(f);const sc=f.sconto||0;setScontoAttivo(sc>0);setScontoValore(sc>0?String(sc):"");setEditId(f.id);setModal(true);}
   function loadPrev(prevId){
     if(!prevId) { setForm(f=>({...f,preventivoId:'',voci:[]})); return; }
     const prev=preventivi.find(p=>p.id===Number(prevId));
     if(!prev) return;
     if(prev.stato!=='accettato'){
-      alert('⚠️ Devi prima accettare il preventivo.\nVai nei Preventivi e imposta lo stato su Accettato.');
+      alert('⚠️ Devi prima accettare il preventivo prima di emettere la fattura. Vai nella sezione Preventivi e imposta lo stato su 'Accettato'.');
       setForm(f=>({...f,preventivoId:''}));
       return;
     }
     setForm(f=>({...f,preventivoId:Number(prevId),pazienteId:String(prev.pazienteId),voci:[...prev.voci]}));
   }
   function addV(){if(!addVoce.nome||!addVoce.prezzo)return;setForm(f=>({...f,voci:[...f.voci,{nome:addVoce.nome,prezzo:Number(addVoce.prezzo)||0,qty:Number(addVoce.qty)||1}]}));setAddVoce({nome:"",prezzo:"",qty:1});}
-  const totale=form.voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+  const totalelordo=form.voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+  const scontoNum=scontoAttivo?(Number(scontoValore)||0):0;
+  const totale=Math.max(0,totalelordo-scontoNum);
   function save(){
     if(!form.pazienteId)return alert("Seleziona paziente");
     if(!form.voci.length)return alert("Aggiungi almeno una voce");
@@ -1447,8 +1491,12 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const daPagare=fatture.filter(f=>f.statoPagamento!=="pagato").reduce((s,f)=>s+f.totale,0);
 
   // PRIMA NOTA / BANCA
-  const bancaRanges={ oggi:iso=>iso===todayISO(), settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;}, mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}, anno:iso=>new Date(iso).getFullYear()===now.getFullYear(), };
-
+  const bancaRanges={
+    oggi:iso=>iso===todayISO(),
+    settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;},
+    mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();},
+    anno:iso=>new Date(iso).getFullYear()===now.getFullYear(),
+  };
   const bancaFatture=useMemo(()=>fatture.filter(f=>bancaRanges[bancaPeriod](f.data)&&f.statoPagamento==="pagato").sort((a,b)=>a.data.localeCompare(b.data)||a.numero?.localeCompare(b.numero||"")),[fatture,bancaPeriod]);
   const bancaTotale=bancaFatture.reduce((s,f)=>s+f.totale,0);
 
@@ -1624,9 +1672,36 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
           <div style={{fontSize:13,fontWeight:700}}>{fmtEur(v.prezzo*v.qty)}</div>
           <button onClick={()=>setForm(f=>({...f,voci:f.voci.filter((_,idx)=>idx!==i)}))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>✕</button>
         </div>)}
-        <div style={{display:"flex",justifyContent:"flex-end",padding:"10px 14px",background:T.bg}}><span style={{fontSize:16,fontWeight:700}}>Totale: {fmtEur(totale)}</span></div>
+        <div style={{padding:"10px 14px",background:T.bg}}>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <span style={{fontSize:13,color:T.textSub}}>{scontoAttivo&&scontoNum>0?"Totale lordo:":"Totale:"}</span>
+              <span style={{fontSize:16,fontWeight:700,color:scontoAttivo&&scontoNum>0?T.textSub:T.text,textDecoration:scontoAttivo&&scontoNum>0?"line-through":"none"}}>{fmtEur(totalelordo)}</span>
+            </div>
+            {scontoAttivo&&scontoNum>0&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:`1px dashed ${T.border}`,marginTop:6}}>
+              <span style={{fontSize:15,fontWeight:700,color:T.success}}>Totale con sconto:</span>
+              <span style={{fontSize:18,fontWeight:700,color:T.success}}>{fmtEur(totale)}</span>
+            </div>}
+          </div>
       </div>}
       <FTextarea label="Note" value={form.note} onChange={ff("note")} rows={2}/>
+
+      {/* Sconto */}
+      <div style={{padding:"12px 14px",background:scontoAttivo?T.successBg:T.bg,borderRadius:T.r,border:`1px solid ${scontoAttivo?T.success+"44":T.border}`,marginTop:4}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:scontoAttivo?10:0}}>
+          <input type="checkbox" id="sconto-fatt" checked={scontoAttivo} onChange={e=>setScontoAttivo(e.target.checked)}
+            style={{width:16,height:16,cursor:"pointer",accentColor:T.success}}/>
+          <label htmlFor="sconto-fatt" style={{fontSize:13.5,fontWeight:600,color:T.text,cursor:"pointer"}}>Applica sconto</label>
+        </div>
+        {scontoAttivo&&<div style={{display:"flex",alignItems:"center",gap:10,marginTop:6}}>
+          <span style={{fontSize:13,color:T.textSub,flexShrink:0}}>Sconto di</span>
+          <div style={{position:"relative",width:120}}>
+            <input type="number" min="0" step="0.01" value={scontoValore} onChange={e=>setScontoValore(e.target.value)} placeholder="0.00"
+              style={{width:"100%",padding:"8px 28px 8px 10px",fontSize:14,fontWeight:600,border:`1.5px solid ${T.success}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+            <span style={{position:"absolute",right:10,top:"50%",transform:"translateY(-50%)",fontSize:13,color:T.textSub}}>€</span>
+          </div>
+          {scontoNum>0&&totalelordo>0&&<span style={{fontSize:12,color:T.success,fontWeight:600}}>({Math.round(scontoNum/totalelordo*100)}% di sconto)</span>}
+        </div>}
+      </div>
     </Modal>
   </div>;
 }
@@ -1667,8 +1742,13 @@ function ListinoView({listino, setListino}) {
 function ReportView({fatture, appuntamenti, pazienti, listino}) {
   const [period,setPeriod]=useState("mese");
   const now=new Date();
-  const ranges={ oggi:iso=>iso===todayISO(), settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;}, mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();}, anno:iso=>new Date(iso).getFullYear()===now.getFullYear(), sempre:()=>true };
-
+  const ranges={
+    oggi:iso=>iso===todayISO(),
+    settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;},
+    mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();},
+    anno:iso=>new Date(iso).getFullYear()===now.getFullYear(),
+    sempre:()=>true
+  };
   const filtFatt=fatture.filter(f=>ranges[period](f.data)&&f.statoPagamento==="pagato");
   const filtApts=appuntamenti.filter(a=>ranges[period](a.data)&&a.stato==="completato");
   const totale=filtFatt.reduce((s,f)=>s+f.totale,0);
@@ -1858,4 +1938,6 @@ export default function App() {
       </nav>}
     </div>
   </div>;
+}
+}
 }
