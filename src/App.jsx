@@ -809,17 +809,11 @@ const TEMPLATES_DOCUMENTI = [
       sezioni: [
         {
           titolo: "TITOLARE DEL TRATTAMENTO",
-          testo: "Studio Dentistico Sardo
-Cagliari (CA)
-Tel: — · Email: —"
+          testo: "Studio Dentistico Sardo\nCagliari (CA)\nTel: — · Email: —"
         },
         {
           titolo: "FINALITÀ DEL TRATTAMENTO",
-          testo: "I dati personali e sanitari da Lei forniti vengono trattati esclusivamente per:
-• Erogazione delle prestazioni sanitarie richieste
-• Adempimento di obblighi di legge in materia sanitaria e fiscale
-• Gestione amministrativa e contabile del rapporto
-• Invio di comunicazioni relative agli appuntamenti"
+          testo: "I dati personali e sanitari da Lei forniti vengono trattati esclusivamente per:\n• Erogazione delle prestazioni sanitarie richieste\n• Adempimento di obblighi di legge in materia sanitaria e fiscale\n• Gestione amministrativa e contabile del rapporto\n• Invio di comunicazioni relative agli appuntamenti"
         },
         {
           titolo: "BASE GIURIDICA",
@@ -853,20 +847,11 @@ Tel: — · Email: —"
         },
         {
           titolo: "INDICAZIONI",
-          testo: "Il trattamento è indicato in caso di:
-• Polpite irreversibile (dolore spontaneo persistente)
-• Necrosi pulpare con o senza lesione periapicale
-• Necessità di riabilitazione protesica su dente vitale
-• Trauma dentale con interessamento pulpare"
+          testo: "Il trattamento è indicato in caso di:\n• Polpite irreversibile (dolore spontaneo persistente)\n• Necrosi pulpare con o senza lesione periapicale\n• Necessità di riabilitazione protesica su dente vitale\n• Trauma dentale con interessamento pulpare"
         },
         {
           titolo: "RISCHI E COMPLICANZE POSSIBILI",
-          testo: "• Rottura strumentale nel canale (rara ma possibile)
-• Perforazione radicolare (eccezionale)
-• Insuccesso terapeutico con necessità di ritrattamento o estrazione
-• Dolore post-operatorio nelle prime 48-72 ore
-• Gonfiore transitorio dei tessuti circostanti
-• Frattura del dente devitalizzato (ridurre con corona protesica)"
+          testo: "• Rottura strumentale nel canale (rara ma possibile)\n• Perforazione radicolare (eccezionale)\n• Insuccesso terapeutico con necessità di ritrattamento o estrazione\n• Dolore post-operatorio nelle prime 48-72 ore\n• Gonfiore transitorio dei tessuti circostanti\n• Frattura del dente devitalizzato (ridurre con corona protesica)"
         },
         {
           titolo: "ALTERNATIVE TERAPEUTICHE",
@@ -896,22 +881,11 @@ Tel: — · Email: —"
         },
         {
           titolo: "RISCHI E COMPLICANZE POSSIBILI",
-          testo: "• Dolore e gonfiore post-operatorio (normale nelle prime 48-72h)
-• Sanguinamento prolungato
-• Trisma (limitazione dell'apertura della bocca)
-• Alveolite secca (rara, trattabile)
-• Lesioni ai denti adiacenti
-• Comunicazione oro-sinusale (denti del mascellare)
-• Parestesia temporanea del nervo (denti del mandibolare)"
+          testo: "• Dolore e gonfiore post-operatorio (normale nelle prime 48-72h)\n• Sanguinamento prolungato\n• Trisma (limitazione dell'apertura della bocca)\n• Alveolite secca (rara, trattabile)\n• Lesioni ai denti adiacenti\n• Comunicazione oro-sinusale (denti del mascellare)\n• Parestesia temporanea del nervo (denti del mandibolare)"
         },
         {
           titolo: "ISTRUZIONI POST-OPERATORIE",
-          testo: "• Mordere la garza per 30 minuti dopo l'estrazione
-• Non sciacquare la bocca nelle prime 24 ore
-• Applicare ghiaccio esternamente nelle prime 6 ore
-• Non fumare per almeno 48 ore
-• Assumere gli antidolorifici prescritti
-• Alimentazione liquida e fredda nelle prime 24 ore"
+          testo: "• Mordere la garza per 30 minuti dopo l'estrazione\n• Non sciacquare la bocca nelle prime 24 ore\n• Applicare ghiaccio esternamente nelle prime 6 ore\n• Non fumare per almeno 48 ore\n• Assumere gli antidolorifici prescritti\n• Alimentazione liquida e fredda nelle prime 24 ore"
         },
       ],
       firmaLabel: "Il/La sottoscritto/a",
@@ -933,12 +907,7 @@ Tel: — · Email: —"
         },
         {
           titolo: "RISCHI E COMPLICANZE",
-          testo: "• Mancata osteointegrazione (3-5% dei casi)
-• Infezione peri-implantare (peri-implantite)
-• Lesione dei nervi alveolari (parestesia)
-• Comunicazione con il seno mascellare
-• Rottura dell'impianto (eccezionale)
-• Necessità di rimozione e reimpianto"
+          testo: "• Mancata osteointegrazione (3-5% dei casi)\n• Infezione peri-implantare (peri-implantite)\n• Lesione dei nervi alveolari (parestesia)\n• Comunicazione con il seno mascellare\n• Rottura dell'impianto (eccezionale)\n• Necessità di rimozione e reimpianto"
         },
         {
           titolo: "CONTROINDICAZIONI",
