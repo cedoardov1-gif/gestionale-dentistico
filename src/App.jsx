@@ -1151,7 +1151,8 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
 
   function toggleSort(col){ if(sortCol===col)setSortAsc(a=>!a); else{setSortCol(col);setSortAsc(true);} }
   function sor
-  const thStyle=(col)=>({padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap",cursor:col?"pointer":"default",userSelect:"none",color:sortCol===col?T.brand:T.textSub});tIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
+  const thStyle=(col)=>({padding:"10px 16px",textAlign:"left",fontSize:11.5,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,whiteSpace:"nowrap",cursor:col?"pointer":"default",userSelect:"none",color:sortCol===col?T.brand:T.textSub});
+  function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
 
   const filtered=useMemo(()=>{
     let res=preventivi;
