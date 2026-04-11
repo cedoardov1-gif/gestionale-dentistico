@@ -1154,6 +1154,130 @@ function DocumentiTab({paziente, studioInfo}) {
 }
 
 
+
+/* ══════════════════════════════════════════════
+   CALCOLO CODICE FISCALE
+══════════════════════════════════════════════ */
+
+// Codici catastali comuni più comuni d'Italia (subset)
+const CODICI_COMUNI = {"AGRIGENTO":"G273","ALBA":"A124","ALESSANDRIA":"A182","ALGHERO":"A192","ANCONA":"A271","ANDRIA":"A285","AOSTA":"A326","APRILIA":"A341","AREZZO":"A390","ASCOLI PICENO":"A462","ASTI":"A479","AVELLINO":"A509","AVOLA":"A522","BARI":"A662","BARLETTA":"A669","BELLUNO":"A757","BENEVENTO":"A783","BERGAMO":"A794","BIELLA":"A859","BOLOGNA":"A944","BOLZANO":"A952","BRESCIA":"B157","BRINDISI":"B180","BUSTO ARSIZIO":"B300","CAGLIARI":"B354","CALTANISSETTA":"B429","CAMPOBASSO":"B519","CARPI":"B819","CARRARA":"B832","CASERTA":"B963","CATANIA":"C351","CATANZARO":"C352","CESENA":"C573","CHIETI":"C632","CINISELLO BALSAMO":"C707","COMO":"C933","COSENZA":"D086","CREMONA":"D150","CROTONE":"D122","CUNEO":"D205","EMPOLI":"D403","ENNA":"C342","FERRARA":"D548","FIRENZE":"D612","FOGGIA":"D643","FORLI":"D704","FROSINONE":"D810","GENOVA":"D969","GIUGLIANO IN CAMPANIA":"E054","GORIZIA":"E098","GROSSETO":"E202","IGLESIAS":"E281","IMOLA":"E289","IMPERIA":"E290","ISERNIA":"E335","LA SPEZIA":"E463","L'AQUILA":"A345","LATINA":"E472","LECCE":"E506","LECCO":"E507","LIVORNO":"E625","LODI":"E648","LUCCA":"E715","MACERATA":"E783","MANTOVA":"E897","MASSA":"F023","MATERA":"F052","MESSINA":"F158","MILANO":"F205","MODENA":"F257","MONZA":"F704","NAPOLI":"F839","NOVARA":"F952","NUORO":"F979","OLBIA":"G015","ORISTANO":"G113","PADOVA":"G224","PALERMO":"G273","PARMA":"G337","PAVIA":"G388","PERUGIA":"G478","PESARO":"G453","PESCARA":"G482","PIACENZA":"G535","PISA":"G702","PISTOIA":"G713","PORDENONE":"G888","POTENZA":"G942","PRATO":"G999","QUARTU SANT'ELENA":"H118","RAGUSA":"H163","RAVENNA":"H199","REGGIO CALABRIA":"H224","REGGIO EMILIA":"H223","RIETI":"H282","RIMINI":"H294","ROMA":"H501","ROVIGO":"H620","SALERNO":"H703","SAN BENEDETTO DEL TRONTO":"H769","SANREMO":"I138","SASSARI":"I452","SAVONA":"I480","SESTO SAN GIOVANNI":"I690","SIENA":"I726","SIRACUSA":"I754","SONDRIO":"I829","TARANTO":"L049","TERAMO":"L103","TERNI":"L117","TORINO":"L219","TORRE DEL GRECO":"L259","TRAPANI":"L331","TRENTO":"L378","TREVISO":"L407","TRIESTE":"L424","UDINE":"L483","VARESE":"L682","VENEZIA":"L736","VERBANIA":"L746","VERCELLI":"L750","VERONA":"L781","VIBO VALENTIA":"F537","VICENZA":"L840","VITERBO":"M082","VITTORIA":"M095","ACIREALE":"A024","AFRAGOLA":"A064","AGROPOLI":"A091","ALBANO LAZIALE":"A132","ALBENGA":"A145","ALTAMURA":"A225","ANZIO":"A323","ARONA":"A429","BAGHERIA":"B025","BAGNOLI":"B468","BITONTO":"A892","BRA":"B111","CAIVANO":"B371","CALTAGIRONE":"B428","CANOSA DI PUGLIA":"B619","CASALNUOVO DI NAPOLI":"B905","CASTELLAMMARE DI STABIA":"C132","CASTELVETRANO":"C291","CEFALÙ":"C421","CHIERI":"C627","CHIOGGIA":"C638","CIVITAVECCHIA":"C773","COLOGNO MONZESE":"C895","CORSICO":"D045","ERCOLANO":"D415","FABRIANO":"D451","FAENZA":"D458","FASANO":"D508","FERMO":"D542","FIDENZA":"D568","FLORIDIA":"D636","FORMIA":"D708","FRATTAMAGGIORE":"D788","GALATINA":"D861","GALLARATE":"D869","GELA":"D960","GIOIA DEL COLLE":"E038","GIULIANOVA":"E057","GRUGLIASCO":"E221","GUIDONIA MONTECELIO":"E263","IVREA":"E379","LADISPOLI":"E425","LAMEZIA TERME":"M208","LANUVIO":"E445","LEGNAGO":"E510","LEGNANO":"E514","LENTINI":"E532","LICATA":"E573","LISSONE":"E617","LUGO":"E730","MANDURIA":"E882","MANFREDONIA":"E885","MARANO DI NAPOLI":"E906","MAZARA DEL VALLO":"F061","MELITO DI NAPOLI":"F110","MIRANDOLA":"F240","MODUGNO":"F262","MOLFETTA":"F284","MONDOVI":"F351","MONREALE":"F377","MONTESILVANO":"F646","MONTEROTONDO":"F611","MOTTOLA":"F784","NICHELINO":"F889","NISCEMI":"F899","NOCERA INFERIORE":"F912","NOLA":"F924","NORCIA":"F935","ORBASSANO":"G090","ORGOSOLO":"G097","ORTONA":"G141","PACHINO":"G212","PALAGIANO":"G253","PAOLA":"G317","PATERNO":"G371","PIOMBINO":"G687","POGGIOMARINO":"G762","POMIGLIANO D'ARCO":"G812","POMPEI":"G813","PORTICI":"G902","PORTO TORRES":"G921","RANDAZZO":"H175","RAPALLO":"H183","RENDE":"H235","RIVOLI":"H335","ROSSANO":"H579","ROZZANO":"H630","RUVO DI PUGLIA":"H645","SACILE":"H657","SALSOMAGGIORE TERME":"H720","SARNO":"I438","SAVIGLIANO":"I470","SCAFATI":"I482","SCHIO":"I531","SCORDIA":"I549","SEREGNO":"I625","SESTO CALENDE":"I688","SESTO FIORENTINO":"I691","SETIMO TORINESE":"I690","SOLARO":"I786","SOMMA VESUVIANA":"I819","SOMMA LOMBARDO":"I820","SORTINO":"I864","SULMONA":"I992","TERMINI IMERESE":"L108","TERRACINA":"L120","TORRE ANNUNZIATA":"L245","TORTONA":"L304","TRADATE":"L319","TRECATE":"L361","TRIGGIANO":"L426","UGENTO":"L484","VALDAGNO":"L551","VALENZA":"L570","VELLETRI":"L719","VENARIA REALE":"L727","VENTIMIGLIA":"L741","VIGEVANO":"L869","VILLABATE":"L915","VILLARICCA":"L943","VOGHERA":"M109","ESTERO":"Z000"};
+
+function calcolaCodiceFiscale(cognome, nome, dataNascita, sesso, luogoNascita) {
+  if(!cognome||!nome||!dataNascita||!sesso||!luogoNascita) return null;
+
+  const vocali = "AEIOU";
+  const mesi = "ABCDEHLMPRST";
+
+  function elaboraNome(s, isNome=false) {
+    const up = s.toUpperCase().replace(/[^A-Z]/g,'');
+    const cons = up.split('').filter(c=>!vocali.includes(c));
+    const vow  = up.split('').filter(c=>vocali.includes(c));
+    if(isNome && cons.length >= 4) return cons[0]+cons[2]+cons[3];
+    const arr = [...cons,...vow];
+    while(arr.length < 3) arr.push('X');
+    return arr.slice(0,3).join('');
+  }
+
+  function checkDigit(s) {
+    const ODD = {
+      '0':1,'1':0,'2':5,'3':7,'4':9,'5':13,'6':15,'7':17,'8':19,'9':21,
+      'A':1,'B':0,'C':5,'D':7,'E':9,'F':13,'G':15,'H':17,'I':19,'J':21,
+      'K':2,'L':4,'M':18,'N':20,'O':11,'P':3,'Q':6,'R':8,'S':12,'T':14,
+      'U':16,'V':10,'W':22,'X':25,'Y':24,'Z':23
+    };
+    const EVEN = {
+      '0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,
+      'A':0,'B':1,'C':2,'D':3,'E':4,'F':5,'G':6,'H':7,'I':8,'J':9,
+      'K':10,'L':11,'M':12,'N':13,'O':14,'P':15,'Q':16,'R':17,'S':18,'T':19,
+      'U':20,'V':21,'W':22,'X':23,'Y':24,'Z':25
+    };
+    let tot = 0;
+    for(let i=0;i<15;i++) {
+      tot += i%2===0 ? ODD[s[i]] : EVEN[s[i]];
+    }
+    return String.fromCharCode(65 + (tot % 26));
+  }
+
+  const [anno,mese,giorno] = dataNascita.split('-').map(Number);
+  const giornoCF = sesso==='M' ? String(giorno).padStart(2,'0') : String(giorno+40).padStart(2,'0');
+  const codComune = CODICI_COMUNI[luogoNascita.toUpperCase().trim()] || 'Z000';
+
+  const partial =
+    elaboraNome(cognome) +
+    elaboraNome(nome, true) +
+    String(anno).slice(-2) +
+    mesi[mese-1] +
+    giornoCF +
+    codComune;
+
+  return partial + checkDigit(partial);
+}
+
+function CfGenerator({form, onGenerate}) {
+  const [autoMode, setAutoMode] = useState(false);
+  const [sesso, setSesso] = useState('M');
+  const [error, setError] = useState('');
+
+  function genera() {
+    setError('');
+    if(!form.cognome||!form.nome) return setError('Inserisci prima nome e cognome');
+    if(!form.dataNascita) return setError('Inserisci la data di nascita');
+    if(!form.luogoNascita) return setError('Inserisci il luogo di nascita');
+    const cf = calcolaCodiceFiscale(form.cognome, form.nome, form.dataNascita, sesso, form.luogoNascita);
+    if(!cf) return setError('Dati incompleti');
+    if(cf.includes('Z000')) {
+      setError('Comune non trovato nel database — inserisci il CF manualmente o verifica il comune');
+      return;
+    }
+    onGenerate(cf);
+    setError('');
+  }
+
+  return (
+    <div style={{marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:autoMode?12:0}}>
+        <input type="checkbox" id="cf-auto-check" checked={autoMode}
+          onChange={e=>setAutoMode(e.target.checked)}
+          style={{width:16,height:16,cursor:"pointer",accentColor:T.brand}}/>
+        <label htmlFor="cf-auto-check"
+          style={{fontSize:13,fontWeight:600,color:T.text,cursor:"pointer"}}>
+          Genera codice fiscale automaticamente
+        </label>
+      </div>
+      {autoMode&&(
+        <div style={{background:T.brandLight,borderRadius:T.r,padding:"12px 14px",
+          border:`1px solid ${T.brand}44`,display:"flex",flexDirection:"column",gap:10}}>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            <span style={{fontSize:12,fontWeight:600,color:T.textSub}}>Sesso:</span>
+            {['M','F'].map(s=>(
+              <button key={s} onClick={()=>setSesso(s)}
+                style={{padding:"5px 16px",borderRadius:20,fontSize:13,fontWeight:600,
+                  fontFamily:"inherit",cursor:"pointer",
+                  border:`1.5px solid ${sesso===s?T.brand:T.border}`,
+                  background:sesso===s?T.brand:"#fff",
+                  color:sesso===s?"#fff":T.textSub}}>
+                {s==='M'?'Maschio':'Femmina'}
+              </button>
+            ))}
+            <button onClick={genera}
+              style={{marginLeft:"auto",padding:"7px 18px",borderRadius:T.r,fontSize:13,
+                fontWeight:700,fontFamily:"inherit",cursor:"pointer",border:"none",
+                backgroundColor:T.brand,color:"#fff"}}>
+              ⚡ Genera CF
+            </button>
+          </div>
+          {error&&<div style={{fontSize:12,color:T.danger,fontWeight:500}}>⚠️ {error}</div>}
+          <div style={{fontSize:11.5,color:T.textSub}}>
+            Usa nome, cognome, data di nascita e luogo di nascita già inseriti.
+            Il CF generato viene inserito automaticamente nel campo sopra.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
@@ -1170,7 +1294,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   const [fattMetodo, setFattMetodo] = useState("Contanti");
   const [fattStato, setFattStato] = useState("non_pagato");
   const [fattNote, setFattNote] = useState("");
-  const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
+  const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",luogoNascita:"",provinciaNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
   useEffect(()=>{
@@ -1190,7 +1314,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   },[pazienti,search,sortAZ]);
 
   function openNew(){setForm({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});setEditId(null);setModal(true);}
-  function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||""});setEditId(p.id);setModal(true);}
+  function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||"",luogoNascita:p.luogoNascita||"",provinciaNascita:p.provinciaNascita||""});setEditId(p.id);setModal(true);}
   function save(){
     if(!form.nome||!form.cognome)return alert("Nome e cognome obbligatori");
     const co=impostazioni?.campiObbligatori||{};
@@ -1571,6 +1695,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
         <Grid2><FInput label="Nome" required value={form.nome} onChange={ff("nome")}/><FInput label="Cognome" required value={form.cognome} onChange={ff("cognome")}/></Grid2>
         <Grid2><FInput label="Telefono" value={form.telefono} onChange={ff("telefono")} placeholder="340 000 0000"/><FInput label="Email" type="email" value={form.email} onChange={ff("email")}/></Grid2>
         <Grid2><FInput label="Data di nascita" type="date" value={form.dataNascita} onChange={ff("dataNascita")}/><FInput label="Codice fiscale" value={form.codiceFiscale} onChange={ff("codiceFiscale")} placeholder="XXXYYY00X00X000X"/></Grid2>
+        <Grid2><FInput label="Luogo di nascita" value={form.luogoNascita||""} onChange={ff("luogoNascita")} placeholder="Roma"/><FInput label="Provincia di nascita" value={form.provinciaNascita||""} onChange={ff("provinciaNascita")} placeholder="RM" maxLength={2}/></Grid2>
+        <CfGenerator form={form} onGenerate={cf=>setForm(p=>({...p,codiceFiscale:cf}))}/>
         <FInput label="Indirizzo" value={form.indirizzo} onChange={ff("indirizzo")}/>
         <FTextarea label="⚠️ Allergie" value={form.allergie} onChange={ff("allergie")} rows={2} placeholder="Penicillina, lattice..."/>
         <FTextarea label="💊 Farmaci in uso" value={form.farmaci} onChange={ff("farmaci")} rows={2}/>
