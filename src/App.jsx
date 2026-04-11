@@ -529,46 +529,23 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
   </div>;
 }
 
-/* ══════════════════════════════════════════════
-   ODONTOGRAMMA FDI v3
-   STATI:
-   - preesistente (nero)  → trattamento già presente prima della nostra cura
-   - da_fare (rosso)      → trattamento pianificato / da eseguire
-   - eseguito (verde)     → trattamento completato nel nostro studio
-══════════════════════════════════════════════ */
-
-const STATI_DENTE = {
-  preesistente: {
-    label:"Preesistente",
-    sub:"già presente prima della cura",
-    color:"#1F2937",
-    bg:"#F3F4F6",
-    dot:"#4B5563",
-    icon:"🔲",
-  },
-  da_fare: {
-    label:"Da eseguire",
-    sub:"trattamento pianificato",
-    color:"#DC2626",
-    bg:"#FEF2F2",
-    dot:"#EF4444",
-    icon:"🔴",
-  },
-  eseguito: {
-    label:"Eseguito",
-    sub:"completato nel nostro studio",
-    color:"#059669",
-    bg:"#ECFDF5",
-    dot:"#10B981",
-    icon:"🟢",
-  },
+const CONDIZIONI = {
+  otturazione:     {label:"Otturazione"},
+  estrazione:      {label:"Estrazione"},
+  impianto:        {label:"Impianto"},
+  corona:          {label:"Corona"},
+  devitalizzazione:{label:"Devitalizzazione"},
+  carie:           {label:"Carie"},
+  tartaro:         {label:"Tartaro/Igiene"},
+  ortodonzia:      {label:"Ortodonzia"},
+  altro:           {label:"Altro"},
 };
 
-const TIPI_TRATTAMENTO = [
-  "Otturazione","Devitalizzazione","Estrazione","Impianto",
-  "Corona","Protesi parziale","Protesi totale","Sbiancamento",
-  "Ortodonzia","Tartaro","Carie","Altro"
-];
+const STATO_COLORS = {
+  preesistente: {color:"#1F2937", bg:"#F3F4F6", dot:"#4B5563", label:"Preesistente", sub:"già presente"},
+  da_fare:      {color:"#DC2626", bg:"#FEF2F2", dot:"#EF4444", label:"Da eseguire",  sub:"pianificato"},
+  eseguito:     {color:"#059669", bg:"#ECFDF5", dot:"#10B981", label:"Eseguito",     sub:"completato"},
+};
 
 const UPPER_RIGHT=[18,17,16,15,14,13,12,11];
 const UPPER_LEFT =[21,22,23,24,25,26,27,28];
@@ -576,114 +553,107 @@ const LOWER_LEFT =[31,32,33,34,35,36,37,38];
 const LOWER_RIGHT=[48,47,46,45,44,43,42,41];
 
 function ToothSVG({num, dente, size=30, onClick, selected}) {
-  const stato = dente?.stato;
-  const cfg = stato ? STATI_DENTE[stato] : null;
-  const fill  = cfg ? cfg.color+"22" : "#F9FAFB";
-  const stroke= cfg ? cfg.color : "#CBD5E1";
-  const sw    = selected ? 2.5 : cfg ? 2 : 1.2;
+  const tratt = dente?.tipo || null;
+  const statoKey = dente?.stato || null;
+  const cond = tratt ? CONDIZIONI[tratt] : null;
+  const statoCfg = statoKey ? STATO_COLORS[statoKey] : null;
   const isM=[6,7,8].includes(num%10)||(num%10===0);
   const isP=[4,5].includes(num%10);
+  const fill  = statoCfg ? statoCfg.bg : "#F9FAFB";
+  const stroke= statoCfg ? statoCfg.color : "#CBD5E1";
+  const sw    = selected?2.5:statoCfg?2:1.2;
 
   return (
-    <div onClick={onClick} title={`Dente ${num}${cfg?" — "+cfg.label+(dente?.tipo?" ("+dente.tipo+")":""):" — Integro"}`}
-      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,cursor:"pointer",
-        padding:"2px 1px",borderRadius:5,transition:"all 0.1s",
-        background:selected?`${T.brand}22`:cfg?cfg.color+"10":"transparent",
+    <div onClick={onClick}
+      title={`Dente ${num}${statoCfg?" — "+statoCfg.label+(cond?" ("+cond.label+")":""):" — Integro"}`}
+      style={{display:"flex",flexDirection:"column",alignItems:"center",gap:1,
+        cursor:"pointer",padding:"2px 1px",borderRadius:5,transition:"all 0.1s",
+        background:selected?`${T.brand}25`:statoCfg?statoCfg.color+"12":"transparent",
         outline:selected?`2px solid ${T.brand}`:"none"}}
       onMouseEnter={e=>{if(!selected)e.currentTarget.style.background=T.brandLight;}}
-      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background=cfg?cfg.color+"10":"transparent";}}>
+      onMouseLeave={e=>{if(!selected)e.currentTarget.style.background=statoCfg?statoCfg.color+"12":"transparent";}}>
       <svg width={size} height={size*1.5} viewBox="0 0 32 48">
-        {stato==="eseguito"?(
-          /* Dente verde con checkmark */
+        {tratt==="estrazione"?(
+          <g opacity="0.6">
+            <line x1="6" y1="4" x2="26" y2="44" stroke="#9CA3AF" strokeWidth="3" strokeLinecap="round"/>
+            <line x1="26" y1="4" x2="6" y2="44" stroke="#9CA3AF" strokeWidth="3" strokeLinecap="round"/>
+          </g>
+        ):tratt==="impianto"?(
           <g>
-            {isM?<rect x="3" y="1" width="26" height="22" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
-            :<ellipse cx="16" cy="12" rx="12" ry="10" fill={fill} stroke={stroke} strokeWidth={sw}/>}
-            <circle cx="16" cy="12" r="7" fill={stroke+"33"} stroke={stroke} strokeWidth="1"/>
-            <path d="M 11 12 L 14.5 16 L 21 8" fill="none" stroke={stroke} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            {isM?<path d="M 8 23 L 10 32 Q 16 38 22 32 L 24 23" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
-            :<path d="M 6 18 C 8 30 24 30 26 18" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>}
+            <rect x="11" y="1" width="10" height="18" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            <rect x="13" y="19" width="6" height="26" rx="3" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            <line x1="11" y1="25" x2="21" y2="25" stroke={stroke} strokeWidth="1.5" strokeDasharray="3,2"/>
+            <line x1="11" y1="31" x2="21" y2="31" stroke={stroke} strokeWidth="1.5" strokeDasharray="3,2"/>
+            <line x1="11" y1="37" x2="21" y2="37" stroke={stroke} strokeWidth="1.5" strokeDasharray="3,2"/>
+          </g>
+        ):isM?(
+          <g>
+            <rect x="3" y="1" width="26" height="22" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            {tratt==="otturazione"&&<rect x="9" y="6" width="14" height="12" rx="3" fill={cond.color+"60"} stroke={cond.color} strokeWidth="1.5"/>}
+            {tratt==="corona"&&<rect x="3" y="1" width="26" height="22" rx="5" fill={cond.color+"50"} stroke={cond.color} strokeWidth="2.5"/>}
+            {tratt==="devitalizzazione"&&<><circle cx="16" cy="12" r="6" fill={cond.color+"70"}/><circle cx="16" cy="12" r="2.5" fill={cond.color}/></>}
+            <path d="M 8 23 L 10 32 Q 16 38 22 32 L 24 23" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
             <ellipse cx="16" cy="41" rx="6" ry="6" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
           </g>
-        ):stato==="da_fare"?(
-          /* Dente rosso con X */
+        ):isP?(
           <g>
-            {isM?<rect x="3" y="1" width="26" height="22" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
-            :<ellipse cx="16" cy="12" rx="12" ry="10" fill={fill} stroke={stroke} strokeWidth={sw}/>}
-            <line x1="10" y1="7" x2="22" y2="17" stroke={stroke} strokeWidth="2.5" strokeLinecap="round"/>
-            <line x1="22" y1="7" x2="10" y2="17" stroke={stroke} strokeWidth="2.5" strokeLinecap="round"/>
-            {isM?<path d="M 8 23 L 10 32 Q 16 38 22 32 L 24 23" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
-            :<path d="M 6 18 C 8 30 24 30 26 18" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>}
-            <ellipse cx="16" cy="41" rx="6" ry="6" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
-          </g>
-        ):stato==="preesistente"?(
-          /* Dente scuro con punto */
-          <g opacity="0.85">
-            {isM?<rect x="3" y="1" width="26" height="22" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
-            :<ellipse cx="16" cy="12" rx="12" ry="10" fill={fill} stroke={stroke} strokeWidth={sw}/>}
-            <circle cx="16" cy="12" r="5" fill={stroke}/>
-            {isM?<path d="M 8 23 L 10 32 Q 16 38 22 32 L 24 23" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
-            :<path d="M 6 18 C 8 30 24 30 26 18" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>}
-            <ellipse cx="16" cy="41" rx="6" ry="6" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
+            <ellipse cx="16" cy="12" rx="12" ry="10" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            {tratt==="otturazione"&&<ellipse cx="16" cy="12" rx="7" ry="6" fill={cond.color+"60"} stroke={cond.color} strokeWidth="1.5"/>}
+            {tratt==="corona"&&<ellipse cx="16" cy="12" rx="12" ry="10" fill={cond.color+"50"} stroke={cond.color} strokeWidth="2.5"/>}
+            {tratt==="devitalizzazione"&&<><circle cx="16" cy="12" r="6" fill={cond.color+"70"}/><circle cx="16" cy="12" r="2.5" fill={cond.color}/></>}
+            <line x1="9" y1="22" x2="10" y2="30" stroke={stroke} strokeWidth="1" opacity="0.6"/>
+            <line x1="23" y1="22" x2="22" y2="30" stroke={stroke} strokeWidth="1" opacity="0.6"/>
+            <ellipse cx="16" cy="38" rx="7" ry="8" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
           </g>
         ):(
-          /* Dente integro */
           <g>
-            {isM?(
-              <g>
-                <rect x="3" y="1" width="26" height="22" rx="5" fill={fill} stroke={stroke} strokeWidth={sw}/>
-                <path d="M 8 23 L 10 32 Q 16 38 22 32 L 24 23" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
-              </g>
-            ):isP?(
-              <g>
-                <ellipse cx="16" cy="12" rx="12" ry="10" fill={fill} stroke={stroke} strokeWidth={sw}/>
-                <path d="M 6 18 C 8 30 24 30 26 18" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
-              </g>
-            ):(
-              <g>
-                <ellipse cx="16" cy="11" rx="12" ry="9" fill={fill} stroke={stroke} strokeWidth={sw}/>
-                <path d="M 6 18 C 8 30 24 30 26 18" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
-              </g>
-            )}
-            <ellipse cx="16" cy="41" rx="6" ry="6" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
+            <ellipse cx="16" cy="11" rx="12" ry="9" fill={fill} stroke={stroke} strokeWidth={sw}/>
+            {tratt==="otturazione"&&<ellipse cx="16" cy="11" rx="6" ry="5" fill={cond.color+"60"} stroke={cond.color} strokeWidth="1.5"/>}
+            {tratt==="corona"&&<ellipse cx="16" cy="11" rx="12" ry="9" fill={cond.color+"50"} stroke={cond.color} strokeWidth="2.5"/>}
+            {tratt==="devitalizzazione"&&<><circle cx="16" cy="11" r="6" fill={cond.color+"70"}/><circle cx="16" cy="11" r="2.5" fill={cond.color}/></>}
+            <path d="M 6 18 C 8 30 24 30 26 18" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
+            <ellipse cx="16" cy="40" rx="7" ry="7" fill={fill} stroke={stroke} strokeWidth={Math.max(sw-0.3,1)}/>
           </g>
         )}
       </svg>
-      <span style={{fontSize:9,fontWeight:700,color:cfg?cfg.color:"#94A3B8",lineHeight:1}}>{num}</span>
+      <span style={{fontSize:9,fontWeight:700,color:cond?cond.color:"#94A3B8",lineHeight:1}}>{num}</span>
     </div>
   );
 }
 
 function Odontogramma({denti={}, setDenti, readOnly=false}) {
   const [selected, setSelected] = useState(null);
+  const [condForm, setCondForm] = useState("otturazione");
   const [statoForm, setStatoForm] = useState("preesistente");
-  const [tipoForm, setTipoForm] = useState("");
-  const [notaForm, setNotaForm] = useState("");
+  const [nota, setNota] = useState("");
 
   function clickDente(num) {
     if (readOnly) return;
     if (selected===num) { setSelected(null); return; }
     setSelected(num);
-    const d = denti[num];
-    setStatoForm(d?.stato||"preesistente");
-    setTipoForm(d?.tipo||"");
-    setNotaForm(d?.nota||"");
+    setCondForm(denti[num]?.tipo||"otturazione");
+    setStatoForm(denti[num]?.stato||"preesistente");
+    setNota(denti[num]?.nota||"");
   }
 
   function applica() {
     if (!selected) return;
-    setDenti({...denti, [selected]:{stato:statoForm, tipo:tipoForm, nota:notaForm, data:todayISO()}});
+    const nuoviDenti = {...denti, [selected]:{tipo:condForm,stato:statoForm,nota,data:todayISO()}};
+    setDenti(nuoviDenti);
     setSelected(null);
-    setTipoForm("");
-    setNotaForm("");
+    setNota("");
   }
 
   function rimuovi() {
     if (!selected) return;
-    const nd = {...denti};
-    delete nd[selected];
-    setDenti(nd);
+    const nuoviDenti = {...denti};
+    delete nuoviDenti[selected];
+    setDenti(nuoviDenti);
     setSelected(null);
   }
+
+  const conteggio = useMemo(()=>Object.values(denti).reduce((a,v)=>{if(v?.tipo)a[v.tipo]=(a[v.tipo]||0)+1;return a;},{}),[denti]);
+  const conteggioStati = useMemo(()=>Object.values(denti).reduce((a,v)=>{if(v?.stato)a[v.stato]=(a[v.stato]||0)+1;return a;},{}),[denti]);
 
   const Row=({teeth})=>(
     <div style={{display:"flex",gap:0,justifyContent:"center"}}>
@@ -691,27 +661,17 @@ function Odontogramma({denti={}, setDenti, readOnly=false}) {
     </div>
   );
 
-  // Conteggi per riepilogo
-  const conteggioStati = useMemo(()=>{
-    const m={preesistente:0,da_fare:0,eseguito:0};
-    Object.values(denti).forEach(d=>{if(d?.stato)m[d.stato]=(m[d.stato]||0)+1;});
-    return m;
-  },[denti]);
-
-  const selectedCfg = statoForm ? STATI_DENTE[statoForm] : null;
-
   return (
     <div>
-      {/* Legenda con conteggi */}
+      {/* Legenda */}
       <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-        {Object.entries(STATI_DENTE).map(([k,v])=>(
+        {Object.entries(STATO_COLORS).map(([k,v])=>(
           <span key={k} style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:12,
             padding:"4px 10px",borderRadius:20,background:v.bg,color:v.color,fontWeight:600,
             border:`1px solid ${v.color}44`}}>
             <span style={{width:7,height:7,borderRadius:"50%",background:v.color,flexShrink:0}}/>
             {v.label}
-            {conteggioStati[k]>0&&<span style={{background:v.color,color:"#fff",borderRadius:10,
-              padding:"0 6px",fontSize:10,fontWeight:700,marginLeft:2}}>{conteggioStati[k]}</span>}
+            {conteggioStati[k]>0&&<span style={{background:v.color,color:"#fff",borderRadius:10,padding:"0 6px",fontSize:10,fontWeight:700}}>{conteggioStati[k]}</span>}
           </span>
         ))}
       </div>
@@ -735,84 +695,72 @@ function Odontogramma({denti={}, setDenti, readOnly=false}) {
 
       {!readOnly&&<>
         {/* Istruzione se nessun dente selezionato */}
-        {!selected&&<div style={{marginTop:10,padding:"10px 14px",background:T.bg,borderRadius:T.r,
-          fontSize:13,color:T.textMuted,textAlign:"center",border:`1px dashed ${T.border}`}}>
+        {!selected&&<div style={{marginTop:10,padding:"10px 14px",background:T.bg,borderRadius:T.r,fontSize:13,color:T.textMuted,textAlign:"center",border:`1px dashed ${T.border}`}}>
           👆 Clicca su un dente per registrare un trattamento
         </div>}
 
         {/* Pannello selezione */}
         {selected&&(
-          <div style={{marginTop:12,padding:16,background:"#fff",border:`2px solid ${selectedCfg?.color||T.brand}`,
-            borderRadius:T.rLg,boxShadow:`0 4px 20px ${selectedCfg?.color||T.brand}22`}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-              <div style={{display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:16,fontWeight:700,color:T.text}}>Dente <span style={{color:T.brand}}>{selected}</span></span>
-                {denti[selected]&&<span style={{fontSize:11.5,padding:"2px 9px",borderRadius:20,
-                  background:STATI_DENTE[denti[selected].stato]?.bg,
-                  color:STATI_DENTE[denti[selected].stato]?.color,fontWeight:600}}>
-                  {STATI_DENTE[denti[selected].stato]?.label}
+          <div style={{marginTop:12,padding:16,background:"#fff",border:`2px solid ${T.brand}`,borderRadius:T.rLg,boxShadow:`0 4px 20px ${T.brand}20`}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:15,fontWeight:700,color:T.text}}>Dente <span style={{color:T.brand}}>{selected}</span></span>
+                {denti[selected]&&<span style={{fontSize:12,padding:"2px 8px",borderRadius:20,background:CONDIZIONI[denti[selected].stato]?.bg,color:CONDIZIONI[denti[selected].stato]?.color,fontWeight:600}}>
+                  {CONDIZIONI[denti[selected].stato]?.label}
                 </span>}
               </div>
-              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",
-                cursor:"pointer",color:T.textMuted,fontSize:20,lineHeight:1}}>✕</button>
+              <button onClick={()=>setSelected(null)} style={{background:"none",border:"none",cursor:"pointer",color:T.textMuted,fontSize:20,lineHeight:1}}>✕</button>
             </div>
 
-            {/* Selezione stato */}
             <div style={{marginBottom:12}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>Stato del dente</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8}}>
-                {Object.entries(STATI_DENTE).map(([k,v])=>(
+              {/* Stato */}
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,marginTop:4}}>Stato del trattamento</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+                {Object.entries(STATO_COLORS).map(([k,v])=>(
                   <button key={k} onClick={()=>setStatoForm(k)}
-                    style={{padding:"10px 8px",borderRadius:T.r,border:`2px solid ${statoForm===k?v.color:T.border}`,
-                      background:statoForm===k?v.bg:"#fff",cursor:"pointer",fontFamily:"inherit",
-                      transition:"all 0.12s",textAlign:"center"}}>
-                    <div style={{fontSize:18,marginBottom:4}}>{v.icon}</div>
-                    <div style={{fontSize:12,fontWeight:700,color:statoForm===k?v.color:T.textSub}}>{v.label}</div>
-                    <div style={{fontSize:10,color:T.textMuted,marginTop:2,lineHeight:1.3}}>{v.sub}</div>
+                    style={{padding:"7px 14px",borderRadius:20,border:`2px solid ${statoForm===k?v.color:T.border}`,
+                      background:statoForm===k?v.bg:"#fff",color:statoForm===k?v.color:T.textSub,
+                      fontSize:12.5,fontWeight:statoForm===k?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s",
+                      display:"flex",alignItems:"center",gap:5}}>
+                    <span style={{width:8,height:8,borderRadius:"50%",background:statoForm===k?v.color:T.border,flexShrink:0}}/>
+                    {v.label}
+                  </button>
+                ))}
+              </div>
+              {/* Tipo trattamento */}
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8}}>Tipo di trattamento</div>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {Object.entries(CONDIZIONI).map(([k,v])=>(
+                  <button key={k} onClick={()=>setCondForm(k)}
+                    style={{padding:"7px 14px",borderRadius:20,
+                      border:`2px solid ${condForm===k?(STATO_COLORS[statoForm]?.color||T.brand):T.border}`,
+                      background:condForm===k?(STATO_COLORS[statoForm]?.bg||T.brandLight):"#fff",
+                      color:condForm===k?(STATO_COLORS[statoForm]?.color||T.brand):T.textSub,
+                      fontSize:12.5,fontWeight:condForm===k?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s"}}>
+                    {v.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Tipo trattamento */}
-            <div style={{marginBottom:12}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>Tipo di trattamento</div>
-              <select value={tipoForm} onChange={e=>setTipoForm(e.target.value)}
-                style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,
-                  borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"}}>
-                <option value="">— Seleziona trattamento —</option>
-                {TIPI_TRATTAMENTO.map(t=><option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-
-            {/* Nota */}
             <div style={{marginBottom:14}}>
-              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>Nota clinica</div>
-              <input value={notaForm} onChange={e=>setNotaForm(e.target.value)}
-                placeholder="Dettagli aggiuntivi..."
+              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6}}>Nota clinica (opzionale)</div>
+              <input value={nota} onChange={e=>setNota(e.target.value)}
+                placeholder="Es. Otturazione mesiale, corona provvisoria..."
                 onKeyDown={e=>e.key==="Enter"&&applica()}
-                style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,
-                  borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box",color:T.text}}/>
+                style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,
+                  outline:"none",fontFamily:"inherit",boxSizing:"border-box",color:T.text}}/>
             </div>
 
-            {/* Bottoni */}
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
-              {denti[selected]&&<button onClick={rimuovi}
-                style={{padding:"9px 14px",fontSize:12.5,fontWeight:600,backgroundColor:"#FEF2F2",
-                  color:"#DC2626",border:"1px solid #FECACA",borderRadius:T.r,cursor:"pointer",fontFamily:"inherit"}}>
-                🗑 Rimuovi
-              </button>}
-              <button onClick={()=>setSelected(null)}
-                style={{padding:"9px 14px",fontSize:12.5,fontWeight:600,backgroundColor:"#fff",
-                  color:T.textSub,border:`1px solid ${T.border}`,borderRadius:T.r,cursor:"pointer",fontFamily:"inherit"}}>
-                Annulla
-              </button>
-              <button onClick={applica}
-                style={{flex:1,padding:"10px 20px",fontSize:14,fontWeight:700,
-                  backgroundColor:selectedCfg?.color||T.brand,color:"#fff",border:"none",
-                  borderRadius:T.r,cursor:"pointer",fontFamily:"inherit",
-                  boxShadow:`0 2px 8px ${selectedCfg?.color||T.brand}50`}}>
-                ✓ Conferma — {selectedCfg?.label} · Dente {selected}
+              {denti[selected]&&<button onClick={rimuovi} style={{padding:"9px 14px",fontSize:12.5,fontWeight:600,background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA",borderRadius:T.r,cursor:"pointer",fontFamily:"inherit"}}>🗑 Rimuovi</button>}
+              <button onClick={()=>setSelected(null)} style={{padding:"9px 14px",fontSize:12.5,fontWeight:600,background:"#fff",color:T.textSub,border:`1px solid ${T.border}`,borderRadius:T.r,cursor:"pointer",fontFamily:"inherit"}}>Annulla</button>
+              <button onClick={applica} style={{flex:1,padding:"10px 20px",fontSize:14,fontWeight:700,
+                background:T.brand,color:"#fff",border:"none",borderRadius:T.r,cursor:"pointer",fontFamily:"inherit",
+                boxShadow:`0 2px 8px ${T.brand}50`,transition:"background 0.15s"}}
+                onMouseEnter={e=>e.currentTarget.style.background=T.brandDark}
+                onMouseLeave={e=>e.currentTarget.style.background=T.brand}>
+                ✓ Applica — {CONDIZIONI[condForm]?.label} · {STATO_COLORS[statoForm]?.label} · Dente {selected}
               </button>
             </div>
           </div>
@@ -821,36 +769,22 @@ function Odontogramma({denti={}, setDenti, readOnly=false}) {
         {/* Registro trattamenti */}
         {Object.keys(denti).length>0&&!selected&&(
           <div style={{marginTop:12}}>
-            <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,
-              textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo trattamenti</div>
-            {Object.entries(STATI_DENTE).map(([statoKey,stCfg])=>{
-              const items = Object.entries(denti)
-                .filter(([,d])=>d?.stato===statoKey)
-                .sort((a,b)=>Number(a[0])-Number(b[0]));
-              if(!items.length) return null;
-              return (
-                <div key={statoKey} style={{marginBottom:10}}>
-                  <div style={{fontSize:11,fontWeight:700,color:stCfg.color,marginBottom:5,
-                    textTransform:"uppercase",letterSpacing:0.5,display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{width:6,height:6,borderRadius:"50%",background:stCfg.color,display:"inline-block"}}/>
-                    {stCfg.label} ({items.length})
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:3}}>
-                    {items.map(([num,val])=>(
-                      <div key={num} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 12px",
-                        background:"#fff",borderRadius:T.r,border:`1px solid ${stCfg.color}33`,cursor:"pointer"}}
-                        onClick={()=>clickDente(Number(num))}>
-                        <span style={{fontSize:12,fontWeight:700,color:stCfg.color,minWidth:28}}>#{num}</span>
-                        {val.tipo&&<span style={{fontSize:12,color:T.text,fontWeight:500}}>{val.tipo}</span>}
-                        {val.nota&&<span style={{fontSize:11.5,color:T.textMuted,flex:1,fontStyle:"italic"}}>{val.nota}</span>}
-                        <span style={{fontSize:10,color:T.textMuted,flexShrink:0}}>{fmtDateShort(val.data)}</span>
-                        <span style={{fontSize:11,color:stCfg.color,fontWeight:600,flexShrink:0}}>Modifica →</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>Trattamenti registrati</div>
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              {Object.entries(denti).sort((a,b)=>Number(a[0])-Number(b[0])).map(([num,val])=>{
+                const sc=STATO_COLORS[val.stato];
+                const cc=CONDIZIONI[val.tipo];
+                if(!sc) return null;
+                return <div key={num} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",background:"#fff",borderRadius:T.r,border:`1px solid ${sc.color}33`}}>
+                  <span style={{fontSize:13,fontWeight:700,color:sc.color,minWidth:32}}>#{num}</span>
+                  <span style={{padding:"2px 8px",borderRadius:20,background:sc.bg,color:sc.color,fontSize:11.5,fontWeight:600}}>{sc.label}</span>
+                  {cc&&<span style={{padding:"2px 8px",borderRadius:20,background:"#F3F4F6",color:T.textSub,fontSize:11.5,fontWeight:500}}>{cc.label}</span>}
+                  {val.nota&&<span style={{fontSize:12,color:T.textMuted,flex:1,fontStyle:"italic"}}>{val.nota}</span>}
+                  <span style={{fontSize:11,color:T.textMuted,flexShrink:0}}>{fmtDateShort(val.data)}</span>
+                  <button onClick={()=>clickDente(Number(num))} style={{background:`${sc.color}15`,border:"none",borderRadius:6,padding:"3px 10px",cursor:"pointer",fontSize:11.5,color:sc.color,fontWeight:600,fontFamily:"inherit"}}>Modifica</button>
+                </div>;
+              })}
+            </div>
           </div>
         )}
       </>}
@@ -1015,7 +949,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             </div>
             <div>
               <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo dentale</div>
-              {Object.entries(STATI_DENTE).map(([k,v])=>{
+              {Object.entries(STATO_COLORS).map(([k,v])=>{
                 const cnt=Object.values(pd.dentiStato||{}).filter(d=>d?.stato===k).length;
                 if(cnt===0) return null;
                 return <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",borderRadius:T.r,background:v.bg,marginBottom:6,border:`1px solid ${v.color}33`}}>
