@@ -1015,7 +1015,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             </div>
             <div>
               <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo dentale</div>
-              {Object.entries(CONDIZIONI).map(([k,v])=>{
+              {Object.entries(STATI_DENTE).map(([k,v])=>{
                 const cnt=Object.values(pd.dentiStato||{}).filter(d=>d?.stato===k).length;
                 if(cnt===0) return null;
                 return <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",borderRadius:T.r,background:v.bg,marginBottom:6,border:`1px solid ${v.color}33`}}>
