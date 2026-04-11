@@ -920,7 +920,8 @@ const TEMPLATES_DOCUMENTI = [
   }
 ];
 
-function DocumentiTab({paziente}) {
+function DocumentiTab({paziente, studioInfo}) {
+  const studio = studioInfo || {};
   const [docSelezionato, setDocSelezionato] = useState(null);
   const [showSelector, setShowSelector] = useState(false);
   const [documentiEmessi, setDocumentiEmessi] = useState([]);
@@ -1070,10 +1071,10 @@ function DocumentiTab({paziente}) {
               <div style={{textAlign:"center",marginBottom:28,paddingBottom:16,
                 borderBottom:"2px solid #1a1a1a"}}>
                 <div style={{fontSize:18,fontWeight:700,letterSpacing:1,marginBottom:4}}>
-                  STUDIO DENTISTICO SARDO
+                  {studio.nome||"STUDIO DENTISTICO SARDO"}
                 </div>
                 <div style={{fontSize:11,color:"#555"}}>
-                  Via — · Cagliari (CA) · Tel: — · Email: —
+                  {[studio.indirizzo,studio.citta?(studio.citta+(studio.provincia?" ("+studio.provincia+")":"")):null,studio.telefono?"Tel: "+studio.telefono:null,studio.email?"Email: "+studio.email:null].filter(Boolean).join(" · ")}
                 </div>
               </div>
 
@@ -1142,7 +1143,7 @@ function DocumentiTab({paziente}) {
               {/* Footer */}
               <div style={{marginTop:30,paddingTop:10,borderTop:"1px solid #eee",
                 textAlign:"center",fontSize:10,color:"#888"}}>
-                Documento generato il {oggi} · Studio Dentistico Sardo · Cagliari
+                Documento generato il {oggi} · {studio.nome||"Studio Dentistico Sardo"} · {studio.citta||"Cagliari"}
               </div>
             </div>
           </div>
@@ -1153,7 +1154,7 @@ function DocumentiTab({paziente}) {
 }
 
 
-function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened}) {
+function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -1192,6 +1193,12 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||""});setEditId(p.id);setModal(true);}
   function save(){
     if(!form.nome||!form.cognome)return alert("Nome e cognome obbligatori");
+    const co=impostazioni?.campiObbligatori||{};
+    if(co.telefono&&!form.telefono)return alert("Il campo Telefono è obbligatorio.");
+    if(co.email&&!form.email)return alert("Il campo Email è obbligatorio.");
+    if(co.dataNascita&&!form.dataNascita)return alert("Il campo Data di nascita è obbligatorio.");
+    if(co.codiceFiscale&&!form.codiceFiscale)return alert("Il campo Codice Fiscale è obbligatorio.");
+    if(co.indirizzo&&!form.indirizzo)return alert("Il campo Indirizzo è obbligatorio.");
     if(editId)setPazienti(p=>p.map(x=>x.id===editId?{...form,id:editId}:x));
     else setPazienti(p=>[...p,{...form,id:uid(),dataRegistrazione:todayISO(),dentiStato:{}}]);
     setModal(false);
@@ -1451,7 +1458,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           </div>}
 
           {/* DOCUMENTI */}
-          {tab==="documenti"&&<DocumentiTab paziente={pd}/>}
+          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio}/>}
         </div>
       </div>
 
@@ -2380,7 +2387,7 @@ const NAV=[
   {section:"Clinica",items:[{id:"agenda",icon:"📅",label:"Agenda"},{id:"pazienti",icon:"👤",label:"Pazienti"}]},
   {section:"Amministrazione",items:[{id:"preventivi",icon:"📄",label:"Preventivi"},{id:"fatture",icon:"🧾",label:"Fatturazione"},{id:"listino",icon:"💊",label:"Listino prezzi"}]},
   {section:"Analisi",items:[{id:"report",icon:"📊",label:"Report"}]},
-  {section:"Impostazioni",items:[{id:"utenti",icon:"👥",label:"Utenti"}]},
+  {section:"Impostazioni",items:[{id:"utenti",icon:"👥",label:"Utenti"},{id:"impostazioni",icon:"⚙️",label:"Impostazioni"}]},
 ];
 
 function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventivi, fatture}) {
@@ -2433,6 +2440,17 @@ export default function App() {
   const [preventivi, setPreventivi] = useStore("preventivi", INIT_PREVENTIVI);
   const [fatture, setFatture] = useStore("fatture", INIT_FATTURE);
   const [listino, setListino] = useStore("listino", DEFAULT_LISTINO);
+  const [impostazioni, setImpostazioni] = useState(()=>{
+    try { const s=localStorage.getItem("dsd_impostazioni"); if(s) return JSON.parse(s); } catch(e) {}
+    return {
+      studio: {nome:"Studio Dentistico Sardo", indirizzo:"", citta:"Cagliari", provincia:"CA", telefono:"", email:"", piva:"", cf:""},
+      campiObbligatori: {nome:true, cognome:true, telefono:false, email:false, dataNascita:false, codiceFiscale:false, indirizzo:false},
+    };
+  });
+
+  useEffect(()=>{
+    try { localStorage.setItem("dsd_impostazioni", JSON.stringify(impostazioni)); } catch(e) {}
+  },[impostazioni]);
 
   if (!user) return <LoginPage onLogin={login}/>;
 
@@ -2459,12 +2477,13 @@ export default function App() {
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
         {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino} onNav={navTo}/>}
-        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)}/>}
+        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} impostazioni={impostazioni}/>}
         {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo}/>}
         {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo}/>}
         {view==="listino"&&<ListinoView listino={listino} setListino={setListino}/>}
         {view==="report"&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
+        {view==="impostazioni"&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user}/>}
       </main>
       {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 8px",display:"flex",justifyContent:"space-around",position:"sticky",bottom:0,zIndex:50}}>
         {[{id:"dashboard",icon:"⊞"},{id:"agenda",icon:"📅"},{id:"pazienti",icon:"👤"},{id:"preventivi",icon:"📄"},{id:"fatture",icon:"🧾"}].map(v=>(
@@ -2477,3 +2496,265 @@ export default function App() {
     </div>
   </div>;
 }
+
+function ImpostazioniView({impostazioni, setImpostazioni, pazienti, appuntamenti, preventivi, fatture, listino, currentUser}) {
+  const [activeTab, setActiveTab] = useState("studio");
+  const [saved, setSaved] = useState(false);
+
+  function updateStudio(k,v){setImpostazioni(p=>({...p,studio:{...p.studio,[k]:v}}));}
+  function updateCampo(k,v){setImpostazioni(p=>({...p,campiObbligatori:{...p.campiObbligatori,[k]:v}}));}
+
+  function salva(){
+    try { localStorage.setItem("dsd_impostazioni", JSON.stringify(impostazioni)); } catch(e) {}
+    setSaved(true); setTimeout(()=>setSaved(false), 2500);
+  }
+
+  // Export data as JSON
+  function esportaDati(){
+    const data = {
+      esportato: new Date().toISOString(),
+      studio: impostazioni.studio,
+      pazienti, appuntamenti, preventivi, fatture, listino
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `backup_studio_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Export pazienti as CSV
+  function esportaCSV(){
+    const headers = ["Cognome","Nome","Telefono","Email","Data Nascita","Codice Fiscale","Indirizzo","Registrazione"];
+    const rows = pazienti.map(p=>[
+      p.cognome||"", p.nome||"", p.telefono||"", p.email||"",
+      p.dataNascita||"", p.codiceFiscale||"", p.indirizzo||"", p.dataRegistrazione||""
+    ]);
+    const csv = [headers, ...rows].map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF"+csv], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pazienti_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const tabs = [
+    {id:"studio",    label:"🏥 Dati Studio"},
+    {id:"pazienti",  label:"👤 Scheda Paziente"},
+    {id:"utenti",    label:"👥 Utenti"},
+    {id:"backup",    label:"💾 Backup & Dati"},
+  ];
+
+  const inputStyle = {
+    width:"100%", padding:"9px 12px", fontSize:13,
+    border:`1.5px solid ${T.border}`, borderRadius:T.r,
+    outline:"none", fontFamily:"inherit", color:T.text,
+    background:"#fff", boxSizing:"border-box"
+  };
+
+  const CAMPI_LABELS = {
+    nome:"Nome", cognome:"Cognome", telefono:"Telefono",
+    email:"Email", dataNascita:"Data di nascita",
+    codiceFiscale:"Codice fiscale", indirizzo:"Indirizzo"
+  };
+
+  const stats = {
+    pazienti: pazienti.length,
+    appuntamenti: appuntamenti.length,
+    preventivi: preventivi.length,
+    fatture: fatture.length,
+    listino: listino.length,
+    dimensione: (new Blob([JSON.stringify({pazienti,appuntamenti,preventivi,fatture,listino})]).size / 1024).toFixed(1)
+  };
+
+  return (
+    <div style={{maxWidth:860}}>
+      <PageHdr title="Impostazioni" subtitle="Configurazione dello studio e del gestionale"/>
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:24}}>
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setActiveTab(t.id)}
+            style={{padding:"10px 20px",fontSize:13.5,fontWeight:activeTab===t.id?700:400,
+              border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",
+              color:activeTab===t.id?T.brand:T.textSub,
+              borderBottom:activeTab===t.id?`2px solid ${T.brand}`:"2px solid transparent",
+              marginBottom:-1,transition:"all 0.15s"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── DATI STUDIO ── */}
+      {activeTab==="studio"&&(
+        <Card>
+          <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 20px"}}>Dati dello studio</h3>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+            {[
+              {k:"nome",label:"Nome studio",placeholder:"Studio Dentistico Sardo"},
+              {k:"telefono",label:"Telefono",placeholder:"070 000000"},
+              {k:"email",label:"Email",placeholder:"info@studiodentistico.it"},
+              {k:"piva",label:"Partita IVA",placeholder:"12345678901"},
+              {k:"cf",label:"Codice Fiscale studio",placeholder:"RSSMRA80A01H501A"},
+            ].map(({k,label,placeholder})=>(
+              <div key={k}>
+                <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>{label}</label>
+                <input value={impostazioni.studio[k]||""} onChange={e=>updateStudio(k,e.target.value)}
+                  placeholder={placeholder} style={inputStyle}/>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:16}}>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Indirizzo</label>
+            <input value={impostazioni.studio.indirizzo||""} onChange={e=>updateStudio("indirizzo",e.target.value)}
+              placeholder="Via Roma 1" style={inputStyle}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 100px",gap:12,marginTop:16}}>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Città</label>
+              <input value={impostazioni.studio.citta||""} onChange={e=>updateStudio("citta",e.target.value)}
+                placeholder="Cagliari" style={inputStyle}/>
+            </div>
+            <div>
+              <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Prov.</label>
+              <input value={impostazioni.studio.provincia||""} onChange={e=>updateStudio("provincia",e.target.value)}
+                placeholder="CA" style={{...inputStyle,textTransform:"uppercase"}} maxLength={2}/>
+            </div>
+          </div>
+          <div style={{marginTop:20,padding:"12px 14px",background:"#FFF9F0",borderRadius:T.r,border:"1px solid #FDE68A",fontSize:12,color:"#92400E"}}>
+            💡 I dati dello studio vengono usati automaticamente nei documenti e nei consensi informatici generati dalla sezione Documenti nella scheda paziente.
+          </div>
+        </Card>
+      )}
+
+      {/* ── SCHEDA PAZIENTE ── */}
+      {activeTab==="pazienti"&&(
+        <Card>
+          <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 6px"}}>Campi obbligatori — Nuovo paziente</h3>
+          <p style={{fontSize:13,color:T.textSub,marginBottom:20}}>Seleziona i campi che devono essere compilati obbligatoriamente prima di salvare un nuovo paziente.</p>
+          <div style={{display:"flex",flexDirection:"column",gap:0,border:`1px solid ${T.border}`,borderRadius:T.rLg,overflow:"hidden"}}>
+            {Object.entries(CAMPI_LABELS).map(([k,label],i)=>(
+              <div key={k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"14px 18px",borderBottom:i<Object.keys(CAMPI_LABELS).length-1?`1px solid ${T.border}`:"none",
+                background:i%2===0?"#fff":T.bg}}>
+                <div>
+                  <div style={{fontSize:13.5,fontWeight:500,color:T.text}}>{label}</div>
+                  {(k==="nome"||k==="cognome")&&<div style={{fontSize:11.5,color:T.textMuted,marginTop:2}}>Campo di sistema — sempre obbligatorio</div>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  {(k==="nome"||k==="cognome")
+                    ? <span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:T.brandLight,color:T.brandDark,fontWeight:600}}>Sempre ✓</span>
+                    : <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                        <span style={{fontSize:13,color:impostazioni.campiObbligatori[k]?T.success:T.textMuted,fontWeight:600}}>
+                          {impostazioni.campiObbligatori[k]?"Obbligatorio":"Facoltativo"}
+                        </span>
+                        <div onClick={()=>updateCampo(k,!impostazioni.campiObbligatori[k])}
+                          style={{width:44,height:24,borderRadius:12,cursor:"pointer",transition:"background 0.2s",
+                            background:impostazioni.campiObbligatori[k]?T.success:"#CBD5E1",
+                            position:"relative",flexShrink:0}}>
+                          <div style={{position:"absolute",top:2,left:impostazioni.campiObbligatori[k]?22:2,
+                            width:20,height:20,borderRadius:"50%",background:"#fff",
+                            transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+                        </div>
+                      </label>
+                  }
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:16,padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,fontSize:12,color:T.textSub}}>
+            ℹ️ Le modifiche vengono applicate immediatamente alla prossima apertura del modulo "Nuovo paziente".
+          </div>
+        </Card>
+      )}
+
+      {/* ── UTENTI ── */}
+      {activeTab==="utenti"&&<UtentiView currentUser={currentUser}/>}
+
+      {/* ── BACKUP & DATI ── */}
+      {activeTab==="backup"&&(
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+          {/* Stats */}
+          <Card>
+            <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Riepilogo dati</h3>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:12}}>
+              {[
+                {icon:"👥",label:"Pazienti",value:stats.pazienti},
+                {icon:"📅",label:"Appuntamenti",value:stats.appuntamenti},
+                {icon:"📄",label:"Preventivi",value:stats.preventivi},
+                {icon:"🧾",label:"Fatture",value:stats.fatture},
+                {icon:"💊",label:"Listino",value:stats.listino+" voci"},
+                {icon:"💾",label:"Dimensione",value:stats.dimensione+" KB"},
+              ].map((s,i)=>(
+                <div key={i} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,
+                  border:`1px solid ${T.border}`,textAlign:"center"}}>
+                  <div style={{fontSize:24,marginBottom:6}}>{s.icon}</div>
+                  <div style={{fontSize:20,fontWeight:700,color:T.text}}>{s.value}</div>
+                  <div style={{fontSize:11.5,color:T.textSub,marginTop:2}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Esporta */}
+          <Card>
+            <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 6px"}}>Esporta dati</h3>
+            <p style={{fontSize:13,color:T.textSub,marginBottom:20}}>Scarica una copia dei tuoi dati in diversi formati.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"16px 18px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:600,color:T.text}}>💾 Backup completo (JSON)</div>
+                  <div style={{fontSize:12,color:T.textSub,marginTop:3}}>Tutti i dati: pazienti, appuntamenti, preventivi, fatture, listino</div>
+                </div>
+                <button onClick={esportaDati}
+                  style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:T.brand,
+                    color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0,marginLeft:16}}>
+                  Scarica JSON
+                </button>
+              </div>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
+                padding:"16px 18px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:600,color:T.text}}>📊 Lista pazienti (CSV)</div>
+                  <div style={{fontSize:12,color:T.textSub,marginTop:3}}>Anagrafica pazienti in formato Excel-compatibile</div>
+                </div>
+                <button onClick={esportaCSV}
+                  style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:"#059669",
+                    color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0,marginLeft:16}}>
+                  Scarica CSV
+                </button>
+              </div>
+            </div>
+            <div style={{marginTop:16,padding:"12px 14px",background:"#FEF2F2",borderRadius:T.r,
+              border:"1px solid #FECACA",fontSize:12,color:"#991B1B"}}>
+              ⚠️ I dati esportati contengono informazioni sensibili sui pazienti. Conservali in modo sicuro e nel rispetto del GDPR.
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Salva button (not for utenti and backup tabs) */}
+      {(activeTab==="studio"||activeTab==="pazienti")&&(
+        <div style={{marginTop:20,display:"flex",alignItems:"center",gap:12}}>
+          <button onClick={salva}
+            style={{padding:"11px 28px",borderRadius:T.r,border:"none",backgroundColor:T.brand,
+              color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+              boxShadow:`0 2px 8px ${T.brand}44`}}>
+            Salva impostazioni
+          </button>
+          {saved&&<span style={{fontSize:13,color:T.success,fontWeight:600,
+            display:"flex",alignItems:"center",gap:5}}>
+            ✓ Salvato con successo
+          </span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
