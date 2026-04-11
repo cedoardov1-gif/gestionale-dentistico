@@ -1079,7 +1079,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             {label:"Telefono",render:r=><span style={{color:T.textSub}}>{r.telefono||"—"}</span>,nowrap:true},
             {label:"Email",render:r=><span style={{color:T.textSub,fontSize:12.5}}>{r.email||"—"}</span>},
             {label:"Nato il",render:r=><span style={{color:T.textSub}}>{fmtDate(r.dataNascita)}</span>,nowrap:true},
-            {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn></div>,nowrap:true},
+            {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();openEdit(r);}}>✏️</Btn></div>,nowrap:true},
           ]}
           data={filtered}
           onRowClick={r=>{setDetail(r.id);setTab("overview");}}
@@ -1353,7 +1353,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
                         }
                         {/* Modifica */}
                         {!hasFattura&&r.stato!=="accettato"&&
-                          <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
+                          <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();openEdit(r);}}>✏️</Btn>
                         }
                         {/* Elimina — solo se rifiutato e non fatturato */}
                         {!hasFattura&&r.stato==="rifiutato"&&
@@ -1513,7 +1513,17 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     setModal(false);
   }
   function cambiaStato(id,stato){setFatture(p=>p.map(x=>x.id===id?{...x,statoPagamento:stato}:x));}
-  function del(id){if(confirm("Eliminare?"))setFatture(p=>p.filter(x=>x.id!==id));}
+  function del(id){
+    const fatt = fatture.find(f=>f.id===id);
+    const msg = fatt?.preventivoId
+      ? "Eliminare la fattura? Il preventivo collegato tornera disponibile."
+      : "Eliminare questa fattura?";
+    if(!window.confirm(msg)) return;
+    setFatture(p=>p.filter(x=>x.id!==id));
+    if(fatt?.preventivoId){
+      setPreventivi(p=>p.map(x=>Number(x.id)===Number(fatt.preventivoId)?{...x,stato:"accettato"}:x));
+    }
+  }
 
   const now=new Date();
   const meseInc=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
@@ -1599,8 +1609,8 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div style={{display:"flex",gap:4}}>
-                    <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
-                    <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
+                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();openEdit(r);}}>✏️</Btn>
+                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();del(r.id);}}>🗑️</Btn>
                   </div>
                 </td>
               </tr>
@@ -1758,7 +1768,7 @@ function ListinoView({listino, setListino}) {
           <Btn size="xs" onClick={()=>{setForm({categoria:cat,nome:"",prezzo:""});setEditId(null);setModal(true);}}>+ Aggiungi in {cat}</Btn>
         </div>
       </div>
-      <Tbl columns={[{label:"Trattamento",render:r=><span style={{fontWeight:500}}>{r.nome}</span>},{label:"Prezzo",render:r=><b style={{fontSize:14}}>{fmtEur(r.prezzo)}</b>,nowrap:true},{label:"",render:r=><div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn></div>,nowrap:true}]} data={items} emptyText=""/>
+      <Tbl columns={[{label:"Trattamento",render:r=><span style={{fontWeight:500}}>{r.nome}</span>},{label:"Prezzo",render:r=><b style={{fontSize:14}}>{fmtEur(r.prezzo)}</b>,nowrap:true},{label:"",render:r=><div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();openEdit(r);}}>✏️</Btn><Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();del(r.id);}}>🗑️</Btn></div>,nowrap:true}]} data={items} emptyText=""/>
     </Card>)}
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica trattamento":"Nuovo trattamento"}
       footer={<>{editId&&<Btn variant="danger" onClick={()=>{del(editId);setModal(false);}}>Elimina</Btn>}<Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Aggiungi"}</Btn></>}>
@@ -1858,7 +1868,7 @@ function UtentiView({currentUser}) {
       {label:"Utente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/><div><div style={{fontWeight:600}}>{r.nome} {r.cognome}</div><div style={{fontSize:12,color:T.textSub}}>{r.email}</div></div></div>},
       {label:"Ruolo",render:r=><Badge label={r.ruolo} status={r.ruolo}/>,nowrap:true},
       {label:"Stato",render:r=><Badge label={r.attivo?"Attivo":"Disattivo"} status={r.attivo?"confermato":"annullato"}/>,nowrap:true},
-      {label:"",render:r=>currentUser?.ruolo==="admin"&&r.id!==currentUser.id&&<div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant={r.attivo?"danger":"success"} onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>{r.attivo?"Disattiva":"Attiva"}</Btn></div>,nowrap:true},
+      {label:"",render:r=>currentUser?.ruolo==="admin"&&r.id!==currentUser.id&&<div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();openEdit(r);}}>✏️</Btn><Btn size="xs" variant={r.attivo?"danger":"success"} onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>{r.attivo?"Disattiva":"Attiva"}</Btn></div>,nowrap:true},
     ]} data={utenti} emptyText="Nessun utente"/></Card>
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica utente":"Nuovo utente"}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
