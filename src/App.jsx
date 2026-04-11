@@ -1351,13 +1351,14 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const [search, setSearch]=useState("");
   const [sortCol, setSortCol]=useState("data");
   const [sortAsc, setSortAsc]=useState(false);
-
-  function toggleSort(col){ if(sortCol===col)setSortAsc(!sortAsc); else{setSortCol(col);setSortAsc(true);} }
-  function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
   const [modal, setModal]=useState(false);
   const [editId, setEditId]=useState(null);
   const [form, setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
   const [addVoce, setAddVoce]=useState({nome:"",prezzo:"",qty:1});
+
+  function toggleSort(col){ if(sortCol===col)setSortAsc(!sortAsc); else{setSortCol(col);setSortAsc(true);} }
+  function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
+
   const ff=k=>v=>setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
   const filtered=useMemo(()=>{
