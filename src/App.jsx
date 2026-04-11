@@ -134,6 +134,7 @@ function useStore(key, init) {
         if (delErr) throw delErr;
         if (next.length > 0) {
           const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
+            ...(id !== undefined && {id}),
             ...rest,
             ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
             ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
@@ -147,7 +148,7 @@ function useStore(key, init) {
             ...(medicoBase !== undefined && {medico_base: nullIfEmpty(medicoBase)}),
             ...(dentiStato !== undefined && {denti_stato: dentiStato}),
           }));
-          const {error: insErr} = await supabase.from(table).insert(rows);
+          const {error: insErr} = await supabase.from(table).upsert(rows, {onConflict:'id'});
           if (insErr) throw insErr;
         }
         console.log("✓ Salvato su Supabase:", table, next.length, "righe");
