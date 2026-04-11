@@ -1395,7 +1395,9 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
             })}
           </tbody>
         </table>}
-      </div>entiviView({preventivi, setPreventivi, pazienti, listino, fatture}) {
+      </div>
+
+function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture}) {
   const [filter, setFilter]=useState("tutti");
   const [search, setSearch]=useState("");
   const [sortCol, setSortCol]=useState("data");
