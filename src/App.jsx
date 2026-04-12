@@ -1300,10 +1300,13 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             </div>
             <div>
               <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo</div>
-              {[{icon:"📅",l:"Appuntamenti",v:pApts.length},{icon:"📄",l:"Preventivi",v:pPrev.length},{icon:"🧾",l:"Fatture",v:pFatt.length}].map((k,i)=>(
-                <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"9px 12px",borderRadius:T.r,background:T.bg,marginBottom:6}}>
+              {[{icon:"📅",l:"Appuntamenti",v:pApts.length,tab:"overview"},{icon:"📄",l:"Preventivi",v:pPrev.length,tab:"preventivi"},{icon:"🧾",l:"Fatture",v:pFatt.length,tab:"fatture"}].map((k,i)=>(
+                <div key={i} onClick={()=>setTab(k.tab)}
+                  style={{display:"flex",justifyContent:"space-between",padding:"9px 12px",borderRadius:T.r,background:T.bg,marginBottom:6,cursor:"pointer",transition:"all 0.12s"}}
+                  onMouseEnter={e=>{e.currentTarget.style.background=T.brandLight;e.currentTarget.style.borderColor=T.brand;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=T.bg;e.currentTarget.style.borderColor="transparent";}}>
                   <span style={{fontSize:13,color:T.textSub}}>{k.icon} {k.l}</span>
-                  <span style={{fontSize:14,fontWeight:700,color:T.text}}>{k.v}</span>
+                  <span style={{fontSize:14,fontWeight:700,color:T.brand}}>{k.v} →</span>
                 </div>
               ))}
               {pApts.slice(0,3).length>0&&<div style={{marginTop:14}}>
@@ -1495,8 +1498,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
                       </div>}
                 </div>
 
-                {/* Abitudini e altri dati */}
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:16}}>
+                {/* Abitudini */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:16}}>
                   <div>
                     <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Fumatore</label>
                     <select value={pd.anamnesi?.fumatore||"no"} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,fumatore:e.target.value}}:x))}
@@ -1517,42 +1520,38 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
                       <option value="frequente">Frequente</option>
                     </select>
                   </div>
-                  <div>
-                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Gruppo sanguigno</label>
-                    <select value={pd.anamnesi?.gruppoSanguigno||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,gruppoSanguigno:e.target.value}}:x))}
-                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}>
-                      <option value="">—</option>
-                      {["0+","0-","A+","A-","B+","B-","AB+","AB-"].map(g=><option key={g} value={g}>{g}</option>)}
-                    </select>
-                  </div>
                 </div>
 
-                {/* Anestesia e note */}
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <div>
-                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Reazioni ad anestesia locale</label>
-                    <select value={pd.anamnesi?.anestesia||"nessuna"} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,anestesia:e.target.value}}:x))}
-                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}>
-                      <option value="nessuna">Nessuna</option>
-                      <option value="lipotimia">Lipotimia</option>
-                      <option value="allergia">Allergia nota</option>
-                      <option value="tachicardia">Tachicardia</option>
-                      <option value="altro">Altro</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Ultima visita medica</label>
-                    <input type="date" value={pd.anamnesi?.ultimaVisita||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,ultimaVisita:e.target.value}}:x))}
-                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}/>
-                  </div>
+                {/* Anestesia */}
+                <div style={{marginBottom:16}}>
+                  <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Reazioni ad anestesia locale</label>
+                  <select value={pd.anamnesi?.anestesia||"nessuna"} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,anestesia:e.target.value}}:x))}
+                    style={{width:"100%",maxWidth:320,padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}>
+                    <option value="nessuna">Nessuna</option>
+                    <option value="lipotimia">Lipotimia</option>
+                    <option value="allergia">Allergia nota</option>
+                    <option value="tachicardia">Tachicardia</option>
+                    <option value="altro">Altro</option>
+                  </select>
                 </div>
 
-                {/* Note anamnestiche libere */}
-                <div style={{marginTop:14}}>
-                  <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Note anamnestiche</label>
-                  <textarea value={pd.anamnesi?.note||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,note:e.target.value}}:x))}
-                    placeholder="Annotazioni cliniche aggiuntive..." rows={3}
-                    style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+                {/* Note anamnestiche + Patologie familiari */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginTop:14}}>
+                  <div>
+                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Note anamnestiche</label>
+                    <textarea value={pd.anamnesi?.note||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,note:e.target.value}}:x))}
+                      placeholder="Annotazioni cliniche aggiuntive..." rows={4}
+                      style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+                  </div>
+                  <div>
+                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Patologie familiari degne di nota</label>
+                    <textarea value={pd.anamnesi?.patFamiliari||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,patFamiliari:e.target.value}}:x))}
+                      placeholder="Es. diabete, cardiopatie, tumori in famiglia..." rows={4}
+                      style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+                  </div>
+                </div>
+                <div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}>
+                  <button onClick={()=>alert("Anamnesi salvata")} style={{padding:"8px 20px",borderRadius:T.r,border:"none",background:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva anamnesi</button>
                 </div>
               </div>
             </div>
@@ -1735,6 +1734,34 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino, onNav}) {
   function openEdit(a){setForm(a);setEditId(a.id);setModal(true);}
   function save(){if(!form.pazienteId||!form.data)return alert("Seleziona paziente e data");if(editId)setAppuntamenti(p=>p.map(x=>x.id===editId?{...form,id:editId,durata:Number(form.durata)}:x));else setAppuntamenti(p=>[...p,{...form,id:uid(),durata:Number(form.durata)}]);setModal(false);}
   function del(id){if(confirm("Eliminare?"))setAppuntamenti(p=>p.filter(x=>x.id!==id));}
+
+  function stampaAgendaGiorno(data, apts, paz) {
+    const dataLabel = data.toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+    const rows = apts.map(a=>{
+      const p = paz.find(x=>x.id===a.pazienteId);
+      const nome = p ? p.cognome+" "+p.nome : "—";
+      return "<tr><td style='padding:8px 12px;border-bottom:1px solid #eee;font-weight:600'>"+a.oraInizio+"</td>"
+        +"<td style='padding:8px 12px;border-bottom:1px solid #eee'>"+nome+"</td>"
+        +"<td style='padding:8px 12px;border-bottom:1px solid #eee'>"+(a.tipo||"—")+"</td>"
+        +"<td style='padding:8px 12px;border-bottom:1px solid #eee'>"+(a.durata||60)+" min</td>"
+        +"<td style='padding:8px 12px;border-bottom:1px solid #eee'>"+(a.operatore||"—")+"</td>"
+        +"<td style='padding:8px 12px;border-bottom:1px solid #eee'>"+(a.note||"")+"</td></tr>";
+    }).join("");
+    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Agenda "+dataLabel+"</title>"
+      +"<style>body{font-family:Arial,sans-serif;font-size:11pt;margin:0;padding:20mm}"
+      +"h1{font-size:16pt;margin:0 0 4px}h2{font-size:12pt;color:#555;margin:0 0 20px;font-weight:400}"
+      +"table{width:100%;border-collapse:collapse}thead th{background:#5BBFB5;color:#fff;padding:8px 12px;text-align:left;font-size:10pt}"
+      +"tbody tr:nth-child(even){background:#f9f9f9}"
+      +"@media print{body{margin:0}}</style></head><body>"
+      +"<h1>Studio Dentistico Sardo</h1>"
+      +"<h2>Agenda del "+dataLabel+"</h2>"
+      +"<table><thead><tr><th>Ora</th><th>Paziente</th><th>Trattamento</th><th>Durata</th><th>Operatore</th><th>Note</th></tr></thead>"
+      +"<tbody>"+(rows||"<tr><td colspan='6' style='text-align:center;padding:20px;color:#888'>Nessun appuntamento</td></tr>")+"</tbody></table>"
+      +"<div style='margin-top:30px;font-size:10pt;color:#888;border-top:1px solid #eee;padding-top:10px'>Stampato il "+new Date().toLocaleDateString("it-IT")+"</div>"
+      +"</body><script>window.onload=function(){window.print();}<\/script></html>";
+    const w = window.open("","_blank","width=900,height=700");
+    if(w){w.document.write(html);w.document.close();}
+  }
   function getApts(iso){return appuntamenti.filter(a=>a.data===iso).sort((a,b)=>a.oraInizio.localeCompare(b.oraInizio));}
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.nome} ${p.cognome}`:"—";}
   const hLabel=calView==="week"?`${weekDays[0].getDate()} ${MESI[weekDays[0].getMonth()].slice(0,3)} – ${weekDays[6].getDate()} ${MESI[weekDays[6].getMonth()].slice(0,3)} ${weekDays[6].getFullYear()}`:`${MESI[curDate.getMonth()]} ${curDate.getFullYear()}`;
@@ -1742,13 +1769,60 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino, onNav}) {
     <PageHdr title="Agenda" subtitle="Gestione appuntamenti" action={<Btn icon="+" onClick={()=>openNew(new Date())}>Nuovo appuntamento</Btn>}/>
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:18,flexWrap:"wrap"}}>
       <div style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-        {[["week","Settimana"],["month","Mese"]].map(([k,l])=><button key={k} onClick={()=>setCalView(k)} style={{padding:"7px 16px",border:"none",background:calView===k?T.brand:"transparent",color:calView===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:calView===k?600:400}}>{l}</button>)}
+        {[["oggi","Oggi"],["week","Settimana"],["month","Mese"]].map(([k,l])=><button key={k} onClick={()=>{setCalView(k);if(k==="oggi")setCurDate(new Date());}} style={{padding:"7px 16px",border:"none",background:calView===k?T.brand:"transparent",color:calView===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:calView===k?600:400}}>{l}</button>)}
       </div>
       <Btn variant="secondary" size="sm" onClick={()=>nav(-1)}>‹</Btn>
       <span style={{fontSize:14,fontWeight:600,color:T.text,minWidth:200,textAlign:"center"}}>{hLabel}</span>
       <Btn variant="secondary" size="sm" onClick={()=>nav(1)}>›</Btn>
       <Btn variant="ghost" size="sm" onClick={()=>setCurDate(new Date())}>Oggi</Btn>
     </div>
+        {calView==="oggi"&&<div>
+      {/* Header oggi */}
+      <div style={{background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:8}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
+          <div style={{fontSize:16,fontWeight:700,color:T.text}}>
+            {curDate.toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>stampaAgendaGiorno(curDate,getApts(curDate.toISOString().slice(0,10)),pazienti)}
+              style={{padding:"7px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,background:T.brandLight,color:T.brand,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              🖨️ Stampa agenda
+            </button>
+          </div>
+        </div>
+        {HOURS.map(hour=>{
+          const iso=curDate.toISOString().slice(0,10);
+          const apts=getApts(iso).filter(a=>a.oraInizio===hour);
+          const isToday=iso===todayISO();
+          return <div key={hour} style={{display:"flex",borderBottom:`1px solid ${T.border}`,minHeight:50}}>
+            <div style={{width:60,padding:"14px 8px",fontSize:12,color:T.textSub,borderRight:`1px solid ${T.border}`,flexShrink:0,textAlign:"right",fontWeight:500}}>{hour}</div>
+            <div style={{flex:1,padding:4,background:isToday&&hour===new Date().getHours()+":00"?"#FAFFFE":"transparent"}}
+              onClick={()=>apts.length===0&&openNew(curDate,hour)}>
+              {apts.map(a=>{
+                const bs=BADGE[a.stato]||{};
+                const dur=a.durata||60;
+                const slotH=Math.max(Math.round(dur/60*50),28);
+                return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}}
+                  style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,
+                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",
+                    display:"flex",alignItems:"flex-start",gap:10}}>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700,color:bs.color||T.brandDark}}>{a.oraInizio} — {getPaz(a.pazienteId)}</div>
+                    <div style={{fontSize:12,color:bs.color||T.brandDark,opacity:0.85}}>{a.tipo||""}{a.durata?" ("+a.durata+"min)":""}{a.operatore?" · "+a.operatore:""}</div>
+                    {a.note&&<div style={{fontSize:11.5,color:T.textSub,marginTop:2,fontStyle:"italic"}}>{a.note}</div>}
+                  </div>
+                  <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600,flexShrink:0,border:`1px solid ${bs.dot||T.brand}44`}}>{a.stato}</span>
+                </div>;
+              })}
+              {apts.length===0&&<div style={{height:"100%",minHeight:42,cursor:"pointer"}}
+                onMouseEnter={e=>e.currentTarget.style.background=T.brandLight}
+                onMouseLeave={e=>e.currentTarget.style.background="transparent"}/>}
+            </div>
+          </div>;
+        })}
+      </div>
+    </div>}
+
     {calView==="week"&&<div style={{overflowX:"auto"}}>
       <div style={{minWidth:700,background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.shadow}}>
         <div style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
@@ -2979,7 +3053,7 @@ function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventiv
     <div style={{padding:"16px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <img src={LOGO} alt="Studio" style={{width:36,height:36,borderRadius:8,objectFit:"contain",background:"white",padding:3}}/>
-        <div><div style={{fontSize:13,fontWeight:700,color:"#fff",lineHeight:1.2}}>Studio Dentistico</div><div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:1}}>Sardo · Cagliari</div></div>
+        <div><div style={{fontSize:13,fontWeight:700,color:"#fff",lineHeight:1.2}}>Studio Dentistico Sardo</div><div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:1}}>Oristano</div></div>
       </div>
     </div>
     <nav style={{flex:1,padding:"8px",overflowY:"auto"}}>
@@ -3024,11 +3098,7 @@ export default function App() {
   const [listino, setListino] = useStore("listino", DEFAULT_LISTINO);
   const [impostazioni, setImpostazioni] = useState(()=>{
     try{const s=localStorage.getItem("dsd_impostazioni");if(s)return JSON.parse(s);}catch(e){}
-    return {studio:{nome:"Studio Dentistico Sardo",indirizzo:"Via G. Spano, 1",citta:"Oristano",provincia:"OR",telefono:"0783212280",email:"",piva:"01284760954",cf:"PRCLRZ99A46G113D"},campiObbligatori:{nome:true,cognome:true,telefono:false,email:false,dataNascita:false,codiceFiscale:false,indirizzo:false,
-      anamnesi:{
-        patologie:["Diabete","Ipertensione","Cardiopatie","Coagulopatie","Epatite B/C","HIV","Osteoporosi","Asma","Epilessia","Gravidanza","Tumori","Dialisi"],
-        anticoag:["Aspirina","Warfarin","Eparina","Clopidogrel","Dabigatran","Rivaroxaban","Nessuno"]
-      }};
+    return {studio:{nome:"Studio Dentistico Sardo",indirizzo:"Via G. Spano, 1",citta:"Oristano",provincia:"OR",telefono:"0783212280",email:"",piva:"01284760954",cf:"PRCLRZ99A46G113D"},campiObbligatori:{nome:true,cognome:true,telefono:false,email:false,dataNascita:false,codiceFiscale:false,indirizzo:false}};
   });
   useEffect(()=>{try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}}, [impostazioni]);
 
@@ -3074,5 +3144,4 @@ export default function App() {
       </nav>}
     </div>
   </div>;
-}
 }
