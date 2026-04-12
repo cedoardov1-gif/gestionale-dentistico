@@ -2904,7 +2904,7 @@ const NAV=[
   {section:"Clinica",items:[{id:"agenda",icon:"📅",label:"Agenda"},{id:"pazienti",icon:"👤",label:"Pazienti"}]},
   {section:"Amministrazione",items:[{id:"preventivi",icon:"📄",label:"Preventivi"},{id:"fatture",icon:"🧾",label:"Fatturazione"},{id:"listino",icon:"💊",label:"Listino prezzi"}]},
   {section:"Analisi",items:[{id:"report",icon:"📊",label:"Report"}]},
-  {section:"Impostazioni",items:[{id:"utenti",icon:"👥",label:"Utenti"},{id:"impostazioni",icon:"⚙️",label:"Impostazioni"}]},
+  {section:"Impostazioni",items:[{id:"impostazioni",icon:"⚙️",label:"Impostazioni"}]},
 ];
 
 
