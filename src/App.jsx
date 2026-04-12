@@ -362,7 +362,7 @@ function LoginPage({onLogin}) {
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-  function go() { setLoading(true); setErr(""); setTimeout(()=>{ const u=UTENTI_DEFAULT.find(u=>u.email===email&&u.password===pwd&&u.attivo); if(u){onLogin(u);}else{setErr("Email o password non corretti");} setLoading(false); },600); }
+  function go() { setLoading(true); setErr(""); setTimeout(()=>{ const stored=()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}}; const u=stored().find(u=>u.email===email&&u.password===pwd&&u.attivo!==false); if(u){onLogin(u);}else{setErr("Email o password non corretti");} setLoading(false); },600); }
   const onKey = e => { if(e.key==="Enter") go(); };
   return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#EBF8F7 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:"100%",maxWidth:400}}>
@@ -1688,10 +1688,10 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino, onNav}) {
           {HOURS.map(hour=><div key={hour} style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",minHeight:46,borderBottom:`1px solid ${T.border}`}}>
             <div style={{padding:"4px 8px",textAlign:"right",fontSize:11,color:T.textMuted,paddingTop:6,borderRight:`1px solid ${T.border}`,background:T.bg}}>{hour}</div>
             {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const apts=getApts(iso).filter(a=>a.oraInizio===hour);
-              return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46}}
+              return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
-                {apts.map(a=>{const bs=BADGE[a.stato]||{};const slotH=Math.round((a.durata||60)/60*44);return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box"}}>
+                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=dur<=30?22:dur<=45?33:dur<=60?44:Math.round(dur/60*44);const multiSlot=dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
                   <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
                   <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}{a.durata?" ("+a.durata+"min)":""}</div>
                 </div>;})}
