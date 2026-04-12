@@ -1683,9 +1683,9 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino, onNav}) {
               return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46}}
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
-                {apts.map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer"}}>
+                {apts.map(a=>{const bs=BADGE[a.stato]||{};const slotH=Math.round((a.durata||60)/60*44);return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box"}}>
                   <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
-                  <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.tipo||a.durata+"m"}</div>
+                  <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}{a.durata?" ("+a.durata+"min)":""}</div>
                 </div>;})}
               </div>;
             })}
@@ -2296,7 +2296,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                 <td style={{padding:"12px 16px",fontSize:13,fontWeight:600,color:T.text,whiteSpace:"nowrap"}}>{r.numero}</td>
                 <td style={{padding:"12px 16px",fontSize:13}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}><Av name={getPaz(r.pazienteId)} size={28} fs={10}/><span style={{fontWeight:600,color:T.text}}>{getPaz(r.pazienteId)}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}><Av name={getPaz(r.pazienteId)} size={28} fs={10}/><span onClick={e=>{e.stopPropagation();if(onNav)onNav("pazienti",r.pazienteId);}} style={{fontWeight:600,color:T.brand,cursor:"pointer",textDecoration:"underline"}}>{getPaz(r.pazienteId)}</span></div>
                 </td>
                 <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{fmtDate(r.data)}</td>
                 <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{r.metodoPagamento}</td>
@@ -2543,9 +2543,14 @@ function ListinoView({listino, setListino}) {
   </div>;
 }
 
-function ReportView({fatture, appuntamenti, pazienti, listino}) {
+function ReportView({fatture, appuntamenti, pazienti, listino, preventivi}) {
   const [period,setPeriod]=useState("mese");
+  const [detailModal,setDetailModal]=useState(null); // {title, items}
+  const [meseGrafico,setMeseGrafico]=useState(new Date().getMonth()); // 0-11
+  const [annoGrafico,setAnnoGrafico]=useState(new Date().getFullYear());
+  const [annoGraficoAnn,setAnnoGraficoAnn]=useState(new Date().getFullYear());
   const now=new Date();
+
   const ranges={
     oggi:iso=>iso===todayISO(),
     settimana:iso=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()+1);s.setHours(0,0,0,0);return d>=s;},
@@ -2553,104 +2558,312 @@ function ReportView({fatture, appuntamenti, pazienti, listino}) {
     anno:iso=>new Date(iso).getFullYear()===now.getFullYear(),
     sempre:()=>true
   };
+
   const filtFatt=fatture.filter(f=>ranges[period](f.data)&&f.statoPagamento==="pagato");
   const filtApts=appuntamenti.filter(a=>ranges[period](a.data)&&a.stato==="completato");
-  const totale=filtFatt.reduce((s,f)=>s+f.totale,0);
-  const byTipo=useMemo(()=>{const m={};filtApts.forEach(a=>{const item=listino.find(l=>l.nome===a.tipo);if(!m[a.tipo])m[a.tipo]={count:0,revenue:0};m[a.tipo].count++;m[a.tipo].revenue+=item?item.prezzo:0;});return Object.entries(m).sort((a,b)=>b[1].revenue-a[1].revenue);},[filtApts,listino]);
+  const totale=filtFatt.reduce((s,f)=>s+(f.totale||0),0);
+  const mediaFatt=filtFatt.length?totale/filtFatt.length:0;
 
-  const last30=Array.from({length:30},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(29-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return{label:d.getDate()+"/"+(d.getMonth()+1),rev,isToday:iso===todayISO()};});
-  const maxRev=2500;
+  // Top 4 trattamenti da fatture INCASSATE
+  const topTrattamenti=useMemo(()=>{
+    const m={};
+    fatture.filter(f=>f.statoPagamento==="pagato").forEach(f=>{
+      (f.voci||[]).filter(v=>v.nome!=="Marca da bollo").forEach(v=>{
+        if(!m[v.nome])m[v.nome]={count:0,revenue:0};
+        m[v.nome].count+=(v.qty||1);
+        m[v.nome].revenue+=(v.prezzo||0)*(v.qty||1);
+      });
+    });
+    return Object.entries(m).sort((a,b)=>b[1].revenue-a[1].revenue).slice(0,4);
+  },[fatture]);
+  const totTratt=topTrattamenti.reduce((s,x)=>s+x[1].revenue,0);
 
-  const last6=Array.from({length:6},(_,i)=>{const dt=new Date();dt.setMonth(dt.getMonth()-(5-i));dt.setDate(1);const y=dt.getFullYear(),m=dt.getMonth();const rev=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===m&&d.getFullYear()===y&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);return{label:dt.toLocaleDateString("it-IT",{month:"short"}),rev};});
-  const maxMonth=2500;
+  // Grafico mensile: settimane del mese selezionato
+  const settimaneGrafico=useMemo(()=>{
+    return Array.from({length:4},(_,i)=>{
+      const inizioMese=new Date(annoGrafico,meseGrafico,1);
+      const fineSettimana=new Date(annoGrafico,meseGrafico,7*(i+1)+1);
+      const inizioSettimana=new Date(annoGrafico,meseGrafico,7*i+1);
+      const rev=fatture.filter(f=>{
+        if(f.statoPagamento!=="pagato")return false;
+        const d=new Date(f.data);
+        return d>=inizioSettimana && d<fineSettimana;
+      }).reduce((s,f)=>s+(f.totale||0),0);
+      return {label:"Sett. "+(i+1), rev};
+    });
+  },[fatture,meseGrafico,annoGrafico]);
+
+  // Grafico annuale: 12 mesi dell'anno selezionato
+  const mesiGrafico=useMemo(()=>{
+    const nomi=["Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"];
+    return Array.from({length:12},(_,i)=>{
+      const rev=fatture.filter(f=>{
+        if(f.statoPagamento!=="pagato")return false;
+        const d=new Date(f.data);
+        return d.getMonth()===i&&d.getFullYear()===annoGraficoAnn;
+      }).reduce((s,f)=>s+(f.totale||0),0);
+      return {label:nomi[i],rev,isCurrent:i===now.getMonth()&&annoGraficoAnn===now.getFullYear()};
+    });
+  },[fatture,annoGraficoAnn]);
+
+  const anniDisponibili=useMemo(()=>{
+    const years=new Set(fatture.map(f=>new Date(f.data).getFullYear()).filter(Boolean));
+    years.add(now.getFullYear());
+    return Array.from(years).sort((a,b)=>b-a);
+  },[fatture]);
+
+  const getPaz=(id,pz)=>{const p=(pz||pazienti).find(x=>x.id===Number(id));return p?p.cognome+" "+p.nome:"—";}
+  const nomiMesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+  const selectStyle={padding:"6px 10px",fontSize:12,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",color:T.text,background:"#fff",cursor:"pointer"};
+
+  function Bar({val,max,col,label,sublabel}){
+    const pct=max>0?Math.min(val/max*100,100):0;
+    return(
+      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+        {val>0&&<span style={{fontSize:10.5,color:col||T.brand,fontWeight:600,whiteSpace:"nowrap"}}>{fmtEurShort(val)}</span>}
+        <div style={{width:"100%",borderRadius:"4px 4px 0 0",background:col||T.brand,opacity:val>0?1:0.15,
+          height:`${Math.max(pct,val>0?5:2)}%`,minHeight:4,flex:"none",transition:"height 0.4s ease"}}
+          title={label+": "+fmtEur(val)}/>
+        <span style={{fontSize:11,color:T.textSub,textAlign:"center",lineHeight:1.2}}>{label}</span>
+        {sublabel&&<span style={{fontSize:10,color:T.textMuted}}>{sublabel}</span>}
+      </div>
+    );
+  }
 
   return <div>
     <PageHdr title="Report e statistiche" subtitle="Analisi performance dello studio"/>
+
+    {/* Filtro periodo */}
     <div style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,width:"fit-content",overflow:"hidden",marginBottom:20}}>
-      {[["oggi","Oggi"],["settimana","Settimana"],["mese","Mese"],["anno","Anno"],["sempre","Sempre"]].map(([k,l])=><button key={k} onClick={()=>setPeriod(k)} style={{padding:"8px 18px",border:"none",background:period===k?T.brand:"transparent",color:period===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:period===k?600:400}}>{l}</button>)}
+      {[["oggi","Oggi"],["settimana","Settimana"],["mese","Mese"],["anno","Anno"],["sempre","Sempre"]].map(([k,l])=>(
+        <button key={k} onClick={()=>setPeriod(k)} style={{padding:"8px 18px",border:"none",background:period===k?T.brand:"transparent",color:period===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:period===k?600:400}}>{l}</button>
+      ))}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:20}}>
-      <StatCard icon="💰" label="Incasso" value={fmtEur(totale)} color={T.success}/>
-      <StatCard icon="🧾" label="Fatture" value={filtFatt.length} color={T.brand}/>
-      <StatCard icon="📊" label="Media fattura" value={fmtEur(filtFatt.length?totale/filtFatt.length:0)} color={T.info}/>
-      <StatCard icon="📅" label="Appuntamenti" value={filtApts.length} color={T.warning}/>
+
+    {/* Widget KPI cliccabili */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:14,marginBottom:24}}>
+      {[
+        {icon:"💰",label:"Incasso",value:fmtEur(totale),color:T.success,
+         items:filtFatt,title:"Fatture incassate",renderItem:f=>`${f.numero||"—"} — ${getPaz(f.pazienteId,pazienti)} — ${fmtEur(f.totale)}`},
+        {icon:"🧾",label:"Fatture",value:filtFatt.length,color:T.brand,
+         items:filtFatt,title:"Elenco fatture",renderItem:f=>`${f.numero||"—"} — ${getPaz(f.pazienteId,pazienti)} — ${fmtDate(f.data)}`},
+        {icon:"📊",label:"Media fattura",value:fmtEur(mediaFatt),color:T.info,
+         items:null,title:""},
+        {icon:"📅",label:"Appuntamenti",value:filtApts.length,color:T.warning,
+         items:filtApts,title:"Appuntamenti completati",renderItem:a=>`${fmtDate(a.data)} ${a.oraInizio||""} — ${getPaz(a.pazienteId,pazienti)} — ${a.tipo||""}`},
+      ].map((w,i)=>(
+        <div key={i} onClick={()=>w.items&&setDetailModal({title:w.title,items:w.items,renderItem:w.renderItem})}
+          style={{background:T.surface,borderRadius:T.rLg,padding:"16px 18px",
+            border:`1px solid ${T.border}`,borderTop:`3px solid ${w.color}`,
+            cursor:w.items?"pointer":"default",transition:"all 0.15s"}}
+          onMouseEnter={e=>{if(w.items)e.currentTarget.style.boxShadow=T.shadowMd;}}
+          onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";}}>
+          <div style={{fontSize:24,marginBottom:8}}>{w.icon}</div>
+          <div style={{fontSize:22,fontWeight:700,color:T.text,fontFamily:"Georgia,serif"}}>{w.value}</div>
+          <div style={{fontSize:12.5,color:T.textSub,marginTop:4}}>{w.label}</div>
+          {w.items&&<div style={{fontSize:11,color:w.color,marginTop:6,fontWeight:600}}>Clicca per dettaglio →</div>}
+        </div>
+      ))}
     </div>
+
+    {/* Grafici */}
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
-      {/* 30 giorni con label */}
+
+      {/* Grafico MENSILE — settimane */}
       <Card>
-        <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Incassi — 30 giorni</h3>
-        <div style={{display:"flex",alignItems:"flex-end",gap:3,height:120,marginBottom:6}}>
-          {last30.map((d,i)=>(
-            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",position:"relative"}}>
-              {d.rev>0&&<span style={{position:"absolute",top:-(i%3===0?14:0),fontSize:7.5,color:d.isToday?T.brand:T.textMuted,fontWeight:600,whiteSpace:"nowrap",transform:"rotate(-45deg)",transformOrigin:"bottom center",lineHeight:1}}>
-                {d.rev>=1000?(d.rev/1000).toFixed(1)+"k":d.rev}
-              </span>}
-              <div style={{width:"100%",borderRadius:"2px 2px 0 0",background:d.isToday?T.brand:d.rev>0?T.brandLight:"#F3F4F6",height:`${Math.max(d.rev/maxRev*100,d.rev>0?6:3)}%`,minHeight:3,marginTop:"auto"}} title={`${d.label}: ${fmtEur(d.rev)}`}/>
-            </div>
-          ))}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+          <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:0}}>Incassi mensili</h3>
+          <div style={{display:"flex",gap:6}}>
+            <select value={meseGrafico} onChange={e=>setMeseGrafico(Number(e.target.value))} style={selectStyle}>
+              {nomiMesi.map((m,i)=><option key={i} value={i}>{m}</option>)}
+            </select>
+            <select value={annoGrafico} onChange={e=>setAnnoGrafico(Number(e.target.value))} style={selectStyle}>
+              {anniDisponibili.map(a=><option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted,marginTop:4}}>
-          <span>{last30[0].label}</span><span>Oggi</span>
+        <div style={{display:"flex",alignItems:"flex-end",gap:10,height:140}}>
+          {settimaneGrafico.map((s,i)=><Bar key={i} val={s.rev} max={10000} label={s.label} col={T.brand}/>)}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted,marginTop:6,borderTop:`1px solid ${T.border}`,paddingTop:6}}>
+          <span>Max: € 10.000</span>
+          <span style={{fontWeight:600,color:T.brand}}>Totale: {fmtEur(settimaneGrafico.reduce((s,x)=>s+x.rev,0))}</span>
         </div>
       </Card>
-      {/* Mensile con label */}
+
+      {/* Grafico ANNUALE — mesi */}
       <Card>
-        <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Incassi mensili</h3>
-        <div style={{display:"flex",alignItems:"flex-end",gap:8,height:120,marginBottom:6}}>
-          {last6.map((m,i)=>(
-            <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-              {m.rev>0&&<span style={{fontSize:10,color:i===5?T.brand:T.textSub,fontWeight:600,whiteSpace:"nowrap"}}>{fmtEurShort(m.rev)}</span>}
-              <div style={{width:"100%",borderRadius:"4px 4px 0 0",background:i===5?T.brand:T.brandLight,height:`${Math.max(m.rev/maxMonth*100,m.rev>0?8:4)}%`,minHeight:4,flex:"none"}} title={`${m.label}: ${fmtEur(m.rev)}`}/>
-              <span style={{fontSize:11,color:T.textSub}}>{m.label}</span>
-            </div>
-          ))}
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
+          <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:0}}>Incassi annuali</h3>
+          <select value={annoGraficoAnn} onChange={e=>setAnnoGraficoAnn(Number(e.target.value))} style={selectStyle}>
+            {anniDisponibili.map(a=><option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+        <div style={{display:"flex",alignItems:"flex-end",gap:4,height:140}}>
+          {mesiGrafico.map((m,i)=><Bar key={i} val={m.rev} max={20000} label={m.label} col={m.isCurrent?T.brand:T.brandLight}/>)}
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted,marginTop:6,borderTop:`1px solid ${T.border}`,paddingTop:6}}>
+          <span>Max: € 20.000</span>
+          <span style={{fontWeight:600,color:T.brand}}>Totale: {fmtEur(mesiGrafico.reduce((s,x)=>s+x.rev,0))}</span>
         </div>
       </Card>
     </div>
-    <Card p={0}>
-      <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`}}><h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:0}}>Performance per trattamento</h3></div>
-      <Tbl columns={[
-        {label:"Trattamento",render:r=><b>{r[0]}</b>},
-        {label:"Eseguiti",render:r=>r[1].count,nowrap:true},
-        {label:"Incasso stimato",render:r=><b>{fmtEur(r[1].revenue)}</b>,nowrap:true},
-        {label:"% sul totale",render:r=>{const tot=byTipo.reduce((s,x)=>s+x[1].revenue,0);const pct=tot>0?Math.round(r[1].revenue/tot*100):0;return <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,height:6,borderRadius:3,background:T.bg,overflow:"hidden",minWidth:80}}><div style={{height:"100%",borderRadius:3,background:T.brand,width:`${pct}%`}}/></div><span style={{fontSize:12,color:T.textSub,minWidth:30}}>{pct}%</span></div>;}},
-      ]} data={byTipo} emptyText="Nessun dato per il periodo" emptyIcon="📊"/>
+
+    {/* Top 4 trattamenti */}
+    <Card>
+      <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Top 4 trattamenti — da fatture incassate</h3>
+      {topTrattamenti.length===0?<div style={{textAlign:"center",padding:30,color:T.textMuted}}>Nessun dato disponibile</div>:
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {topTrattamenti.map(([nome,dati],i)=>{
+          const pct=totTratt>0?Math.round(dati.revenue/totTratt*100):0;
+          const cols=[T.brand,T.success,T.warning,T.info];
+          const col=cols[i]||T.brand;
+          return(
+            <div key={nome} style={{display:"flex",alignItems:"center",gap:14,padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+              <div style={{width:28,height:28,borderRadius:"50%",background:col,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700,flexShrink:0}}>{i+1}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13.5,fontWeight:600,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nome}</div>
+                <div style={{fontSize:12,color:T.textSub,marginTop:2}}>{dati.count} eseguiti</div>
+              </div>
+              <div style={{textAlign:"right",flexShrink:0}}>
+                <div style={{fontSize:15,fontWeight:700,color:T.text,fontFamily:"Georgia,serif"}}>{fmtEur(dati.revenue)}</div>
+                <div style={{fontSize:12,color:T.textSub}}>{pct}% del totale</div>
+              </div>
+              <div style={{width:80,flexShrink:0}}>
+                <div style={{height:6,borderRadius:3,background:T.border,overflow:"hidden"}}>
+                  <div style={{height:"100%",borderRadius:3,background:col,width:pct+"%",transition:"width 0.4s ease"}}/>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>}
     </Card>
+
+    {/* Modale dettaglio widget */}
+    {detailModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20}}>
+      <div style={{background:"#fff",borderRadius:T.rLg,maxWidth:600,width:"100%",maxHeight:"80vh",display:"flex",flexDirection:"column",boxShadow:T.shadowMd}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",borderBottom:`1px solid ${T.border}`}}>
+          <div style={{fontSize:15,fontWeight:700,color:T.text}}>{detailModal.title}</div>
+          <button onClick={()=>setDetailModal(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:T.textSub}}>✕</button>
+        </div>
+        <div style={{overflowY:"auto",padding:16,flex:1}}>
+          {detailModal.items.length===0?<div style={{textAlign:"center",padding:30,color:T.textMuted}}>Nessun elemento</div>:
+          detailModal.items.map((item,i)=>(
+            <div key={i} style={{padding:"10px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8,fontSize:13,color:T.text,background:i%2===0?"#fff":T.bg}}>
+              {detailModal.renderItem(item)}
+            </div>
+          ))}
+        </div>
+        <div style={{padding:"12px 20px",borderTop:`1px solid ${T.border}`,fontSize:13,color:T.textSub,background:T.bg,borderRadius:`0 0 ${T.rLg} ${T.rLg}`}}>
+          {detailModal.items.length} elementi
+        </div>
+      </div>
+    </div>}
   </div>;
 }
 
+
 function UtentiView({currentUser}) {
-  const [utenti,setUtenti]=useState(UTENTI_DEFAULT); const [modal,setModal]=useState(false); const [editId,setEditId]=useState(null);
+  const [utenti,setUtenti]=useState(()=>{
+    try{const s=localStorage.getItem("dsd_utenti");if(s)return JSON.parse(s);}catch(e){}
+    return UTENTI_DEFAULT;
+  });
+  const [modal,setModal]=useState(false);
+  const [editId,setEditId]=useState(null);
+  const [showPwd,setShowPwd]=useState(false);
   const [form,setForm]=useState({nome:"",cognome:"",email:"",ruolo:"assistente",password:"",attivo:true});
   const ff=k=>v=>setForm(p=>({...p,[k]:v}));
-  function openNew(){setForm({nome:"",cognome:"",email:"",ruolo:"assistente",password:"",attivo:true});setEditId(null);setModal(true);}
-  function openEdit(u){setForm(u);setEditId(u.id);setModal(true);}
-  function save(){if(!form.nome||!form.email)return alert("Nome ed email obbligatori");if(editId)setUtenti(p=>p.map(x=>x.id===editId?{...form,id:editId}:x));else setUtenti(p=>[...p,{...form,id:uid()}]);setModal(false);}
+
+  useEffect(()=>{
+    try{localStorage.setItem("dsd_utenti",JSON.stringify(utenti));}catch(e){}
+  },[utenti]);
+
+  function openNew(){setForm({nome:"",cognome:"",email:"",ruolo:"assistente",password:"",attivo:true});setEditId(null);setShowPwd(false);setModal(true);}
+  function openEdit(u){setForm({...u,password:""});setEditId(u.id);setShowPwd(false);setModal(true);}
+  function save(){
+    if(!form.nome||!form.email)return alert("Nome ed email obbligatori");
+    if(!editId&&!form.password)return alert("La password è obbligatoria per i nuovi utenti");
+    if(editId){
+      const updated={...form,id:editId};
+      if(!form.password)delete updated.password; // keep existing if blank
+      setUtenti(p=>p.map(x=>x.id===editId?{...x,...updated}:x));
+    } else {
+      setUtenti(p=>[...p,{...form,id:uid()}]);
+    }
+    setModal(false);
+  }
+
+  const isAdmin=currentUser?.ruolo==="admin";
+
   return <div>
-    <PageHdr title="Gestione utenti" subtitle="Accessi e permessi" action={currentUser?.ruolo==="admin"&&<Btn icon="+" onClick={openNew}>Nuovo utente</Btn>}/>
+    <PageHdr title="Gestione utenti" subtitle="Accessi e permessi" action={isAdmin&&<Btn icon="+" onClick={openNew}>Nuovo utente</Btn>}/>
     <Card p={0}><Tbl columns={[
       {label:"Utente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/><div><div style={{fontWeight:600}}>{r.nome} {r.cognome}</div><div style={{fontSize:12,color:T.textSub}}>{r.email}</div></div></div>},
       {label:"Ruolo",render:r=><Badge label={r.ruolo} status={r.ruolo}/>,nowrap:true},
       {label:"Stato",render:r=><Badge label={r.attivo?"Attivo":"Disattivo"} status={r.attivo?"confermato":"annullato"}/>,nowrap:true},
-      {label:"",render:r=>currentUser?.ruolo==="admin"&&r.id!==currentUser.id&&<div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant={r.attivo?"danger":"success"} onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>{r.attivo?"Disattiva":"Attiva"}</Btn></div>,nowrap:true},
+      {label:"",render:r=>isAdmin&&<div style={{display:"flex",gap:4}}>
+        <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️ Modifica</Btn>
+        {r.id!==currentUser?.id&&<Btn size="xs" variant={r.attivo?"danger":"success"} onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>{r.attivo?"Disattiva":"Attiva"}</Btn>}
+      </div>,nowrap:true},
     ]} data={utenti} emptyText="Nessun utente"/></Card>
+
+    {/* Modifica le proprie credenziali */}
+    <Card style={{marginTop:16}}>
+      <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Le mie credenziali</h3>
+      <p style={{fontSize:13,color:T.textSub,marginBottom:16}}>Modifica la tua email o password di accesso.</p>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,maxWidth:500}}>
+        <FInput label="Nuova email" type="email" value={form.email||""}
+          onChange={e=>setForm(f=>({...f,email:e.target.value}))}
+          placeholder={utenti.find(u=>u.id===currentUser?.id)?.email||""}/>
+        <div>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Nuova password</label>
+          <div style={{position:"relative"}}>
+            <input type={showPwd?"text":"password"} value={form.password||""}
+              onChange={e=>setForm(f=>({...f,password:e.target.value}))}
+              placeholder="••••••••"
+              style={{width:"100%",padding:"9px 36px 9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+            <button onClick={()=>setShowPwd(!showPwd)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.textSub}}>{showPwd?"🙈":"👁️"}</button>
+          </div>
+        </div>
+      </div>
+      <Btn style={{marginTop:14}} onClick={()=>{
+        if(!form.email&&!form.password)return alert("Inserisci almeno un campo da modificare");
+        setUtenti(p=>p.map(u=>{
+          if(u.id!==currentUser?.id)return u;
+          return {...u,...(form.email&&{email:form.email}),...(form.password&&{password:form.password})};
+        }));
+        setForm(f=>({...f,email:"",password:""}));
+        alert("Credenziali aggiornate con successo!");
+      }}>Salva credenziali</Btn>
+    </Card>
+
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica utente":"Nuovo utente"}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
-      <Grid2><FInput label="Nome" required value={form.nome} onChange={e=>ff("nome")(e.target.value)}/><FInput label="Cognome" required value={form.cognome} onChange={e=>ff("cognome")(e.target.value)}/></Grid2>
+      <Grid2>
+        <FInput label="Nome" required value={form.nome} onChange={e=>ff("nome")(e.target.value)}/>
+        <FInput label="Cognome" value={form.cognome} onChange={e=>ff("cognome")(e.target.value)}/>
+      </Grid2>
       <FInput label="Email" required type="email" value={form.email} onChange={e=>ff("email")(e.target.value)}/>
-      <Grid2><FSelect label="Ruolo" value={form.ruolo} onChange={e=>ff("ruolo")(e.target.value)}><option value="admin">Admin</option><option value="assistente">Assistente</option></FSelect>{!editId&&<FInput label="Password" type="password" required value={form.password} onChange={e=>ff("password")(e.target.value)} placeholder="••••••••"/>}</Grid2>
+      <Grid2>
+        <FSelect label="Ruolo" value={form.ruolo} onChange={e=>ff("ruolo")(e.target.value)}>
+          <option value="admin">Admin</option>
+          <option value="assistente">Assistente</option>
+        </FSelect>
+        <div>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>{editId?"Nuova password (lascia vuoto = invariata)":"Password *"}</label>
+          <div style={{position:"relative"}}>
+            <input type={showPwd?"text":"password"} value={form.password||""} onChange={e=>ff("password")(e.target.value)}
+              placeholder={editId?"Lascia vuoto per non cambiare":"••••••••"}
+              style={{width:"100%",padding:"9px 36px 9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+            <button onClick={()=>setShowPwd(!showPwd)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.textSub}}>{showPwd?"🙈":"👁️"}</button>
+          </div>
+        </div>
+      </Grid2>
     </Modal>
   </div>;
 }
 
-
-const NAV=[
-  {section:null,items:[{id:"dashboard",icon:"⊞",label:"Dashboard"}]},
-  {section:"Clinica",items:[{id:"agenda",icon:"📅",label:"Agenda"},{id:"pazienti",icon:"👤",label:"Pazienti"}]},
-  {section:"Amministrazione",items:[{id:"preventivi",icon:"📄",label:"Preventivi"},{id:"fatture",icon:"🧾",label:"Fatturazione"},{id:"listino",icon:"💊",label:"Listino prezzi"}]},
-  {section:"Analisi",items:[{id:"report",icon:"📊",label:"Report"}]},
-  {section:"Impostazioni",items:[{id:"utenti",icon:"👥",label:"Utenti"},{id:"impostazioni",icon:"⚙️",label:"Impostazioni"}]},
-];
 
 function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventivi, fatture}) {
   const counts={agenda:appuntamenti.filter(a=>a.data===todayISO()).length,pazienti:pazienti.length,preventivi:preventivi.filter(p=>p.stato==="in_attesa").length,fatture:fatture.filter(f=>f.statoPagamento!=="pagato").length};
@@ -2732,11 +2945,11 @@ export default function App() {
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
         {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino} onNav={navTo}/>}
-        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={setView}/>}
+        {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} impostazioni={impostazioni}/>}
         {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo}/>}
         {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo}/>}
         {view==="listino"&&<ListinoView listino={listino} setListino={setListino}/>}
-        {view==="report"&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino}/>}
+        {view==="report"&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino} preventivi={preventivi}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
         {view==="impostazioni"&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user}/>}
       </main>
