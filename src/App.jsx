@@ -1523,63 +1523,120 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   function stampaFattura(fatt) {
     const paz = pazienti.find(x=>x.id===fatt.pazienteId);
     const nomePaz = paz ? paz.cognome+" "+paz.nome : "—";
-    const oggi = new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"});
-    const dataFatt = fatt.data ? new Date(fatt.data).toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"}) : "—";
-    
-    // Build voci rows without nested template literals
-    const righeVoci = (fatt.voci||[]).map(v => {
-      const qta = v.qty||1;
-      const prezzo = (v.prezzo||0).toFixed(2);
-      const tot = ((v.prezzo||0)*(v.qty||1)).toFixed(2);
-      return "<tr><td>"+v.nome+"</td><td style='text-align:center'>"+qta+"</td><td style='text-align:right'>"+prezzo+" &euro;</td><td style='text-align:right'>"+tot+" &euro;</td></tr>";
+    const indPaz = [paz?.indirizzo, paz?.citta, paz?.codiceFiscale].filter(Boolean);
+    const dataEmissione = fatt.data
+      ? new Date(fatt.data).toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit",year:"numeric"})
+      : new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"2-digit",year:"numeric"});
+    const bolloVal = (fatt.voci||[]).find(v=>v.nome==="Marca da bollo") ? 2.00 : 0.00;
+    const totaleVoci = (fatt.voci||[]).filter(v=>v.nome!=="Marca da bollo").reduce((s,v)=>s+(v.prezzo||0)*(v.qty||1),0);
+    const totaleFattura = fatt.totale||0;
+
+    // Group voci by category (use listino category if available)
+    const vociNoBollo = (fatt.voci||[]).filter(v=>v.nome!=="Marca da bollo");
+    const byCategoria = {};
+    vociNoBollo.forEach(v=>{
+      const cat = v.categoria||"PRESTAZIONI";
+      if(!byCategoria[cat]) byCategoria[cat]=[];
+      byCategoria[cat].push(v);
+    });
+
+    const righeVoci = Object.entries(byCategoria).map(([cat,voci])=>{
+      const catRow = "<tr><td colspan='2' style='font-weight:700;padding:8px 10px 4px;font-size:10pt'>"
+        +cat+"</td></tr>";
+      const rows = voci.map(v=>{
+        const desc = (v.qty>1 ? v.qty+" " : "")+v.nome;
+        const imp = ((v.prezzo||0)*(v.qty||1)).toFixed(2);
+        return "<tr><td style='padding:4px 10px 4px 24px;font-size:10.5pt'>"+desc+"</td>"
+          +"<td style='text-align:right;padding:4px 10px;font-size:10.5pt'>&euro; "+imp+"</td></tr>";
+      }).join("");
+      return catRow+rows;
     }).join("");
 
-    const rigaSconto = fatt.sconto>0
-      ? "<tr><td colspan='3'>Totale lordo</td><td style='text-align:right;text-decoration:line-through'>"+((fatt.totalelordo||fatt.totale)||0).toFixed(2)+" &euro;</td></tr>"
-        +"<tr><td colspan='3'>Sconto</td><td style='text-align:right'>- "+fatt.sconto.toFixed(2)+" &euro;</td></tr>"
-      : "";
-
-    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Fattura "+( fatt.numero||"")+"</title>"
+    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
+      +"<title>Fattura "+(fatt.numero||"")+"</title>"
       +"<style>"
-      +"body{font-family:Georgia,serif;font-size:11pt;color:#1a1a1a;margin:0;padding:0}"
-      +".page{max-width:750px;margin:0 auto;padding:20mm 20mm}"
-      +"h1{font-size:16pt;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px}"
-      +".sub{font-size:10pt;color:#555;font-style:italic}"
-      +".header{text-align:center;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:20px}"
-      +".info-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;font-size:10.5pt;background:#f5f5f5;padding:12px 16px;border-radius:4px;margin-bottom:20px;border:1px solid #ddd}"
-      +"table{width:100%;border-collapse:collapse;margin:16px 0}"
-      +"thead th{background:#1a1a1a;color:#fff;padding:8px 10px;text-align:left;font-size:10pt}"
-      +"tbody td{padding:8px 10px;border-bottom:1px solid #eee;font-size:10.5pt}"
-      +".grand td{font-size:14pt;font-weight:700;border-top:2px solid #1a1a1a}"
-      +".footer{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:30px;font-size:10pt}"
-      +".firma-box{border-top:1px solid #1a1a1a;padding-top:8px;text-align:center}"
-      +".page-footer{margin-top:30px;border-top:1px solid #eee;text-align:center;font-size:9pt;color:#888;padding-top:10px}"
+      +"*{margin:0;padding:0;box-sizing:border-box}"
+      +"body{font-family:Arial,sans-serif;font-size:10.5pt;color:#1a1a1a}"
+      +".page{max-width:780px;margin:0 auto;padding:15mm 18mm}"
+      +".header-box{display:flex;gap:16px;border:1px solid #ccc;padding:10px 14px;margin-bottom:18px;align-items:flex-start}"
+      +".logo{width:60px;flex-shrink:0}"
+      +".studio-name{font-size:14pt;font-weight:700}"
+      +".dottssa{font-size:11pt;font-weight:400;margin-top:2px}"
+      +".studio-info{font-size:9.5pt;color:#333;margin-top:4px;line-height:1.6}"
+      +".iban{font-weight:700}"
+      +".fattura-line{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px}"
+      +".fattura-num{font-size:11pt;font-weight:700}"
+      +".fattura-citta{font-size:10.5pt}"
+      +".paziente-block{text-align:right;margin-bottom:24px;font-weight:700;font-size:11pt;line-height:1.7}"
+      +".table-header{width:100%;background:#4FC3F7;color:#fff;padding:8px 10px;font-weight:700;font-size:10.5pt;display:flex;justify-content:space-between;margin-bottom:0}"
+      +"table{width:100%;border-collapse:collapse;margin-bottom:20px}"
+      +".totali-section{margin-top:10px}"
+      +".totali-row{display:flex;justify-content:space-between;padding:3px 0;font-size:10.5pt}"
+      +".totali-row.marcada{font-weight:400}"
+      +".footer-note{margin-top:40px;font-size:8.5pt;font-weight:700;border-top:1px solid #ccc;padding-top:10px;line-height:1.5}"
       +"@media print{body{margin:0}}"
       +"</style></head><body>"
       +"<div class='page'>"
-      +"<div class='header'><h1>Studio Dentistico Sardo</h1><div style='font-size:10pt;color:#555'>Cagliari (CA)</div>"
-      +"<div class='sub'>Fattura N. "+(fatt.numero||"—")+" del "+dataFatt+"</div></div>"
-      +"<div class='info-grid'>"
-      +"<div><b>Paziente:</b> "+nomePaz+"</div>"
-      +"<div><b>Metodo pagamento:</b> "+(fatt.metodoPagamento||"—")+"</div>"
-      +"<div><b>Data fattura:</b> "+( fatt.data?new Date(fatt.data).toLocaleDateString("it-IT"):"—")+"</div>"
-      +"<div><b>Stato:</b> "+((fatt.statoPagamento||"").replace("_"," "))+"</div>"
+
+      // Header box - logo + dati studio
+      +"<div class='header-box'>"
+      +"<div>"
+      +"<div class='studio-name'>Dott.ssa Lucrezia Gemma Porcedda</div>"
+      +"<div class='studio-info'>"
+      +"Via G. Spano, 1<br/>"
+      +"09170 Oristano,<br/>"
+      +"P.IVA: 01284760954 &nbsp; CODICE FISCALE.: PRCLRZ99A46G113D<br/>"
+      +"ALBO n.162<br/>"
+      +"Tel. 0783212280 &nbsp;&nbsp; <span class='iban'>IBAN IE82SUMU99036512076523</span>"
+      +"</div></div></div>"
+
+      // Numero fattura + città/data
+      +"<div class='fattura-line'>"
+      +"<span class='fattura-num'>Fattura n&deg; "+(fatt.numero||"—")+"/"+new Date().getFullYear()+" &nbsp; Mod. pagamento: "+(fatt.metodoPagamento||"—")+"</span>"
+      +"<span class='fattura-citta'>Oristano, "+dataEmissione+"</span>"
       +"</div>"
-      +"<table><thead><tr><th>Descrizione</th><th style='text-align:center'>Qt&agrave;</th><th style='text-align:right'>Prezzo</th><th style='text-align:right'>Totale</th></tr></thead>"
-      +"<tbody>"+righeVoci+"</tbody></table>"
-      +"<table style='width:280px;margin-left:auto'>"
-      +rigaSconto
-      +"<tr class='grand'><td colspan='3'><b>TOTALE</b></td><td style='text-align:right'><b>"+((fatt.totale||0).toFixed(2))+" &euro;</b></td></tr>"
-      +"</table>"
-      +"<div class='footer'>"
-      +"<div class='firma-box'>Luogo e data<br/><br/>Cagliari, "+oggi+"</div>"
-      +"<div class='firma-box'>Firma del paziente<br/><br/>________________________</div>"
+
+      // Paziente (allineato a destra)
+      +"<div class='paziente-block'>"
+      +(paz ? nomePaz+"<br/>"+(paz.indirizzo||"")+(paz.indirizzo?"<br/>":"")+(paz.codiceFiscale||"") : "—")
       +"</div>"
-      +"<div class='page-footer'>Studio Dentistico Sardo &middot; Cagliari &middot; Documento generato il "+oggi+"</div>"
+
+      // Tabella voci
+      +"<div class='table-header'>"
+      +"<span>FATTURA DI SALDO per prestazioni sanitarie odontoiatriche</span>"
+      +"<span>Importo</span>"
+      +"</div>"
+      +"<table>"+righeVoci+"</table>"
+
+      // Totali stile fattura esempio
+      +"<table style='width:100%;border-collapse:collapse;margin-top:20px'>"
+      +"<tr>"
+      +"<td style='width:25%;font-weight:700;font-size:10.5pt;vertical-align:top;line-height:2'>"
+      +"<div>MARCA DA</div><div>BOLLO SU</div><div>ORIGINALE</div>"
+      +"</td>"
+      +"<td style='width:40%;font-size:10.5pt;vertical-align:top;line-height:2'>"
+      +"<div>TOTALE</div>"
+      +"<div>BOLLO</div>"
+      +"<div>TOTALE FATTURA</div>"
+      +"</td>"
+      +"<td style='width:35%;text-align:right;font-size:10.5pt;vertical-align:top;line-height:2'>"
+      +"<div>&euro; "+totaleVoci.toFixed(2)+"</div>"
+      +"<div>&euro; "+bolloVal.toFixed(2)+"</div>"
+      +"<div><b>&euro; "+totaleFattura.toFixed(2)+"</b></div>"
+      +"</td>"
+      +"</tr></table>"
+
+      // Footer note IVA
+      +"<div class='footer-note'>"
+      +"Esente IVA ai sensi dell&apos;art 10, comma, 1, n.18 del D.P.R. 633/1972 e successive modifiche. "
+      +"E&apos; soggetta all&apos;imposta di bollo di &euro; 2,00 se l&apos;importo supera &euro; 77,47."
+      +"</div>"
+
       +"</div>"
       +"<script>window.onload=function(){window.print();}<\/script>"
       +"</body></html>";
-    const w = window.open("","_blank","width=900,height=700");
+
+    const w = window.open("","_blank","width=900,height=750");
     if(w){w.document.write(html);w.document.close();}
   }
   function del(id){
@@ -1767,15 +1824,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
           <p style={{margin:"5px 0 0",fontSize:12,color:T.warning}}>⚠️ Nessun preventivo accettato per questo paziente. Vai nei Preventivi e imposta lo stato su Accettato.</p>}
       </div>
       <Grid2><FSelect label="Metodo pagamento" value={form.metodoPagamento} onChange={ff("metodoPagamento")}>{["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}</FSelect><FSelect label="Stato" value={form.statoPagamento} onChange={ff("statoPagamento")}><option value="non_pagato">Non pagato</option><option value="parziale">Parziale</option><option value="pagato">Pagato</option></FSelect></Grid2>
-      <div style={{background:T.bg,borderRadius:T.r,padding:14,marginBottom:14}}>
-        <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:10,textTransform:"uppercase",letterSpacing:0.5}}>Aggiungi voce</div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <input style={{flex:2,minWidth:140,padding:"8px 10px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text}} placeholder="Descrizione" value={addVoce.nome} onChange={e=>setAddVoce(v=>({...v,nome:e.target.value}))}/>
-          <input type="number" style={{width:80,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit"}} placeholder="€" value={addVoce.prezzo} onChange={e=>setAddVoce(v=>({...v,prezzo:e.target.value}))}/>
-          <input type="number" min="1" style={{width:50,padding:"8px",border:`1px solid ${T.border}`,borderRadius:T.r,fontSize:13,fontFamily:"inherit",textAlign:"center"}} value={addVoce.qty} onChange={e=>setAddVoce(v=>({...v,qty:e.target.value}))}/>
-          <Btn onClick={addV} icon="+">Aggiungi</Btn>
-        </div>
-      </div>
+
       {form.voci.length>0&&<div style={{marginBottom:14,border:`1px solid ${T.border}`,borderRadius:T.r,overflow:"hidden"}}>
         {form.voci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<form.voci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":T.bg}}>
           <div style={{flex:1,fontSize:13}}>{v.qty}× {v.nome}</div>
