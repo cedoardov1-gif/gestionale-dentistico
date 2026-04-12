@@ -2065,10 +2065,7 @@ function stampaFattura(fatt, pazientiList) {
       +"</div>"
 
       // Tabella voci
-      +"<div class='table-header'>"
-      +"+(fatt.tipoFattura==="acconto"?"FATTURA DI ACCONTO":"FATTURA DI SALDO")+" per prestazioni sanitarie odontoiatriche
-      +"<span>Importo</span>"
-      +"</div>"
+      +"<div class='table-header'><span>"+(fatt.tipoFattura==="acconto"?"FATTURA DI ACCONTO":"FATTURA DI SALDO")+" per prestazioni sanitarie odontoiatriche</span><span>Importo</span></div>"
       +"<table>"+righeVoci+"</table>"
 
       // Totali stile fattura esempio
