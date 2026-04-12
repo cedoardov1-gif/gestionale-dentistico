@@ -1,5 +1,4 @@
-import
-              <button onClick={()=>stampaFattura(f,pazienti)} style={{padding:"5px 12px",borderRadius:T.r,border:`1px solid ${T.brand}`,background:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>🖨️ Stampa</button> { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 
 const T = {
   bg:"#F8F9FA", surface:"#FFFFFF", border:"#E5E7EB", borderHover:"#D1D5DB",
