@@ -1299,7 +1299,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
               <Btn icon="+" onClick={()=>setPrevModal(true)}>Nuovo preventivo</Btn>
             </div>
             {/* Banner accettati senza fattura */}
-            {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length>0&&(
+            {(pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length>0||pPrev.some(p=>pFatt.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale")))&&(
               <div style={{padding:"10px 14px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
                 <span style={{fontSize:16}}>📋</span>
                 <div style={{flex:1,fontSize:13,color:"#92400E",fontWeight:600}}>
@@ -1310,7 +1310,11 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             )}
             {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
             pPrev.map(p=>{
-              const prevConFatt=pFatt.some(f=>String(f.preventivoId)===String(p.id));
+              const fattPreventivo=pFatt.filter(f=>String(f.preventivoId)===String(p.id));
+              const prevConFatt=fattPreventivo.some(f=>f.statoPagamento==="pagato");
+              const prevConAcconto=!prevConFatt&&fattPreventivo.some(f=>f.statoPagamento==="parziale");
+              const accontoFatt=fattPreventivo.find(f=>f.statoPagamento==="parziale");
+              const residuoAcconto=accontoFatt?Math.max(0,p.totale-accontoFatt.totale):0;
               const bs=BADGE[p.stato]||{};
               return <div key={p.id} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,
                 border:`1px solid ${p.stato==="accettato"&&!prevConFatt?"#FDE68A":T.border}`,marginBottom:10}}>
@@ -1323,6 +1327,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
                     <span style={{fontFamily:"Georgia,serif",fontSize:20,fontWeight:700,color:T.text}}>{fmtEur(p.totale)}</span>
                     {prevConFatt
                       ?<span style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:"#EFF6FF",color:"#1D4ED8",fontWeight:700}}>🔒 Fatturato</span>
+                      :prevConAcconto
+                      ?<span style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:"#FFFBEB",color:"#D97706",fontWeight:700}}>💰 Acconto</span>
                       :<span style={{fontSize:11.5,padding:"3px 9px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{p.stato.replace("_"," ")}</span>}
                   </div>
                 </div>
@@ -1330,8 +1336,13 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
                   {p.voci.map((v,i)=><span key={i} style={{fontSize:11.5,background:T.brandLight,color:T.brandDark,padding:"2px 8px",borderRadius:20}}>{v.nome} ×{v.qty}</span>)}
                 </div>
                 {p.nota&&<div style={{fontSize:12,color:T.textSub,fontStyle:"italic",marginBottom:prevConFatt?0:8}}>{p.nota}</div>}
+                {/* Residuo acconto */}
+                {prevConAcconto&&residuoAcconto>0&&<div style={{padding:"8px 12px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
+                  <span style={{fontSize:12.5,color:"#92400E",fontWeight:600}}>⚠️ Residuo da saldare: {fmtEur(residuoAcconto)}</span>
+                  <button onClick={()=>{setFattPrevId(String(p.id));setFattTipo("saldo");setFattAcconto("");setFattMetodo("Contanti");setFattModal(true);}} style={{padding:"5px 14px",borderRadius:20,border:"none",background:T.brand,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💳 Emetti saldo</button>
+                </div>}
                 {/* Bottoni cambio stato */}
-                {!prevConFatt&&<div style={{display:"flex",gap:6,flexWrap:"wrap",borderTop:`1px solid ${T.border}`,paddingTop:8,marginTop:4,alignItems:"center"}}>
+                {!prevConFatt&&!prevConAcconto&&<div style={{display:"flex",gap:6,flexWrap:"wrap",borderTop:`1px solid ${T.border}`,paddingTop:8,marginTop:4,alignItems:"center"}}>
                   <span style={{fontSize:11,color:T.textMuted}}>Stato:</span>
                   {["in_attesa","accettato","rifiutato"].map(s=>(
                     <button key={s} onClick={()=>setPreventivi(pr=>pr.map(x=>x.id===p.id?{...x,stato:s}:x))}
@@ -1539,9 +1550,11 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           <select value={fattPrevId} onChange={e=>setFattPrevId(e.target.value)}
             style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${fattPrevId?T.brand:T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
             <option value="">— Seleziona preventivo —</option>
-            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).map(p=>(
-              <option key={p.id} value={p.id}>{fmtDate(p.data)} — {p.voci.length} tratt. — {fmtEur(p.totale)}</option>
-            ))}
+            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato")).map(p=>{
+              const acc=fatture.find(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale");
+              const residuo=acc?Math.max(0,p.totale-acc.totale):null;
+              return <option key={p.id} value={p.id}>{fmtDate(p.data)} — {residuo!==null?"Residuo: "+fmtEur(residuo):fmtEur(p.totale)}{residuo!==null?" (acconto pagato)":""}</option>;
+            })}
           </select>
           {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).length===0&&(
             <p style={{fontSize:12,color:T.warning,marginTop:6}}>⚠️ Nessun preventivo accettato disponibile.</p>
@@ -2181,8 +2194,8 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     } else {
       const newId=uid();
       setFatture(p=>[...p,{...fattData,id:newId,numero:nextN()}]);
-      // Marca il preventivo come fatturato se importato da preventivo
-      if(form.preventivoId){
+      // Marca il preventivo come fatturato solo per saldo
+      if(form.preventivoId&&!isAcconto){
         setPreventivi(p=>p.map(x=>x.id===Number(form.preventivoId)?{...x,stato:"fatturato"}:x));
       }
     }
