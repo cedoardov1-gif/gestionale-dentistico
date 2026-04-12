@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import
+              <button onClick={()=>stampaFattura(f,pazienti)} style={{padding:"5px 12px",borderRadius:T.r,border:`1px solid ${T.brand}`,background:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>🖨️ Stampa</button> { useState, useCallback, useEffect, useMemo } from "react";
 
 const T = {
   bg:"#F8F9FA", surface:"#FFFFFF", border:"#E5E7EB", borderHover:"#D1D5DB",
@@ -1088,6 +1089,12 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   const [prevVoci, setPrevVoci] = useState([]);
   const [prevNote, setPrevNote] = useState("");
   const [addVoce, setAddVoce] = useState({listinoId:"",qty:1});
+  const [fattModal, setFattModal] = useState(false);
+  const [fattPrevId, setFattPrevId] = useState("");
+  const [fattMetodo, setFattMetodo] = useState("Contanti");
+  const [fattStato, setFattStato] = useState("pagato");
+  const [fattTipo, setFattTipo] = useState("saldo");
+  const [fattAcconto, setFattAcconto] = useState("");
   const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
@@ -1123,6 +1130,38 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
     const totale=prevVoci.reduce((s,v)=>s+v.prezzo*v.qty,0);
     setPreventivi(p=>[...p,{id:uid(),pazienteId:detail,data:todayISO(),voci:prevVoci,totale,stato:"in_attesa",note:prevNote}]);
     setPrevModal(false);setPrevVoci([]);setPrevNote("");
+  }
+
+  function openFattModal(){
+    setFattPrevId("");setFattMetodo("Contanti");
+    setFattStato("pagato");setFattTipo("saldo");setFattAcconto("");
+    setFattModal(true);
+  }
+
+  function saveFatt(){
+    const prev=preventivi.find(p=>String(p.id)===String(fattPrevId));
+    if(!prev)return alert("Seleziona un preventivo accettato");
+    const anno=new Date().getFullYear();
+    const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;
+    const numero=String(n).padStart(2,'0')+'/'+anno;
+    const isAcconto=fattTipo==="acconto";
+    const importo=isAcconto?(Number(fattAcconto)||0):prev.totale;
+    const haBollo=importo>77.67;
+    const voceBollo=haBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[];
+    const totaleFin=importo+(haBollo?2:0);
+    const newFatt={
+      id:uid(),numero,pazienteId:detail,preventivoId:prev.id,
+      data:todayISO(),voci:[...prev.voci,...voceBollo],
+      totale:totaleFin,totalelordo:prev.totale,sconto:prev.sconto||0,
+      statoPagamento:isAcconto?"parziale":"pagato",
+      metodoPagamento:fattMetodo,tipoFattura:fattTipo,
+      marcaBollo:haBollo
+    };
+    setFatture(f=>[...f,newFatt]);
+    if(!isAcconto){
+      setPreventivi(p=>p.map(x=>String(x.id)===String(prev.id)?{...x,stato:"fatturato"}:x));
+    }
+    setFattModal(false);
   }
 
   const pd=detail?pazienti.find(p=>p.id===detail):null;
@@ -1248,27 +1287,73 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
 
           {/* PREVENTIVI */}
           {tab==="preventivi"&&<div>
-            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{fontSize:13,color:T.textSub}}>{pPrev.length} preventivi</div>
               <Btn icon="+" onClick={()=>setPrevModal(true)}>Nuovo preventivo</Btn>
             </div>
-            {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
-            pPrev.map(p=>{const bs=BADGE[p.stato]||{};return <div key={p.id} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:10}}>
-              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                <div><div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{fmtDate(p.data)}</div><div style={{fontSize:12,color:T.textSub,marginTop:2}}>{p.voci.length} trattamenti</div></div>
-                <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{fontFamily:"Georgia,serif",fontSize:20,fontWeight:700,color:T.text}}>{fmtEur(p.totale)}</span>
-                  <span style={{fontSize:11.5,padding:"3px 9px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{p.stato.replace("_"," ")}</span>
+            {/* Banner accettati senza fattura */}
+            {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length>0&&(
+              <div style={{padding:"10px 14px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
+                <span style={{fontSize:16}}>📋</span>
+                <div style={{flex:1,fontSize:13,color:"#92400E",fontWeight:600}}>
+                  {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length} preventivo/i accettato/i — pronto per la fattura
                 </div>
+                <Btn size="sm" onClick={openFattModal}>💳 Emetti fattura</Btn>
               </div>
-              <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-                {p.voci.map((v,i)=><span key={i} style={{fontSize:11.5,background:T.brandLight,color:T.brandDark,padding:"2px 8px",borderRadius:20}}>{v.nome} ×{v.qty}</span>)}
-              </div>
-              {p.nota&&<div style={{marginTop:8,fontSize:12,color:T.textSub,fontStyle:"italic"}}>{p.nota}</div>}
-            </div>;})}
+            )}
+            {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
+            pPrev.map(p=>{
+              const prevConFatt=pFatt.some(f=>String(f.preventivoId)===String(p.id));
+              const bs=BADGE[p.stato]||{};
+              return <div key={p.id} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,
+                border:`1px solid ${p.stato==="accettato"&&!prevConFatt?"#FDE68A":T.border}`,marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div>
+                    <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{fmtDate(p.data)}</div>
+                    <div style={{fontSize:12,color:T.textSub,marginTop:2}}>{p.voci.length} trattamenti</div>
+                  </div>
+                  <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                    <span style={{fontFamily:"Georgia,serif",fontSize:20,fontWeight:700,color:T.text}}>{fmtEur(p.totale)}</span>
+                    {prevConFatt
+                      ?<span style={{fontSize:11,padding:"3px 9px",borderRadius:20,background:"#EFF6FF",color:"#1D4ED8",fontWeight:700}}>🔒 Fatturato</span>
+                      :<span style={{fontSize:11.5,padding:"3px 9px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600}}>{p.stato.replace("_"," ")}</span>}
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:prevConFatt?0:8}}>
+                  {p.voci.map((v,i)=><span key={i} style={{fontSize:11.5,background:T.brandLight,color:T.brandDark,padding:"2px 8px",borderRadius:20}}>{v.nome} ×{v.qty}</span>)}
+                </div>
+                {p.nota&&<div style={{fontSize:12,color:T.textSub,fontStyle:"italic",marginBottom:prevConFatt?0:8}}>{p.nota}</div>}
+                {/* Bottoni cambio stato */}
+                {!prevConFatt&&<div style={{display:"flex",gap:6,flexWrap:"wrap",borderTop:`1px solid ${T.border}`,paddingTop:8,marginTop:4,alignItems:"center"}}>
+                  <span style={{fontSize:11,color:T.textMuted}}>Stato:</span>
+                  {["in_attesa","accettato","rifiutato"].map(s=>(
+                    <button key={s} onClick={()=>setPreventivi(pr=>pr.map(x=>x.id===p.id?{...x,stato:s}:x))}
+                      style={{padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:p.stato===s?700:500,
+                        cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s",
+                        border:`1.5px solid ${p.stato===s?(s==="accettato"?T.success:s==="rifiutato"?T.danger:T.brand):T.border}`,
+                        background:p.stato===s?(s==="accettato"?"#ECFDF5":s==="rifiutato"?"#FEF2F2":T.brandLight):"#fff",
+                        color:p.stato===s?(s==="accettato"?T.success:s==="rifiutato"?T.danger:T.brand):T.textSub}}>
+                      {s==="in_attesa"?"⏳ In attesa":s==="accettato"?"✓ Accettato":"✗ Rifiutato"}
+                    </button>
+                  ))}
+                  {p.stato==="accettato"&&!prevConFatt&&(
+                    <button onClick={openFattModal} style={{marginLeft:"auto",padding:"4px 14px",borderRadius:20,
+                      fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",
+                      border:"none",background:T.brand,color:"#fff"}}>
+                      💳 Emetti fattura
+                    </button>
+                  )}
+                </div>}
+              </div>;
+            })}
           </div>}
 
           {/* FATTURE */}
           {tab==="fatture"&&<div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontSize:13,color:T.textSub}}>{pFatt.length} fatture</div>
+              <Btn icon="+" onClick={openFattModal}>Nuova fattura</Btn>
+            </div>
             {pFatt.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessuna fattura</div>:
             pFatt.map(f=>{const bs=BADGE[f.statoPagamento]||{};return <div key={f.id} style={{padding:"12px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8,display:"flex",gap:12,alignItems:"center"}}>
               <div style={{flex:1}}>
@@ -1281,24 +1366,126 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           </div>}
 
           {/* DATI CLINICI */}
-          {tab==="clinica"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20}}>
-            <div>
-              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>⚠️ Allergie</div>
-              <textarea
-                value={pd.allergie||""}
-                onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,allergie:e.target.value}:x))}
-                placeholder="Inserisci allergie note (farmaci, materiali, lattice...)"
-                rows={5}
-                style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+          {tab==="clinica"&&<div>
+            {/* Allergie e Farmaci */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:20,marginBottom:20}}>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>⚠️ Allergie</div>
+                <textarea value={pd.allergie||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,allergie:e.target.value}:x))}
+                  placeholder="Allergie note (farmaci, materiali, lattice...)" rows={4}
+                  style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+              </div>
+              <div>
+                <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>💊 Farmaci in uso</div>
+                <textarea value={pd.farmaci||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,farmaci:e.target.value}:x))}
+                  placeholder="Farmaci attualmente in uso..." rows={4}
+                  style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+              </div>
             </div>
-            <div>
-              <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>💊 Farmaci in uso</div>
-              <textarea
-                value={pd.farmaci||""}
-                onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,farmaci:e.target.value}:x))}
-                placeholder="Inserisci farmaci attualmente in uso..."
-                rows={5}
-                style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+
+            {/* ANAMNESI */}
+            <div style={{background:"#fff",borderRadius:T.rLg,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+              <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,background:T.bg,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div style={{fontSize:14,fontWeight:700,color:T.text}}>🩺 Anamnesi</div>
+                <div style={{fontSize:12,color:T.textSub}}>Salvata automaticamente</div>
+              </div>
+              <div style={{padding:"16px 18px"}}>
+                {/* Patologie sistemiche */}
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Patologie sistemiche</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+                    {["Diabete","Ipertensione","Cardiopatie","Coagulopatie","Epatite B/C","HIV","Osteoporosi","Asma","Epilessia","Gravidanza","Tumori","Dialisi"].map(pat=>{
+                      const val=(pd.anamnesi?.patologie||[]).includes(pat);
+                      return <label key={pat} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:T.r,border:`1px solid ${val?T.brand:T.border}`,background:val?T.brandLight:"#fff",cursor:"pointer",fontSize:13,transition:"all 0.12s"}}>
+                        <input type="checkbox" checked={val} onChange={e=>{
+                          const cur=pd.anamnesi?.patologie||[];
+                          const next=e.target.checked?[...cur,pat]:cur.filter(x=>x!==pat);
+                          setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,patologie:next}}:x));
+                        }} style={{accentColor:T.brand,width:15,height:15}}/>
+                        <span style={{color:val?T.brand:T.text,fontWeight:val?600:400}}>{pat}</span>
+                      </label>;
+                    })}
+                  </div>
+                </div>
+
+                {/* Farmaci anticoagulanti */}
+                <div style={{marginBottom:16}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Farmaci anticoagulanti / antiaggreganti</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8}}>
+                    {["Aspirina","Warfarin","Eparina","Clopidogrel","Dabigatran","Rivaroxaban","Nessuno"].map(f=>{
+                      const val=(pd.anamnesi?.anticoag||[]).includes(f);
+                      return <label key={f} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:T.r,border:`1px solid ${val?T.warning:T.border}`,background:val?"#FFFBEB":"#fff",cursor:"pointer",fontSize:13}}>
+                        <input type="checkbox" checked={val} onChange={e=>{
+                          const cur=pd.anamnesi?.anticoag||[];
+                          const next=e.target.checked?[...cur,f]:cur.filter(x=>x!==f);
+                          setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,anticoag:next}}:x));
+                        }} style={{accentColor:"#D97706",width:15,height:15}}/>
+                        <span style={{color:val?"#92400E":T.text,fontWeight:val?600:400}}>{f}</span>
+                      </label>;
+                    })}
+                  </div>
+                </div>
+
+                {/* Abitudini e altri dati */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14,marginBottom:16}}>
+                  <div>
+                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Fumatore</label>
+                    <select value={pd.anamnesi?.fumatore||"no"} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,fumatore:e.target.value}}:x))}
+                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}>
+                      <option value="no">No</option>
+                      <option value="ex">Ex fumatore</option>
+                      <option value="si_leggero">Sì — leggero</option>
+                      <option value="si_moderato">Sì — moderato</option>
+                      <option value="si_forte">Sì — forte</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Alcol</label>
+                    <select value={pd.anamnesi?.alcol||"no"} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,alcol:e.target.value}}:x))}
+                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}>
+                      <option value="no">No / Occasionale</option>
+                      <option value="moderato">Moderato</option>
+                      <option value="frequente">Frequente</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Gruppo sanguigno</label>
+                    <select value={pd.anamnesi?.gruppoSanguigno||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,gruppoSanguigno:e.target.value}}:x))}
+                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}>
+                      <option value="">—</option>
+                      {["0+","0-","A+","A-","B+","B-","AB+","AB-"].map(g=><option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Anestesia e note */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                  <div>
+                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Reazioni ad anestesia locale</label>
+                    <select value={pd.anamnesi?.anestesia||"nessuna"} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,anestesia:e.target.value}}:x))}
+                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}>
+                      <option value="nessuna">Nessuna</option>
+                      <option value="lipotimia">Lipotimia</option>
+                      <option value="allergia">Allergia nota</option>
+                      <option value="tachicardia">Tachicardia</option>
+                      <option value="altro">Altro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Ultima visita medica</label>
+                    <input type="date" value={pd.anamnesi?.ultimaVisita||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,ultimaVisita:e.target.value}}:x))}
+                      style={{width:"100%",padding:"8px 10px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}/>
+                  </div>
+                </div>
+
+                {/* Note anamnestiche libere */}
+                <div style={{marginTop:14}}>
+                  <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Note anamnestiche</label>
+                  <textarea value={pd.anamnesi?.note||""} onChange={e=>setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,note:e.target.value}}:x))}
+                    placeholder="Annotazioni cliniche aggiuntive..." rows={3}
+                    style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
+                </div>
+              </div>
             </div>
           </div>}
 
@@ -1333,6 +1520,66 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           </div>
         </div>}
         <FTextarea label="Note" value={prevNote} onChange={e=>setPrevNote(e.target.value)} rows={2}/>
+      </Modal>
+
+      {/* Modal emetti fattura da scheda */}
+      <Modal open={fattModal} onClose={()=>setFattModal(false)} title="Emetti Fattura"
+        subtitle={pd?`Per ${pd.cognome} ${pd.nome}`:""}  width={480}
+        footer={<><Btn variant="secondary" onClick={()=>setFattModal(false)}>Annulla</Btn><Btn onClick={saveFatt}>💳 Emetti fattura</Btn></>}>
+        {/* Seleziona preventivo */}
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Preventivo accettato</label>
+          <select value={fattPrevId} onChange={e=>setFattPrevId(e.target.value)}
+            style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${fattPrevId?T.brand:T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
+            <option value="">— Seleziona preventivo —</option>
+            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).map(p=>(
+              <option key={p.id} value={p.id}>{fmtDate(p.data)} — {p.voci.length} tratt. — {fmtEur(p.totale)}</option>
+            ))}
+          </select>
+          {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).length===0&&(
+            <p style={{fontSize:12,color:T.warning,marginTop:6}}>⚠️ Nessun preventivo accettato disponibile.</p>
+          )}
+        </div>
+        {/* Tipo: saldo o acconto */}
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.4}}>Tipo fattura</label>
+          <div style={{display:"flex",gap:8}}>
+            {[{v:"saldo",label:"💳 Saldo totale",sub:"Paga tutto il preventivo"},{v:"acconto",label:"💰 Acconto",sub:"Importo parziale"}].map(({v,label,sub})=>(
+              <div key={v} onClick={()=>setFattTipo(v)}
+                style={{flex:1,padding:"10px 14px",borderRadius:T.r,cursor:"pointer",
+                  border:`2px solid ${fattTipo===v?T.brand:T.border}`,
+                  background:fattTipo===v?T.brandLight:"#fff"}}>
+                <div style={{fontSize:13,fontWeight:700,color:fattTipo===v?T.brand:T.text}}>{label}</div>
+                <div style={{fontSize:11.5,color:T.textSub,marginTop:3}}>{sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Importo acconto */}
+        {fattTipo==="acconto"&&(
+          <div style={{marginBottom:14}}>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Importo acconto (€)</label>
+            <input type="number" value={fattAcconto} onChange={e=>setFattAcconto(e.target.value)}
+              placeholder="Es. 100.00" min="0" step="0.01"
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          </div>
+        )}
+        {/* Metodo pagamento */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Metodo</label>
+            <select value={fattMetodo} onChange={e=>setFattMetodo(e.target.value)}
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
+              {["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}
+            </select>
+          </div>
+          {fattPrevId&&<div style={{padding:"10px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",justifyContent:"center"}}>
+            <div style={{fontSize:11,color:T.textSub}}>Importo fattura</div>
+            <div style={{fontSize:18,fontWeight:700,color:T.brand,marginTop:2}}>
+              {fmtEur(fattTipo==="acconto"?(Number(fattAcconto)||0):(preventivi.find(p=>String(p.id)===String(fattPrevId))?.totale||0))}
+            </div>
+          </div>}
+        </div>
       </Modal>
 
       {/* Modal modifica paziente */}
@@ -1728,88 +1975,9 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
 }
 
 
-function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav}) {
-  const [subtab, setSubtab] = useState("fatture");
-  const [filter, setFilter]=useState("tutti");
-  const [bancaPeriod, setBancaPeriod]=useState("mese");
-  const [search, setSearch]=useState("");
-  const [sortCol, setSortCol]=useState("data");
-  const [sortAsc, setSortAsc]=useState(false);
-  const [modal, setModal]=useState(false);
-  const [editId, setEditId]=useState(null);
-  const [form, setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
-  const [addVoce, setAddVoce]=useState({nome:"",prezzo:"",qty:1});
-  const [scontoAttivo, setScontoAttivo]=useState(false);
-  const [scontoValore, setScontoValore]=useState("");
-  const [marcaBollo, setMarcaBollo]=useState(false);
 
-  function toggleSort(col){ if(sortCol===col)setSortAsc(!sortAsc); else{setSortCol(col);setSortAsc(true);} }
-  function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
-
-  const ff=k=>v=>setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
-
-  const filtered=useMemo(()=>{
-    let res=fatture;
-    if(filter!=="tutti")res=res.filter(f=>f.statoPagamento===filter);
-    if(search){const q=search.toLowerCase();res=res.filter(f=>{const paz=pazienti.find(x=>x.id===f.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q)||f.numero?.includes(q);});}
-    res=[...res].sort((a,b)=>{
-      let va,vb;
-      if(sortCol==="paziente"){const pa=pazienti.find(x=>x.id===a.pazienteId),pb=pazienti.find(x=>x.id===b.pazienteId);va=(pa?.cognome||"");vb=(pb?.cognome||"");}
-      else if(sortCol==="numero"){va=a.numero||"";vb=b.numero||"";}
-      else if(sortCol==="data"){va=a.data||"";vb=b.data||"";}
-      else if(sortCol==="metodo"){va=a.metodoPagamento||"";vb=b.metodoPagamento||"";}
-      else if(sortCol==="totale"){return sortAsc?(a.totale-b.totale):(b.totale-a.totale);}
-      else if(sortCol==="stato"){va=a.statoPagamento||"";vb=b.statoPagamento||"";}
-      else{va=a.data||"";vb=b.data||"";}
-      return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
-    });
-    return res;
-  },[fatture,filter,search,pazienti,sortCol,sortAsc]);
-
-  function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
-  function nextN(){const anno=new Date().getFullYear();const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;return String(n).padStart(2,'0')+'/'+anno;}
-  function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setScontoAttivo(false);setScontoValore("");setMarcaBollo(false);setEditId(null);setModal(true);}
-  function openEdit(f){setForm(f);const sc=f.sconto||0;setScontoAttivo(sc>0);setScontoValore(sc>0?String(sc):"");setMarcaBollo(f.marcaBollo||false);setEditId(f.id);setModal(true);}
-  function loadPrev(prevId){
-    if(!prevId) { setForm(f=>({...f,preventivoId:'',voci:[]})); return; }
-    const prev=preventivi.find(p=>p.id===Number(prevId));
-    if(!prev) return;
-    if(prev.stato!=='accettato'){
-      alert("⚠️ Devi prima accettare il preventivo.\nVai nei Preventivi e imposta lo stato su Accettato.");
-      setForm(f=>({...f,preventivoId:''}));
-      return;
-    }
-    const imp = prev.totale||0;
-    setForm(f=>({...f,preventivoId:Number(prevId),pazienteId:String(prev.pazienteId),voci:[...prev.voci]}));
-    setMarcaBollo(imp > 77.67);
-  }
-  function addV(){if(!addVoce.nome||!addVoce.prezzo)return;setForm(f=>({...f,voci:[...f.voci,{nome:addVoce.nome,prezzo:Number(addVoce.prezzo)||0,qty:Number(addVoce.qty)||1}]}));setAddVoce({nome:"",prezzo:"",qty:1});}
-  const totalelordo=form.voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
-  const scontoNum=scontoAttivo?(Number(scontoValore)||0):0;
-  const imponibile=Math.max(0,totalelordo-scontoNum);
-  const bolloAuto=imponibile>77.67;
-  const totale=imponibile+(marcaBollo?2:0);
-  function save(){
-    if(!form.pazienteId)return alert("Seleziona paziente");
-    if(!form.preventivoId)return alert("Non puoi emettere una fattura senza un preventivo accettato.\nVai nei Preventivi, crea e accetta un preventivo, poi torna qui.");
-    if(!form.voci.length)return alert("Aggiungi almeno una voce");
-    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])]; const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),totalelordo,sconto:scontoNum,totale,marcaBollo};
-    if(editId){
-      setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
-    } else {
-      const newId=uid();
-      setFatture(p=>[...p,{...fattData,id:newId,numero:nextN()}]);
-      // Marca il preventivo come fatturato se importato da preventivo
-      if(form.preventivoId){
-        setPreventivi(p=>p.map(x=>x.id===Number(form.preventivoId)?{...x,stato:"fatturato"}:x));
-      }
-    }
-    setModal(false);
-  }
-  function cambiaStato(id,stato){setFatture(p=>p.map(x=>x.id===id?{...x,statoPagamento:stato}:x));}
-
-  function stampaFattura(fatt) {
-    const paz = pazienti.find(x=>x.id===fatt.pazienteId);
+function stampaFattura(fatt, pazientiList) {
+    const paz = (pazientiList||[]).find(x=>x.id===fatt.pazienteId);
     const nomePaz = paz ? paz.cognome+" "+paz.nome : "—";
     const indPaz = [paz?.indirizzo, paz?.citta, paz?.codiceFiscale].filter(Boolean);
     const dataEmissione = fatt.data
@@ -1927,6 +2095,87 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     const w = window.open("","_blank","width=900,height=750");
     if(w){w.document.write(html);w.document.close();}
   }
+function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav}) {
+  const [subtab, setSubtab] = useState("fatture");
+  const [filter, setFilter]=useState("tutti");
+  const [bancaPeriod, setBancaPeriod]=useState("mese");
+  const [search, setSearch]=useState("");
+  const [sortCol, setSortCol]=useState("data");
+  const [sortAsc, setSortAsc]=useState(false);
+  const [modal, setModal]=useState(false);
+  const [editId, setEditId]=useState(null);
+  const [form, setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
+  const [addVoce, setAddVoce]=useState({nome:"",prezzo:"",qty:1});
+  const [scontoAttivo, setScontoAttivo]=useState(false);
+  const [scontoValore, setScontoValore]=useState("");
+  const [marcaBollo, setMarcaBollo]=useState(false);
+
+  function toggleSort(col){ if(sortCol===col)setSortAsc(!sortAsc); else{setSortCol(col);setSortAsc(true);} }
+  function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
+
+  const ff=k=>v=>setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
+
+  const filtered=useMemo(()=>{
+    let res=fatture;
+    if(filter!=="tutti")res=res.filter(f=>f.statoPagamento===filter);
+    if(search){const q=search.toLowerCase();res=res.filter(f=>{const paz=pazienti.find(x=>x.id===f.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q)||f.numero?.includes(q);});}
+    res=[...res].sort((a,b)=>{
+      let va,vb;
+      if(sortCol==="paziente"){const pa=pazienti.find(x=>x.id===a.pazienteId),pb=pazienti.find(x=>x.id===b.pazienteId);va=(pa?.cognome||"");vb=(pb?.cognome||"");}
+      else if(sortCol==="numero"){va=a.numero||"";vb=b.numero||"";}
+      else if(sortCol==="data"){va=a.data||"";vb=b.data||"";}
+      else if(sortCol==="metodo"){va=a.metodoPagamento||"";vb=b.metodoPagamento||"";}
+      else if(sortCol==="totale"){return sortAsc?(a.totale-b.totale):(b.totale-a.totale);}
+      else if(sortCol==="stato"){va=a.statoPagamento||"";vb=b.statoPagamento||"";}
+      else{va=a.data||"";vb=b.data||"";}
+      return sortAsc?va.localeCompare(vb):vb.localeCompare(va);
+    });
+    return res;
+  },[fatture,filter,search,pazienti,sortCol,sortAsc]);
+
+  function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
+  function nextN(){const anno=new Date().getFullYear();const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;return String(n).padStart(2,'0')+'/'+anno;}
+  function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setScontoAttivo(false);setScontoValore("");setMarcaBollo(false);setEditId(null);setModal(true);}
+  function openEdit(f){setForm(f);const sc=f.sconto||0;setScontoAttivo(sc>0);setScontoValore(sc>0?String(sc):"");setMarcaBollo(f.marcaBollo||false);setEditId(f.id);setModal(true);}
+  function loadPrev(prevId){
+    if(!prevId) { setForm(f=>({...f,preventivoId:'',voci:[]})); return; }
+    const prev=preventivi.find(p=>p.id===Number(prevId));
+    if(!prev) return;
+    if(prev.stato!=='accettato'){
+      alert("⚠️ Devi prima accettare il preventivo.\nVai nei Preventivi e imposta lo stato su Accettato.");
+      setForm(f=>({...f,preventivoId:''}));
+      return;
+    }
+    const imp = prev.totale||0;
+    setForm(f=>({...f,preventivoId:Number(prevId),pazienteId:String(prev.pazienteId),voci:[...prev.voci]}));
+    setMarcaBollo(imp > 77.67);
+  }
+  function addV(){if(!addVoce.nome||!addVoce.prezzo)return;setForm(f=>({...f,voci:[...f.voci,{nome:addVoce.nome,prezzo:Number(addVoce.prezzo)||0,qty:Number(addVoce.qty)||1}]}));setAddVoce({nome:"",prezzo:"",qty:1});}
+  const totalelordo=form.voci.reduce((s,v)=>s+v.prezzo*v.qty,0);
+  const scontoNum=scontoAttivo?(Number(scontoValore)||0):0;
+  const imponibile=Math.max(0,totalelordo-scontoNum);
+  const bolloAuto=imponibile>77.67;
+  const totale=imponibile+(marcaBollo?2:0);
+  function save(){
+    if(!form.pazienteId)return alert("Seleziona paziente");
+    if(!form.preventivoId)return alert("Non puoi emettere una fattura senza un preventivo accettato.\nVai nei Preventivi, crea e accetta un preventivo, poi torna qui.");
+    if(!form.voci.length)return alert("Aggiungi almeno una voce");
+    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])]; const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),totalelordo,sconto:scontoNum,totale,marcaBollo};
+    if(editId){
+      setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
+    } else {
+      const newId=uid();
+      setFatture(p=>[...p,{...fattData,id:newId,numero:nextN()}]);
+      // Marca il preventivo come fatturato se importato da preventivo
+      if(form.preventivoId){
+        setPreventivi(p=>p.map(x=>x.id===Number(form.preventivoId)?{...x,stato:"fatturato"}:x));
+      }
+    }
+    setModal(false);
+  }
+  function cambiaStato(id,stato){setFatture(p=>p.map(x=>x.id===id?{...x,statoPagamento:stato}:x));}
+
+  
   function del(id){
     const fatt = fatture.find(f=>f.id===id);
     const num = fatt?.numero||String(id);
@@ -2033,7 +2282,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div style={{display:"flex",gap:4}}>
-                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r);}}>🖨️ Stampa</Btn>
+                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti);}}>🖨️ Stampa</Btn>
                     <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
                   </div>
                 </td>
@@ -2078,7 +2327,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                     <div style={{fontSize:13,color:T.textSub}}>{f.metodoPagamento}</div>
                     <div style={{fontSize:14,fontWeight:700,color:T.success}}>{fmtEur(f.totale)}</div>
                     <div style={{display:"flex",gap:4}}>
-                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f)}>🖨️</Btn>
+                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f,pazienti)}>🖨️</Btn>
                     </div>
                   </div>
                 ))}
