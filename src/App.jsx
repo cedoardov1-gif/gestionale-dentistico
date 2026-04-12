@@ -1097,6 +1097,14 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
+  useEffect(()=>{
+    if(initialDetail!==null&&initialDetail!==undefined){
+      setDetail(initialDetail);
+      setTab("overview");
+      if(onDetailOpened) onDetailOpened();
+    }
+  },[initialDetail]);
+
   const filtered = useMemo(()=>{
     const res = pazienti.filter(p=>{
       const q=search.toLowerCase();
@@ -2863,6 +2871,16 @@ function UtentiView({currentUser}) {
     </Modal>
   </div>;
 }
+
+
+
+const NAV=[
+  {section:null,items:[{id:"dashboard",icon:"⊞",label:"Dashboard"}]},
+  {section:"Clinica",items:[{id:"agenda",icon:"📅",label:"Agenda"},{id:"pazienti",icon:"👤",label:"Pazienti"}]},
+  {section:"Amministrazione",items:[{id:"preventivi",icon:"📄",label:"Preventivi"},{id:"fatture",icon:"🧾",label:"Fatturazione"},{id:"listino",icon:"💊",label:"Listino prezzi"}]},
+  {section:"Analisi",items:[{id:"report",icon:"📊",label:"Report"}]},
+  {section:"Impostazioni",items:[{id:"utenti",icon:"👥",label:"Utenti"},{id:"impostazioni",icon:"⚙️",label:"Impostazioni"}]},
+];
 
 
 function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventivi, fatture}) {
