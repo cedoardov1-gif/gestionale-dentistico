@@ -1302,7 +1302,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             </div>
           </div>}
 
-          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio}/>
+          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio}/>}
         </div>
       </div>
 
@@ -1767,7 +1767,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   },[fatture,filter,search,pazienti,sortCol,sortAsc]);
 
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
-  function nextN(){return `${new Date().getFullYear()}/${String(fatture.length+1).padStart(3,"0")}`;}
+  function nextN(){const anno=new Date().getFullYear();const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;return String(n).padStart(2,'0')+'/'+anno;}
   function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setScontoAttivo(false);setScontoValore("");setMarcaBollo(false);setEditId(null);setModal(true);}
   function openEdit(f){setForm(f);const sc=f.sconto||0;setScontoAttivo(sc>0);setScontoValore(sc>0?String(sc):"");setMarcaBollo(f.marcaBollo||false);setEditId(f.id);setModal(true);}
   function loadPrev(prevId){
@@ -1942,6 +1942,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const meseInc=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
   const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
   const daPagare=fatture.filter(f=>f.statoPagamento!=="pagato").reduce((s,f)=>s+f.totale,0);
+  const prevDaFatturare=preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)));
 
   // PRIMA NOTA / BANCA
   const bancaRanges={
@@ -2436,5 +2437,4 @@ export default function App() {
       </nav>}
     </div>
   </div>;
-}
 }
