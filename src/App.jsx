@@ -2108,6 +2108,8 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const [scontoAttivo, setScontoAttivo]=useState(false);
   const [scontoValore, setScontoValore]=useState("");
   const [marcaBollo, setMarcaBollo]=useState(false);
+  const [tipoFatt, setTipoFatt]=useState("saldo");
+  const [accontoValore, setAccontoValore]=useState("");
 
   function toggleSort(col){ if(sortCol===col)setSortAsc(!sortAsc); else{setSortCol(col);setSortAsc(true);} }
   function sortIcon(col){ if(sortCol!==col) return <span style={{color:T.textMuted,fontSize:10,marginLeft:3}}>⇅</span>; return <span style={{color:T.brand,fontSize:10,marginLeft:3}}>{sortAsc?"↑":"↓"}</span>; }
@@ -2134,7 +2136,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
 
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
   function nextN(){const anno=new Date().getFullYear();const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;return String(n).padStart(2,'0')+'/'+anno;}
-  function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});setScontoAttivo(false);setScontoValore("");setMarcaBollo(false);setEditId(null);setModal(true);}
+  function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:"",tipoFattura:"saldo",accontoValore:""});setScontoAttivo(false);setScontoValore("");setMarcaBollo(false);setTipoFatt("saldo");setEditId(null);setModal(true);}
   function openEdit(f){setForm(f);const sc=f.sconto||0;setScontoAttivo(sc>0);setScontoValore(sc>0?String(sc):"");setMarcaBollo(f.marcaBollo||false);setEditId(f.id);setModal(true);}
   function loadPrev(prevId){
     if(!prevId) { setForm(f=>({...f,preventivoId:'',voci:[]})); return; }
@@ -2159,7 +2161,14 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     if(!form.pazienteId)return alert("Seleziona paziente");
     if(!form.preventivoId)return alert("Non puoi emettere una fattura senza un preventivo accettato.\nVai nei Preventivi, crea e accetta un preventivo, poi torna qui.");
     if(!form.voci.length)return alert("Aggiungi almeno una voce");
-    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])]; const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),totalelordo,sconto:scontoNum,totale,marcaBollo};
+    const isAcconto=tipoFatt==="acconto";
+    const importoFatt=isAcconto?(Number(accontoValore)||0):totale;
+    const statoFatt=isAcconto?"parziale":"pagato";
+    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
+    const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),
+      totalelordo,sconto:scontoNum,totale:importoFatt,
+      marcaBollo,tipoFattura:tipoFatt,
+      statoPagamento:statoFatt};
     if(editId){
       setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
     } else {
@@ -2173,6 +2182,31 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     setModal(false);
   }
   function cambiaStato(id,stato){setFatture(p=>p.map(x=>x.id===id?{...x,statoPagamento:stato}:x));}
+
+  function esportaPrimaNota(righe, periodo){
+    const labels={oggi:"Oggi",settimana:"Settimana",mese:"Mese",anno:"Anno"};
+    const headers=["N. Fattura","Data","Paziente","Metodo","Tipo","Stato","Importo"];
+    const rows=righe.map(f=>[
+      f.numero||"",
+      f.data?new Date(f.data).toLocaleDateString("it-IT"):"",
+      getPaz(f.pazienteId),
+      f.metodoPagamento||"",
+      f.tipoFattura||"saldo",
+      (f.statoPagamento||"").replace("_"," "),
+      (f.totale||0).toFixed(2)
+    ]);
+    const totale=righe.reduce((s,f)=>s+(f.totale||0),0);
+    rows.push(["","","","","","TOTALE",(totale).toFixed(2)]);
+    const csv=[headers,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("
+");
+    const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="prima_nota_"+periodo+"_"+new Date().toISOString().slice(0,10)+".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   
   function del(id){
@@ -2295,8 +2329,13 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     {/* PRIMA NOTA / BANCA TAB */}
     {subtab==="banca"&&<div>
       {/* Periodo */}
-      <div style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,width:"fit-content",overflow:"hidden",marginBottom:18}}>
-        {[["oggi","Oggi"],["settimana","Settimana"],["mese","Mese"],["anno","Anno"]].map(([k,l])=><button key={k} onClick={()=>setBancaPeriod(k)} style={{padding:"8px 18px",border:"none",background:bancaPeriod===k?T.brand:"transparent",color:bancaPeriod===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:bancaPeriod===k?600:400}}>{l}</button>)}
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
+        <div style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+          {[["oggi","Oggi"],["settimana","Settimana"],["mese","Mese"],["anno","Anno"]].map(([k,l])=><button key={k} onClick={()=>setBancaPeriod(k)} style={{padding:"8px 18px",border:"none",background:bancaPeriod===k?T.brand:"transparent",color:bancaPeriod===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:bancaPeriod===k?600:400}}>{l}</button>)}
+        </div>
+        <button onClick={()=>esportaPrimaNota(bancaFatture,bancaPeriod)} style={{padding:"8px 16px",borderRadius:T.r,border:`1px solid ${T.brand}`,background:T.brandLight,color:T.brand,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",gap:6}}>
+          📥 Scarica CSV
+        </button>
       </div>
 
       {bancaFatture.length===0?(
@@ -2368,7 +2407,34 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
         {form.pazienteId&&preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))&&Number(p.pazienteId)===Number(form.pazienteId)).length===0&&
           <p style={{margin:"5px 0 0",fontSize:12,color:T.warning}}>⚠️ Nessun preventivo accettato per questo paziente. Vai nei Preventivi e imposta lo stato su Accettato.</p>}
       </div>
-      <Grid2><FSelect label="Metodo pagamento" value={form.metodoPagamento} onChange={ff("metodoPagamento")}>{["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}</FSelect><FSelect label="Stato" value={form.statoPagamento} onChange={ff("statoPagamento")}><option value="non_pagato">Non pagato</option><option value="parziale">Parziale</option><option value="pagato">Pagato</option></FSelect></Grid2>
+      {/* Tipo fattura: saldo o acconto */}
+      <div style={{marginBottom:14}}>
+        <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:8,textTransform:"uppercase",letterSpacing:0.4}}>Tipo fattura</label>
+        <div style={{display:"flex",gap:8}}>
+          {[{v:"saldo",label:"💳 Saldo totale",sub:"Paga l'intero preventivo",col:T.success},{v:"acconto",label:"💰 Acconto",sub:"Importo parziale",col:T.warning}].map(({v,label,sub,col})=>(
+            <div key={v} onClick={()=>{setTipoFatt(v);if(v==="saldo")setForm(f=>({...f,statoPagamento:"pagato"}));else setForm(f=>({...f,statoPagamento:"parziale"}));}}
+              style={{flex:1,padding:"10px 14px",borderRadius:T.r,cursor:"pointer",border:`2px solid ${tipoFatt===v?col:T.border}`,background:tipoFatt===v?(v==="saldo"?"#ECFDF5":"#FFFBEB"):"#fff",transition:"all 0.15s"}}>
+              <div style={{fontSize:13,fontWeight:700,color:tipoFatt===v?col:T.text}}>{label}</div>
+              <div style={{fontSize:11.5,color:T.textSub,marginTop:2}}>{sub}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Importo acconto */}
+      {tipoFatt==="acconto"&&<div style={{marginBottom:14}}>
+        <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Importo acconto (€)</label>
+        <div style={{position:"relative"}}>
+          <input type="number" value={accontoValore} onChange={e=>setAccontoValore(e.target.value)}
+            placeholder="Es. 100.00" min="0" step="0.01"
+            style={{width:"100%",padding:"9px 28px 9px 12px",fontSize:14,fontWeight:600,border:`1.5px solid ${T.warning}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
+          <span style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",fontSize:13,color:T.textSub}}>€</span>
+        </div>
+      </div>}
+      <Grid2><FSelect label="Metodo pagamento" value={form.metodoPagamento} onChange={ff("metodoPagamento")}>{["Contanti","Bonifico","Carta di credito","Bancomat","Assegno"].map(m=><option key={m}>{m}</option>)}</FSelect>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:T.r,border:`1.5px solid ${tipoFatt==="saldo"?T.success:T.warning}`,background:tipoFatt==="saldo"?"#ECFDF5":"#FFFBEB",marginTop:20}}>
+        <span style={{width:8,height:8,borderRadius:"50%",background:tipoFatt==="saldo"?T.success:T.warning,flexShrink:0}}/>
+        <span style={{fontSize:13,fontWeight:700,color:tipoFatt==="saldo"?T.success:"#92400E"}}>{tipoFatt==="saldo"?"Pagato":"Acconto"}</span>
+      </div></Grid2>
 
       {form.voci.length>0&&<div style={{marginBottom:14,border:`1px solid ${T.border}`,borderRadius:T.r,overflow:"hidden"}}>
         {form.voci.map((v,i)=><div key={i} style={{display:"flex",gap:10,alignItems:"center",padding:"10px 14px",borderBottom:i<form.voci.length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":T.bg}}>
