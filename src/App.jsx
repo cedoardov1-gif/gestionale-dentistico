@@ -1524,60 +1524,63 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     const paz = pazienti.find(x=>x.id===fatt.pazienteId);
     const nomePaz = paz ? paz.cognome+" "+paz.nome : "—";
     const oggi = new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"});
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><title>Fattura ${fatt.numero||""}</title>
-<style>
-  body{font-family:Georgia,serif;font-size:11pt;color:#1a1a1a;margin:0;padding:0}
-  .page{max-width:750px;margin:0 auto;padding:30mm 25mm}
-  h1{font-size:16pt;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px}
-  .sub{font-size:10pt;color:#555;font-style:italic}
-  .header{text-align:center;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:20px}
-  .studio-info{font-size:10pt;color:#555;margin-top:4px}
-  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;font-size:10.5pt;background:#f5f5f5;padding:12px 16px;border-radius:4px;margin-bottom:20px;border:1px solid #ddd}
-  .info-grid b{color:#333}
-  table{width:100%;border-collapse:collapse;margin:16px 0}
-  thead th{background:#1a1a1a;color:#fff;padding:8px 10px;text-align:left;font-size:10pt}
-  tbody td{padding:8px 10px;border-bottom:1px solid #eee;font-size:10.5pt}
-  tbody tr:nth-child(even) td{background:#fafafa}
-  .totali{margin-top:16px;text-align:right}
-  .totali table{width:280px;margin-left:auto}
-  .totali td{padding:5px 10px;font-size:11pt}
-  .totali .grand{font-size:14pt;font-weight:700;border-top:2px solid #1a1a1a}
-  .footer{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:30px;font-size:10pt}
-  .firma-box{border-top:1px solid #1a1a1a;padding-top:8px;text-align:center}
-  .page-footer{margin-top:30px;border-top:1px solid #eee;text-align:center;font-size:9pt;color:#888;padding-top:10px}
-  @media print{body{margin:0}button{display:none}}
-</style></head><body>
-<div class="page">
-  <div class="header">
-    <h1>Studio Dentistico Sardo</h1>
-    <div class="studio-info">Cagliari (CA)</div>
-    <div class="sub">Fattura N. ${fatt.numero||"—"} del ${fatt.data?new Date(fatt.data).toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"}):"—"}</div>
-  </div>
-  <div class="info-grid">
-    <div><b>Paziente:</b> ${nomePaz}</div>
-    <div><b>Metodo pagamento:</b> ${fatt.metodoPagamento||"—"}</div>
-    <div><b>Data fattura:</b> ${fatt.data?new Date(fatt.data).toLocaleDateString("it-IT"):"—"}</div>
-    <div><b>Stato:</b> ${(fatt.statoPagamento||"").replace("_"," ")}</div>
-  </div>
-  <table>
-    <thead><tr><th>Descrizione</th><th style="text-align:center">Qtà</th><th style="text-align:right">Prezzo</th><th style="text-align:right">Totale</th></tr></thead>
-    <tbody>${(fatt.voci||[]).map(v=>\`<tr><td>\${v.nome}</td><td style="text-align:center">\${v.qty||1}</td><td style="text-align:right">\${(v.prezzo||0).toFixed(2)} €</td><td style="text-align:right">\${((v.prezzo||0)*(v.qty||1)).toFixed(2)} €</td></tr>\`).join("")}</tbody>
-  </table>
-  <div class="totali"><table>
-    ${fatt.sconto>0?`<tr><td>Totale lordo</td><td style="text-decoration:line-through">${(fatt.totalelordo||fatt.totale).toFixed(2)} €</td></tr><tr><td>Sconto</td><td>- ${fatt.sconto.toFixed(2)} €</td></tr>`:""  }
-    <tr class="grand"><td><b>TOTALE</b></td><td><b>${(fatt.totale||0).toFixed(2)} €</b></td></tr>
-  </table></div>
-  <div class="footer">
-    <div class="firma-box">Luogo e data<br/><br/>Cagliari, ${oggi}</div>
-    <div class="firma-box">Firma del paziente<br/><br/>________________________</div>
-  </div>
-  <div class="page-footer">Studio Dentistico Sardo · Cagliari · Documento generato il ${oggi}</div>
-</div>
-<script>window.onload=()=>window.print();</script>
-</body></html>`;
-    const w = window.open('','_blank','width=900,height=700');
-    w.document.write(html);
-    w.document.close();
+    const dataFatt = fatt.data ? new Date(fatt.data).toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"}) : "—";
+    
+    // Build voci rows without nested template literals
+    const righeVoci = (fatt.voci||[]).map(v => {
+      const qta = v.qty||1;
+      const prezzo = (v.prezzo||0).toFixed(2);
+      const tot = ((v.prezzo||0)*(v.qty||1)).toFixed(2);
+      return "<tr><td>"+v.nome+"</td><td style='text-align:center'>"+qta+"</td><td style='text-align:right'>"+prezzo+" &euro;</td><td style='text-align:right'>"+tot+" &euro;</td></tr>";
+    }).join("");
+
+    const rigaSconto = fatt.sconto>0
+      ? "<tr><td colspan='3'>Totale lordo</td><td style='text-align:right;text-decoration:line-through'>"+((fatt.totalelordo||fatt.totale)||0).toFixed(2)+" &euro;</td></tr>"
+        +"<tr><td colspan='3'>Sconto</td><td style='text-align:right'>- "+fatt.sconto.toFixed(2)+" &euro;</td></tr>"
+      : "";
+
+    const html = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Fattura "+( fatt.numero||"")+"</title>"
+      +"<style>"
+      +"body{font-family:Georgia,serif;font-size:11pt;color:#1a1a1a;margin:0;padding:0}"
+      +".page{max-width:750px;margin:0 auto;padding:20mm 20mm}"
+      +"h1{font-size:16pt;text-transform:uppercase;letter-spacing:1px;margin:0 0 4px}"
+      +".sub{font-size:10pt;color:#555;font-style:italic}"
+      +".header{text-align:center;border-bottom:2px solid #1a1a1a;padding-bottom:12px;margin-bottom:20px}"
+      +".info-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 20px;font-size:10.5pt;background:#f5f5f5;padding:12px 16px;border-radius:4px;margin-bottom:20px;border:1px solid #ddd}"
+      +"table{width:100%;border-collapse:collapse;margin:16px 0}"
+      +"thead th{background:#1a1a1a;color:#fff;padding:8px 10px;text-align:left;font-size:10pt}"
+      +"tbody td{padding:8px 10px;border-bottom:1px solid #eee;font-size:10.5pt}"
+      +".grand td{font-size:14pt;font-weight:700;border-top:2px solid #1a1a1a}"
+      +".footer{margin-top:40px;display:grid;grid-template-columns:1fr 1fr;gap:30px;font-size:10pt}"
+      +".firma-box{border-top:1px solid #1a1a1a;padding-top:8px;text-align:center}"
+      +".page-footer{margin-top:30px;border-top:1px solid #eee;text-align:center;font-size:9pt;color:#888;padding-top:10px}"
+      +"@media print{body{margin:0}}"
+      +"</style></head><body>"
+      +"<div class='page'>"
+      +"<div class='header'><h1>Studio Dentistico Sardo</h1><div style='font-size:10pt;color:#555'>Cagliari (CA)</div>"
+      +"<div class='sub'>Fattura N. "+(fatt.numero||"—")+" del "+dataFatt+"</div></div>"
+      +"<div class='info-grid'>"
+      +"<div><b>Paziente:</b> "+nomePaz+"</div>"
+      +"<div><b>Metodo pagamento:</b> "+(fatt.metodoPagamento||"—")+"</div>"
+      +"<div><b>Data fattura:</b> "+( fatt.data?new Date(fatt.data).toLocaleDateString("it-IT"):"—")+"</div>"
+      +"<div><b>Stato:</b> "+((fatt.statoPagamento||"").replace("_"," "))+"</div>"
+      +"</div>"
+      +"<table><thead><tr><th>Descrizione</th><th style='text-align:center'>Qt&agrave;</th><th style='text-align:right'>Prezzo</th><th style='text-align:right'>Totale</th></tr></thead>"
+      +"<tbody>"+righeVoci+"</tbody></table>"
+      +"<table style='width:280px;margin-left:auto'>"
+      +rigaSconto
+      +"<tr class='grand'><td colspan='3'><b>TOTALE</b></td><td style='text-align:right'><b>"+((fatt.totale||0).toFixed(2))+" &euro;</b></td></tr>"
+      +"</table>"
+      +"<div class='footer'>"
+      +"<div class='firma-box'>Luogo e data<br/><br/>Cagliari, "+oggi+"</div>"
+      +"<div class='firma-box'>Firma del paziente<br/><br/>________________________</div>"
+      +"</div>"
+      +"<div class='page-footer'>Studio Dentistico Sardo &middot; Cagliari &middot; Documento generato il "+oggi+"</div>"
+      +"</div>"
+      +"<script>window.onload=function(){window.print();}<\/script>"
+      +"</body></html>";
+    const w = window.open("","_blank","width=900,height=700");
+    if(w){w.document.write(html);w.document.close();}
   }
   function del(id){
     const fatt = fatture.find(f=>f.id===id);
