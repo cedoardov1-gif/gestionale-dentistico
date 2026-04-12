@@ -997,7 +997,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`pazienti_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
   }
-  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"utenti",label:"👥 Utenti"},{id:"backup",label:"💾 Backup & Dati"}];
+  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"backup",label:"💾 Backup & Dati"}];
   const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
   const CAMPI_LABELS={nome:"Nome",cognome:"Cognome",telefono:"Telefono",email:"Email",dataNascita:"Data di nascita",codiceFiscale:"Codice fiscale",indirizzo:"Indirizzo"};
   const stats={pazienti:pazienti.length,appuntamenti:appuntamenti.length,preventivi:preventivi.length,fatture:fatture.length,listino:listino.length,dimensione:(new Blob([JSON.stringify({pazienti,appuntamenti,preventivi,fatture,listino})]).size/1024).toFixed(1)};
@@ -1040,6 +1040,48 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
           ))}
         </div>
       </Card>}
+      {activeTab==="anamnesi"&&<Card>
+        <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 6px"}}>Voci Anamnesi</h3>
+        <p style={{fontSize:13,color:T.textSub,marginBottom:20}}>Personalizza le voci che appaiono nel modulo anamnesi della scheda paziente.</p>
+
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Patologie sistemiche</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+            {(impostazioni.anamnesi?.patologie||[]).map((p,i)=>(
+              <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:20,background:T.brandLight,color:T.brandDark,fontSize:12.5,fontWeight:500}}>
+                {p}
+                <button onClick={()=>setImpostazioni(im=>({...im,anamnesi:{...im.anamnesi,patologie:im.anamnesi.patologie.filter((_,j)=>j!==i)}}))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:14,lineHeight:1,padding:0,marginLeft:2}}>×</button>
+              </span>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <input id="new-pat" placeholder="Aggiungi patologia..." style={{flex:1,padding:"7px 12px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}
+              onKeyDown={e=>{if(e.key==="Enter"){const v=e.target.value.trim();if(v){setImpostazioni(im=>({...im,anamnesi:{...im.anamnesi,patologie:[...(im.anamnesi?.patologie||[]),v]}}));e.target.value="";}}}}/>
+            <Btn onClick={()=>{const el=document.getElementById("new-pat");const v=el.value.trim();if(v){setImpostazioni(im=>({...im,anamnesi:{...im.anamnesi,patologie:[...(im.anamnesi?.patologie||[]),v]}}));el.value="";}}} size="sm">+ Aggiungi</Btn>
+          </div>
+        </div>
+
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:12,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Farmaci anticoagulanti / antiaggreganti</div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:10}}>
+            {(impostazioni.anamnesi?.anticoag||[]).map((f,i)=>(
+              <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"4px 10px",borderRadius:20,background:"#FFFBEB",color:"#92400E",fontSize:12.5,fontWeight:500}}>
+                {f}
+                <button onClick={()=>setImpostazioni(im=>({...im,anamnesi:{...im.anamnesi,anticoag:im.anamnesi.anticoag.filter((_,j)=>j!==i)}}))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:14,lineHeight:1,padding:0,marginLeft:2}}>×</button>
+              </span>
+            ))}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <input id="new-anti" placeholder="Aggiungi farmaco..." style={{flex:1,padding:"7px 12px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}
+              onKeyDown={e=>{if(e.key==="Enter"){const v=e.target.value.trim();if(v){setImpostazioni(im=>({...im,anamnesi:{...im.anamnesi,anticoag:[...(im.anamnesi?.anticoag||[]),v]}}));e.target.value="";}}}}/>
+            <Btn onClick={()=>{const el=document.getElementById("new-anti");const v=el.value.trim();if(v){setImpostazioni(im=>({...im,anamnesi:{...im.anamnesi,anticoag:[...(im.anamnesi?.anticoag||[]),v]}}));el.value="";}}} size="sm">+ Aggiungi</Btn>
+          </div>
+        </div>
+        <div style={{padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,fontSize:12,color:T.textSub}}>
+          ℹ️ Le modifiche vengono salvate automaticamente e si applicano a tutte le nuove anamnesi.
+        </div>
+      </Card>}
+
       {activeTab==="utenti"&&<UtentiView currentUser={currentUser}/>}
       {activeTab==="backup"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
         <Card>
@@ -1068,7 +1110,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
           </div>
         </Card>
       </div>}
-      {(activeTab==="studio"||activeTab==="pazienti")&&<div style={{marginTop:20,display:"flex",alignItems:"center",gap:12}}>
+      {(activeTab==="studio"||activeTab==="pazienti"||activeTab==="anamnesi")&&<div style={{marginTop:20,display:"flex",alignItems:"center",gap:12}}>
         <button onClick={salva} style={{padding:"11px 28px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Salva impostazioni</button>
         {saved&&<span style={{fontSize:13,color:T.success,fontWeight:600}}>✓ Salvato</span>}
       </div>}
@@ -1088,13 +1130,14 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   const [prevVoci, setPrevVoci] = useState([]);
   const [prevNote, setPrevNote] = useState("");
   const [addVoce, setAddVoce] = useState({listinoId:"",qty:1});
+  const [anamnesiEdit, setAnamnesiEdit] = useState(false);
   const [fattModal, setFattModal] = useState(false);
   const [fattPrevId, setFattPrevId] = useState("");
   const [fattMetodo, setFattMetodo] = useState("Contanti");
   const [fattStato, setFattStato] = useState("pagato");
   const [fattTipo, setFattTipo] = useState("saldo");
   const [fattAcconto, setFattAcconto] = useState("");
-  const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
+  const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",luogoNascita:"",provinciaNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
   useEffect(()=>{
@@ -1114,7 +1157,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   },[pazienti,search,sortAZ]);
 
   function openNew(){setForm({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});setEditId(null);setModal(true);}
-  function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||""});setEditId(p.id);setModal(true);}
+  function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||"",luogoNascita:p.luogoNascita||"",provinciaNascita:p.provinciaNascita||""});setEditId(p.id);setModal(true);}
   function save(){
     if(!form.nome||!form.cognome)return alert("Nome e cognome obbligatori");
     if(editId)setPazienti(p=>p.map(x=>x.id===editId?{...form,id:editId}:x));
@@ -1301,11 +1344,11 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
               <Btn icon="+" onClick={()=>setPrevModal(true)}>Nuovo preventivo</Btn>
             </div>
             {/* Banner accettati senza fattura */}
-            {(pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length>0||pPrev.some(p=>pFatt.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale")))&&(
+            {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length>0&&(
               <div style={{padding:"10px 14px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
                 <span style={{fontSize:16}}>📋</span>
                 <div style={{flex:1,fontSize:13,color:"#92400E",fontWeight:600}}>
-                  {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length} preventivo/i accettato/i — pronto per la fattura
+                  {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length} preventivo/i accettato/i in attesa di fattura
                 </div>
                 <Btn size="sm" onClick={openFattModal}>💳 Emetti fattura</Btn>
               </div>
@@ -1313,7 +1356,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
             pPrev.map(p=>{
               const fattPreventivo=pFatt.filter(f=>String(f.preventivoId)===String(p.id));
-              const prevConFatt=p.stato==="fatturato"||fattPreventivo.some(f=>f.statoPagamento==="pagato");
+              const prevConFatt=fattPreventivo.some(f=>f.statoPagamento==="pagato");
               const prevConAcconto=!prevConFatt&&fattPreventivo.some(f=>f.statoPagamento==="parziale");
               const accontoFatt=fattPreventivo.find(f=>f.statoPagamento==="parziale");
               const residuoAcconto=accontoFatt?Math.max(0,p.totale-accontoFatt.totale):0;
@@ -1407,43 +1450,49 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             <div style={{background:"#fff",borderRadius:T.rLg,border:`1px solid ${T.border}`,overflow:"hidden"}}>
               <div style={{padding:"14px 18px",borderBottom:`1px solid ${T.border}`,background:T.bg,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                 <div style={{fontSize:14,fontWeight:700,color:T.text}}>🩺 Anamnesi</div>
-                <div style={{fontSize:12,color:T.textSub}}>Salvata automaticamente</div>
+                {anamnesiEdit
+                  ? <Btn size="sm" onClick={()=>setAnamnesiEdit(false)}>✓ Chiudi modifica</Btn>
+                  : <Btn size="sm" variant="ghost" onClick={()=>setAnamnesiEdit(true)}>✏️ Modifica</Btn>}
               </div>
               <div style={{padding:"16px 18px"}}>
                 {/* Patologie sistemiche */}
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:12,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Patologie sistemiche</div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
-                    {["Diabete","Ipertensione","Cardiopatie","Coagulopatie","Epatite B/C","HIV","Osteoporosi","Asma","Epilessia","Gravidanza","Tumori","Dialisi"].map(pat=>{
-                      const val=(pd.anamnesi?.patologie||[]).includes(pat);
-                      return <label key={pat} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:T.r,border:`1px solid ${val?T.brand:T.border}`,background:val?T.brandLight:"#fff",cursor:"pointer",fontSize:13,transition:"all 0.12s"}}>
-                        <input type="checkbox" checked={val} onChange={e=>{
-                          const cur=pd.anamnesi?.patologie||[];
-                          const next=e.target.checked?[...cur,pat]:cur.filter(x=>x!==pat);
-                          setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,patologie:next}}:x));
-                        }} style={{accentColor:T.brand,width:15,height:15}}/>
-                        <span style={{color:val?T.brand:T.text,fontWeight:val?600:400}}>{pat}</span>
-                      </label>;
-                    })}
-                  </div>
+                  {anamnesiEdit
+                    ? <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+                        {(impostazioni?.anamnesi?.patologie||["Diabete","Ipertensione","Cardiopatie","Coagulopatie","Epatite B/C","HIV","Osteoporosi","Asma","Epilessia","Gravidanza","Tumori","Dialisi"]).map(pat=>{
+                          const val=(pd.anamnesi?.patologie||[]).includes(pat);
+                          return <label key={pat} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:T.r,border:`1px solid ${val?T.brand:T.border}`,background:val?T.brandLight:"#fff",cursor:"pointer",fontSize:13,transition:"all 0.12s"}}>
+                            <input type="checkbox" checked={val} onChange={e=>{const cur=pd.anamnesi?.patologie||[];const next=e.target.checked?[...cur,pat]:cur.filter(x=>x!==pat);setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,patologie:next}}:x));}} style={{accentColor:T.brand,width:15,height:15}}/>
+                            <span style={{color:val?T.brand:T.text,fontWeight:val?600:400}}>{pat}</span>
+                          </label>;
+                        })}
+                      </div>
+                    : <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {(pd.anamnesi?.patologie||[]).length===0
+                          ? <span style={{fontSize:13,color:T.textMuted,fontStyle:"italic"}}>Nessuna patologia registrata</span>
+                          : (pd.anamnesi?.patologie||[]).map(p=><span key={p} style={{padding:"3px 10px",borderRadius:20,background:T.brandLight,color:T.brandDark,fontSize:12.5,fontWeight:600}}>{p}</span>)}
+                      </div>}
                 </div>
 
                 {/* Farmaci anticoagulanti */}
                 <div style={{marginBottom:16}}>
                   <div style={{fontSize:12,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:10}}>Farmaci anticoagulanti / antiaggreganti</div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8}}>
-                    {["Aspirina","Warfarin","Eparina","Clopidogrel","Dabigatran","Rivaroxaban","Nessuno"].map(f=>{
-                      const val=(pd.anamnesi?.anticoag||[]).includes(f);
-                      return <label key={f} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:T.r,border:`1px solid ${val?T.warning:T.border}`,background:val?"#FFFBEB":"#fff",cursor:"pointer",fontSize:13}}>
-                        <input type="checkbox" checked={val} onChange={e=>{
-                          const cur=pd.anamnesi?.anticoag||[];
-                          const next=e.target.checked?[...cur,f]:cur.filter(x=>x!==f);
-                          setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,anticoag:next}}:x));
-                        }} style={{accentColor:"#D97706",width:15,height:15}}/>
-                        <span style={{color:val?"#92400E":T.text,fontWeight:val?600:400}}>{f}</span>
-                      </label>;
-                    })}
-                  </div>
+                  {anamnesiEdit
+                    ? <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8}}>
+                        {(impostazioni?.anamnesi?.anticoag||["Aspirina","Warfarin","Eparina","Clopidogrel","Dabigatran","Rivaroxaban","Nessuno"]).map(f=>{
+                          const val=(pd.anamnesi?.anticoag||[]).includes(f);
+                          return <label key={f} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderRadius:T.r,border:`1px solid ${val?T.warning:T.border}`,background:val?"#FFFBEB":"#fff",cursor:"pointer",fontSize:13}}>
+                            <input type="checkbox" checked={val} onChange={e=>{const cur=pd.anamnesi?.anticoag||[];const next=e.target.checked?[...cur,f]:cur.filter(x=>x!==f);setPazienti(p=>p.map(x=>x.id===detail?{...x,anamnesi:{...x.anamnesi,anticoag:next}}:x));}} style={{accentColor:"#D97706",width:15,height:15}}/>
+                            <span style={{color:val?"#92400E":T.text,fontWeight:val?600:400}}>{f}</span>
+                          </label>;
+                        })}
+                      </div>
+                    : <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {(pd.anamnesi?.anticoag||[]).length===0
+                          ? <span style={{fontSize:13,color:T.textMuted,fontStyle:"italic"}}>Nessun farmaco registrato</span>
+                          : (pd.anamnesi?.anticoag||[]).map(f=><span key={f} style={{padding:"3px 10px",borderRadius:20,background:"#FFFBEB",color:"#92400E",fontSize:12.5,fontWeight:600}}>{f}</span>)}
+                      </div>}
                 </div>
 
                 {/* Abitudini e altri dati */}
@@ -1552,7 +1601,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           <select value={fattPrevId} onChange={e=>setFattPrevId(e.target.value)}
             style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${fattPrevId?T.brand:T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
             <option value="">— Seleziona preventivo —</option>
-            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato")).map(p=>{
+            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).map(p=>{
               const acc=fatture.find(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale");
               const residuo=acc?Math.max(0,p.totale-acc.totale):null;
               return <option key={p.id} value={p.id}>{fmtDate(p.data)} — {residuo!==null?"Residuo: "+fmtEur(residuo):fmtEur(p.totale)}{residuo!==null?" (acconto pagato)":""}</option>;
@@ -1616,7 +1665,9 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
         footer={<><Btn variant="danger" onClick={()=>{del(editId);setModal(false);setDetail(null);}}>🗑️ Elimina</Btn><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>Salva</Btn></>}>
         <Grid2><FInput label="Nome" required value={form.nome} onChange={ff("nome")}/><FInput label="Cognome" required value={form.cognome} onChange={ff("cognome")}/></Grid2>
         <Grid2><FInput label="Telefono" value={form.telefono} onChange={ff("telefono")} placeholder="340 000 0000"/><FInput label="Email" type="email" value={form.email} onChange={ff("email")}/></Grid2>
-        <Grid2><FInput label="Data di nascita" type="date" value={form.dataNascita} onChange={ff("dataNascita")}/><FInput label="Codice fiscale" value={form.codiceFiscale} onChange={ff("codiceFiscale")}/></Grid2>
+        <Grid2><FInput label="Data di nascita" type="date" value={form.dataNascita} onChange={ff("dataNascita")}/><FInput label="Codice fiscale" value={form.codiceFiscale} onChange={ff("codiceFiscale")} placeholder="XXXYYY00X00X000X"/></Grid2>
+        <Grid2><FInput label="Luogo di nascita" value={form.luogoNascita||""} onChange={ff("luogoNascita")} placeholder="Roma"/><FInput label="Prov." value={form.provinciaNascita||""} onChange={ff("provinciaNascita")} placeholder="RM" maxLength={2}/></Grid2>
+        <CfGenerator form={form} onGenerate={cf=>setForm(p=>({...p,codiceFiscale:cf}))}/>
         <FInput label="Indirizzo" value={form.indirizzo} onChange={ff("indirizzo")}/>
         <FTextarea label="⚠️ Allergie" value={form.allergie} onChange={ff("allergie")} rows={2} placeholder="Penicillina, lattice..."/>
         <FTextarea label="💊 Farmaci in uso" value={form.farmaci} onChange={ff("farmaci")} rows={2}/>
@@ -1655,6 +1706,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
         <Grid2><FInput label="Nome" required value={form.nome} onChange={ff("nome")}/><FInput label="Cognome" required value={form.cognome} onChange={ff("cognome")}/></Grid2>
         <Grid2><FInput label="Telefono" value={form.telefono} onChange={ff("telefono")} placeholder="340 000 0000"/><FInput label="Email" type="email" value={form.email} onChange={ff("email")}/></Grid2>
         <Grid2><FInput label="Data di nascita" type="date" value={form.dataNascita} onChange={ff("dataNascita")}/><FInput label="Codice fiscale" value={form.codiceFiscale} onChange={ff("codiceFiscale")} placeholder="XXXYYY00X00X000X"/></Grid2>
+        <Grid2><FInput label="Luogo di nascita" value={form.luogoNascita||""} onChange={ff("luogoNascita")} placeholder="Roma"/><FInput label="Prov." value={form.provinciaNascita||""} onChange={ff("provinciaNascita")} placeholder="RM" maxLength={2}/></Grid2>
+        <CfGenerator form={form} onGenerate={cf=>setForm(p=>({...p,codiceFiscale:cf}))}/>
         <FInput label="Indirizzo" value={form.indirizzo} onChange={ff("indirizzo")}/>
         <FTextarea label="⚠️ Allergie" value={form.allergie} onChange={ff("allergie")} rows={2} placeholder="Penicillina, lattice..."/>
         <FTextarea label="💊 Farmaci in uso" value={form.farmaci} onChange={ff("farmaci")} rows={2}/>
@@ -1666,7 +1719,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
 
 const DURATE=[15,30,45,60,90,120];
 const STATI_APT=["confermato","attesa","urgente","completato","annullato"];
-const HOURS=Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2===0?"00":"30";return `${String(h).padStart(2,"0")}:${m}`;}).filter(h=>parseInt(h)<20);
+const HOURS=Array.from({length:12},(_,i)=>`${String(i+8).padStart(2,"0")}:00`);
 const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const GIORNI=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
@@ -2439,7 +2492,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
         <select value={form.preventivoId||""} onChange={e=>{ff("preventivoId")(e.target.value);loadPrev(e.target.value);}}
           style={{width:"100%",padding:"9px 12px",fontSize:13,color:T.text,background:T.surface,border:"1.5px solid "+T.border,borderRadius:T.r,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}>
           <option value="">— Nessun preventivo —</option>
-          {preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id)&&f.statoPagamento==="pagato")&&(form.pazienteId===""||Number(p.pazienteId)===Number(form.pazienteId))).map(p=><option key={p.id} value={p.id}>Prev. {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}
+          {preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))&&(form.pazienteId===""||Number(p.pazienteId)===Number(form.pazienteId))).map(p=><option key={p.id} value={p.id}>Prev. {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}
         </select>
         {form.pazienteId&&preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))&&Number(p.pazienteId)===Number(form.pazienteId)).length===0&&
           <p style={{margin:"5px 0 0",fontSize:12,color:T.warning}}>⚠️ Nessun preventivo accettato per questo paziente. Vai nei Preventivi e imposta lo stato su Accettato.</p>}
@@ -2971,7 +3024,11 @@ export default function App() {
   const [listino, setListino] = useStore("listino", DEFAULT_LISTINO);
   const [impostazioni, setImpostazioni] = useState(()=>{
     try{const s=localStorage.getItem("dsd_impostazioni");if(s)return JSON.parse(s);}catch(e){}
-    return {studio:{nome:"Studio Dentistico Sardo",indirizzo:"Via G. Spano, 1",citta:"Oristano",provincia:"OR",telefono:"0783212280",email:"",piva:"01284760954",cf:"PRCLRZ99A46G113D"},campiObbligatori:{nome:true,cognome:true,telefono:false,email:false,dataNascita:false,codiceFiscale:false,indirizzo:false}};
+    return {studio:{nome:"Studio Dentistico Sardo",indirizzo:"Via G. Spano, 1",citta:"Oristano",provincia:"OR",telefono:"0783212280",email:"",piva:"01284760954",cf:"PRCLRZ99A46G113D"},campiObbligatori:{nome:true,cognome:true,telefono:false,email:false,dataNascita:false,codiceFiscale:false,indirizzo:false,
+      anamnesi:{
+        patologie:["Diabete","Ipertensione","Cardiopatie","Coagulopatie","Epatite B/C","HIV","Osteoporosi","Asma","Epilessia","Gravidanza","Tumori","Dialisi"],
+        anticoag:["Aspirina","Warfarin","Eparina","Clopidogrel","Dabigatran","Rivaroxaban","Nessuno"]
+      }};
   });
   useEffect(()=>{try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}}, [impostazioni]);
 
@@ -3017,4 +3074,5 @@ export default function App() {
       </nav>}
     </div>
   </div>;
+}
 }
