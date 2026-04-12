@@ -1152,7 +1152,9 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
     const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;
     const numero=String(n).padStart(2,'0')+'/'+anno;
     const isAcconto=fattTipo==="acconto";
-    const importo=isAcconto?(Number(fattAcconto)||0):prev.totale;
+    const existingAcconto=fatture.find(f=>String(f.preventivoId)===String(prev.id)&&f.statoPagamento==="parziale");
+    const residuoSaldo=existingAcconto?Math.max(0,prev.totale-existingAcconto.totale):prev.totale;
+    const importo=isAcconto?(Number(fattAcconto)||0):residuoSaldo;
     const haBollo=importo>77.67;
     const voceBollo=haBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[];
     const totaleFin=importo+(haBollo?2:0);
@@ -1311,7 +1313,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
             pPrev.map(p=>{
               const fattPreventivo=pFatt.filter(f=>String(f.preventivoId)===String(p.id));
-              const prevConFatt=fattPreventivo.some(f=>f.statoPagamento==="pagato");
+              const prevConFatt=p.stato==="fatturato"||fattPreventivo.some(f=>f.statoPagamento==="pagato");
               const prevConAcconto=!prevConFatt&&fattPreventivo.some(f=>f.statoPagamento==="parziale");
               const accontoFatt=fattPreventivo.find(f=>f.statoPagamento==="parziale");
               const residuoAcconto=accontoFatt?Math.max(0,p.totale-accontoFatt.totale):0;
@@ -1339,7 +1341,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
                 {/* Residuo acconto */}
                 {prevConAcconto&&residuoAcconto>0&&<div style={{padding:"8px 12px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8}}>
                   <span style={{fontSize:12.5,color:"#92400E",fontWeight:600}}>⚠️ Residuo da saldare: {fmtEur(residuoAcconto)}</span>
-                  <button onClick={()=>{setFattPrevId(String(p.id));setFattTipo("saldo");setFattAcconto("");setFattMetodo("Contanti");setFattModal(true);}} style={{padding:"5px 14px",borderRadius:20,border:"none",background:T.brand,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💳 Emetti saldo</button>
+                  <button onClick={()=>{setFattPrevId(String(p.id));setFattTipo("saldo");setFattAcconto("");setFattMetodo("Contanti");setFattStato("pagato");setFattModal(true);}} style={{padding:"5px 14px",borderRadius:20,border:"none",background:T.brand,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💳 Emetti saldo</button>
                 </div>}
                 {/* Bottoni cambio stato */}
                 {!prevConFatt&&!prevConAcconto&&<div style={{display:"flex",gap:6,flexWrap:"wrap",borderTop:`1px solid ${T.border}`,paddingTop:8,marginTop:4,alignItems:"center"}}>
@@ -1595,9 +1597,16 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           </div>
           {fattPrevId&&<div style={{padding:"10px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,display:"flex",flexDirection:"column",justifyContent:"center"}}>
             <div style={{fontSize:11,color:T.textSub}}>Importo fattura</div>
-            <div style={{fontSize:18,fontWeight:700,color:T.brand,marginTop:2}}>
-              {fmtEur(fattTipo==="acconto"?(Number(fattAcconto)||0):(preventivi.find(p=>String(p.id)===String(fattPrevId))?.totale||0))}
-            </div>
+            {(()=>{
+              const prev=preventivi.find(p=>String(p.id)===String(fattPrevId));
+              const acc=fatture.find(f=>String(f.preventivoId)===String(fattPrevId)&&f.statoPagamento==="parziale");
+              const residuo=acc&&prev?Math.max(0,prev.totale-acc.totale):prev?.totale||0;
+              const importoMostrato=fattTipo==="acconto"?(Number(fattAcconto)||0):residuo;
+              return <div>
+                <div style={{fontSize:18,fontWeight:700,color:T.brand,marginTop:2}}>{fmtEur(importoMostrato)}</div>
+                {acc&&fattTipo==="saldo"&&<div style={{fontSize:11,color:"#92400E",marginTop:3}}>Acconto già pagato: {fmtEur(acc.totale)}</div>}
+              </div>;
+            })()}
           </div>}
         </div>
       </Modal>
@@ -2182,7 +2191,9 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     if(!form.preventivoId)return alert("Non puoi emettere una fattura senza un preventivo accettato.\nVai nei Preventivi, crea e accetta un preventivo, poi torna qui.");
     if(!form.voci.length)return alert("Aggiungi almeno una voce");
     const isAcconto=tipoFatt==="acconto";
-    const importoFatt=isAcconto?(Number(accontoValore)||0):totale;
+    const existingAcc=fatture.find(f=>String(f.preventivoId)===String(form.preventivoId)&&f.statoPagamento==="parziale");
+    const residuoFatt=existingAcc?Math.max(0,totale-existingAcc.totale):totale;
+    const importoFatt=isAcconto?(Number(accontoValore)||0):residuoFatt;
     const statoFatt=isAcconto?"parziale":"pagato";
     const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
     const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),
