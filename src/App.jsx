@@ -792,7 +792,292 @@ function Odontogramma({denti={}, setDenti, readOnly=false}) {
   );
 }
 
-function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, listino, onNav}) {
+/* ══════════════════════════════════════════════
+   CODICE FISCALE — Calcolo automatico
+══════════════════════════════════════════════ */
+
+const CODICI_COMUNI = {"AGRIGENTO":"G273","ALBA":"A124","ALESSANDRIA":"A182","ALGHERO":"A192","ANCONA":"A271","ANDRIA":"A285","AOSTA":"A326","APRILIA":"A341","AREZZO":"A390","ASCOLI PICENO":"A462","ASTI":"A479","AVELLINO":"A509","AVOLA":"A522","BARI":"A662","BARLETTA":"A669","BELLUNO":"A757","BENEVENTO":"A783","BERGAMO":"A794","BIELLA":"A859","BOLOGNA":"A944","BOLZANO":"A952","BRESCIA":"B157","BRINDISI":"B180","BUSTO ARSIZIO":"B300","CAGLIARI":"B354","CALTANISSETTA":"B429","CAMPOBASSO":"B519","CARPI":"B819","CARRARA":"B832","CASERTA":"B963","CATANIA":"C351","CATANZARO":"C352","CESENA":"C573","CHIETI":"C632","COMO":"C933","COSENZA":"D086","CREMONA":"D150","CROTONE":"D122","CUNEO":"D205","EMPOLI":"D403","ENNA":"C342","FERRARA":"D548","FIRENZE":"D612","FOGGIA":"D643","FORLI":"D704","FROSINONE":"D810","GENOVA":"D969","GORIZIA":"E098","GROSSETO":"E202","IGLESIAS":"E281","IMOLA":"E289","IMPERIA":"E290","ISERNIA":"E335","LA SPEZIA":"E463","L'AQUILA":"A345","LATINA":"E472","LECCE":"E506","LECCO":"E507","LIVORNO":"E625","LODI":"E648","LUCCA":"E715","MACERATA":"E783","MANTOVA":"E897","MASSA":"F023","MATERA":"F052","MESSINA":"F158","MILANO":"F205","MODENA":"F257","MONZA":"F704","NAPOLI":"F839","NOVARA":"F952","NUORO":"F979","OLBIA":"G015","ORISTANO":"G113","PADOVA":"G224","PALERMO":"G273","PARMA":"G337","PAVIA":"G388","PERUGIA":"G478","PESARO":"G453","PESCARA":"G482","PIACENZA":"G535","PISA":"G702","PISTOIA":"G713","PORDENONE":"G888","POTENZA":"G942","PRATO":"G999","QUARTU SANT'ELENA":"H118","RAGUSA":"H163","RAVENNA":"H199","REGGIO CALABRIA":"H224","REGGIO EMILIA":"H223","RIETI":"H282","RIMINI":"H294","ROMA":"H501","ROVIGO":"H620","SALERNO":"H703","SASSARI":"I452","SAVONA":"I480","SIENA":"I726","SIRACUSA":"I754","SONDRIO":"I829","TARANTO":"L049","TERAMO":"L103","TERNI":"L117","TORINO":"L219","TRAPANI":"L331","TRENTO":"L378","TREVISO":"L407","TRIESTE":"L424","UDINE":"L483","VARESE":"L682","VENEZIA":"L736","VERBANIA":"L746","VERCELLI":"L750","VERONA":"L781","VICENZA":"L840","VITERBO":"M082","ESTERO":"Z000"};
+
+function calcolaCodiceFiscale(cognome,nome,dataNascita,sesso,luogoNascita){
+  if(!cognome||!nome||!dataNascita||!sesso||!luogoNascita)return null;
+  const VOC="AEIOU",MESI="ABCDEHLMPRST";
+  const ODD={'0':1,'1':0,'2':5,'3':7,'4':9,'5':13,'6':15,'7':17,'8':19,'9':21,'A':1,'B':0,'C':5,'D':7,'E':9,'F':13,'G':15,'H':17,'I':19,'J':21,'K':2,'L':4,'M':18,'N':20,'O':11,'P':3,'Q':6,'R':8,'S':12,'T':14,'U':16,'V':10,'W':22,'X':25,'Y':24,'Z':23};
+  const EVEN={'0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,'A':0,'B':1,'C':2,'D':3,'E':4,'F':5,'G':6,'H':7,'I':8,'J':9,'K':10,'L':11,'M':12,'N':13,'O':14,'P':15,'Q':16,'R':17,'S':18,'T':19,'U':20,'V':21,'W':22,'X':23,'Y':24,'Z':25};
+  const elabCogn=s=>{const u=s.toUpperCase().replace(/[^A-Z]/g,'');const c=u.split('').filter(x=>!VOC.includes(x));const v=u.split('').filter(x=>VOC.includes(x));const r=[...c,...v];while(r.length<3)r.push('X');return r.slice(0,3).join('');};
+  const elabNome=s=>{const u=s.toUpperCase().replace(/[^A-Z]/g,'');const c=u.split('').filter(x=>!VOC.includes(x));const v=u.split('').filter(x=>VOC.includes(x));if(c.length>=4)return c[0]+c[2]+c[3];const r=[...c,...v];while(r.length<3)r.push('X');return r.slice(0,3).join('');};
+  const [anno,mese,giorno]=dataNascita.split('-').map(Number);
+  const gCF=sesso==='M'?String(giorno).padStart(2,'0'):String(giorno+40).padStart(2,'0');
+  const codComune=CODICI_COMUNI[luogoNascita.toUpperCase().trim()]||'Z000';
+  const partial=elabCogn(cognome)+elabNome(nome)+String(anno).slice(-2)+MESI[mese-1]+gCF+codComune;
+  let tot=0;for(let i=0;i<15;i++)tot+=i%2===0?ODD[partial[i]]:EVEN[partial[i]];
+  return partial+String.fromCharCode(65+(tot%26));
+}
+
+function CfGenerator({form,onGenerate}){
+  const [autoMode,setAutoMode]=useState(false);
+  const [sesso,setSesso]=useState('M');
+  const [error,setError]=useState('');
+  function genera(){
+    setError('');
+    if(!form.cognome||!form.nome)return setError('Inserisci prima nome e cognome');
+    if(!form.dataNascita)return setError('Inserisci la data di nascita');
+    if(!form.luogoNascita)return setError('Inserisci il luogo di nascita');
+    const cf=calcolaCodiceFiscale(form.cognome,form.nome,form.dataNascita,sesso,form.luogoNascita);
+    if(!cf)return setError('Dati incompleti');
+    if(cf.includes('Z000'))return setError('Comune non trovato — inserisci il CF manualmente');
+    onGenerate(cf);
+  }
+  return(
+    <div style={{marginBottom:14}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:autoMode?10:0}}>
+        <input type="checkbox" id="cf-auto" checked={autoMode} onChange={e=>setAutoMode(e.target.checked)} style={{width:16,height:16,cursor:"pointer",accentColor:T.brand}}/>
+        <label htmlFor="cf-auto" style={{fontSize:13,fontWeight:600,color:T.text,cursor:"pointer"}}>Genera codice fiscale automaticamente</label>
+      </div>
+      {autoMode&&<div style={{background:T.brandLight,borderRadius:T.r,padding:"12px 14px",border:`1px solid ${T.brand}44`}}>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,fontWeight:600,color:T.textSub}}>Sesso:</span>
+          {['M','F'].map(s=><button key={s} onClick={()=>setSesso(s)} style={{padding:"5px 14px",borderRadius:20,fontSize:13,fontWeight:600,fontFamily:"inherit",cursor:"pointer",border:`1.5px solid ${sesso===s?T.brand:T.border}`,background:sesso===s?T.brand:"#fff",color:sesso===s?"#fff":T.textSub}}>{s==='M'?'Maschio':'Femmina'}</button>)}
+          <button onClick={genera} style={{marginLeft:"auto",padding:"7px 18px",borderRadius:T.r,fontSize:13,fontWeight:700,fontFamily:"inherit",cursor:"pointer",border:"none",backgroundColor:T.brand,color:"#fff"}}>⚡ Genera CF</button>
+        </div>
+        {error&&<div style={{fontSize:12,color:T.danger,marginTop:6}}>⚠️ {error}</div>}
+      </div>}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   DOCUMENTI TAB — consensi e moduli
+══════════════════════════════════════════════ */
+
+const TEMPLATES_DOCUMENTI=[
+  {id:"consenso_privacy",label:"Consenso al trattamento dei dati personali",categoria:"Privacy & GDPR",icona:"🔒",
+   genera:paz=>({titolo:"INFORMATIVA E CONSENSO AL TRATTAMENTO DEI DATI PERSONALI",sottotitolo:"Ai sensi del Regolamento UE 2016/679 (GDPR) e del D.Lgs. 196/2003",
+     sezioni:[
+       {titolo:"TITOLARE DEL TRATTAMENTO",testo:"Studio Dentistico Sardo\nOristano (OR)"},
+       {titolo:"FINALITA' DEL TRATTAMENTO",testo:"I dati personali e sanitari da Lei forniti vengono trattati esclusivamente per:\n- Erogazione delle prestazioni sanitarie richieste\n- Adempimento di obblighi di legge in materia sanitaria e fiscale\n- Gestione amministrativa e contabile del rapporto"},
+       {titolo:"DIRITTI DELL'INTERESSATO",testo:"Lei ha diritto di: accedere ai propri dati, rettificarli, cancellarli (nei limiti di legge), limitarne il trattamento, opporsi al trattamento. Puo' esercitare tali diritti scrivendo al Titolare."},
+     ],firmaLabel:"Il/La sottoscritto/a",paziente:paz})},
+  {id:"consenso_canalare",label:"Consenso informato al trattamento canalare",categoria:"Consensi Clinici",icona:"🦷",
+   genera:paz=>({titolo:"CONSENSO INFORMATO AL TRATTAMENTO ENDODONTICO",sottotitolo:"Devitalizzazione / Terapia canalare",
+     sezioni:[
+       {titolo:"DESCRIZIONE",testo:"Il trattamento endodontico consiste nella rimozione della polpa dentale, nella sagomatura e disinfezione dei canali radicolari e nella loro otturazione con materiale biocompatibile."},
+       {titolo:"RISCHI E COMPLICANZE",testo:"- Rottura strumentale nel canale (rara)\n- Perforazione radicolare (eccezionale)\n- Insuccesso terapeutico con necessita' di ritrattamento o estrazione\n- Dolore post-operatorio nelle prime 48-72 ore"},
+     ],firmaLabel:"Il/La sottoscritto/a",paziente:paz})},
+  {id:"consenso_estrazione",label:"Consenso informato all'estrazione dentaria",categoria:"Consensi Clinici",icona:"🦷",
+   genera:paz=>({titolo:"CONSENSO INFORMATO ALL'ESTRAZIONE DENTARIA",sottotitolo:"Chirurgia estrattiva",
+     sezioni:[
+       {titolo:"DESCRIZIONE",testo:"L'estrazione dentaria consiste nella rimozione di un dente dalla sua sede alveolare, eseguita in anestesia locale."},
+       {titolo:"ISTRUZIONI POST-OPERATORIE",testo:"- Mordere la garza per 30 minuti\n- Non sciacquare la bocca nelle prime 24 ore\n- Applicare ghiaccio esternamente nelle prime 6 ore\n- Non fumare per almeno 48 ore"},
+     ],firmaLabel:"Il/La sottoscritto/a",paziente:paz})},
+  {id:"consenso_impianto",label:"Consenso informato all'implantologia",categoria:"Consensi Clinici",icona:"🔩",
+   genera:paz=>({titolo:"CONSENSO INFORMATO AL TRATTAMENTO IMPLANTARE",sottotitolo:"Implantologia osteointegrata",
+     sezioni:[
+       {titolo:"DESCRIZIONE",testo:"L'implantologia consiste nell'inserimento chirurgico di una vite in titanio nell'osso mascellare o mandibolare, che fungera' da radice artificiale per il successivo restauro protesico."},
+       {titolo:"RISCHI E COMPLICANZE",testo:"- Mancata osteointegrazione (3-5% dei casi)\n- Infezione peri-implantare\n- Lesione dei nervi alveolari\n- Comunicazione con il seno mascellare"},
+     ],firmaLabel:"Il/La sottoscritto/a",paziente:paz})},
+];
+
+function DocumentiTab({paziente,studioInfo}){
+  const studio=studioInfo||{};
+  const [showSelector,setShowSelector]=useState(false);
+  const [documentiEmessi,setDocumentiEmessi]=useState([]);
+  const [preview,setPreview]=useState(null);
+  const oggi=new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"});
+  const byCategoria=TEMPLATES_DOCUMENTI.reduce((acc,t)=>{if(!acc[t.categoria])acc[t.categoria]=[];acc[t.categoria].push(t);return acc;},{});
+
+  function generaEStampa(template){setPreview({...template.genera(paziente),template});}
+  function salvaDoc(template){
+    setDocumentiEmessi(d=>[...d,{id:Date.now(),templateId:template.id,label:template.label,data:new Date().toISOString().slice(0,10)}]);
+    setShowSelector(false);
+  }
+  function stampa(){window.print();}
+
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:13,color:T.textSub}}>{documentiEmessi.length} documenti</div>
+        <button onClick={()=>setShowSelector(!showSelector)} style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Nuovo documento</button>
+      </div>
+      {showSelector&&<div style={{background:"#fff",border:`1.5px solid ${T.border}`,borderRadius:T.rLg,padding:16,marginBottom:16,boxShadow:T.shadowMd}}>
+        <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:12}}>Seleziona documento</div>
+        {Object.entries(byCategoria).map(([cat,templates])=>(
+          <div key={cat} style={{marginBottom:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{cat}</div>
+            {templates.map(t=>(
+              <div key={t.id} onClick={()=>{generaEStampa(t);salvaDoc(t);}} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,cursor:"pointer",background:T.bg,marginBottom:6}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.brand;e.currentTarget.style.background=T.brandLight;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.bg;}}>
+                <span style={{fontSize:22}}>{t.icona}</span>
+                <span style={{fontSize:13,color:T.text}}>{t.label}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+        <button onClick={()=>setShowSelector(false)} style={{padding:"7px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,backgroundColor:"#fff",color:T.textSub,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Annulla</button>
+      </div>}
+      {documentiEmessi.length===0&&!showSelector&&<div style={{textAlign:"center",padding:"40px 20px",color:T.textMuted,border:`1px dashed ${T.border}`,borderRadius:T.rLg}}>
+        <div style={{fontSize:36,marginBottom:10}}>📄</div>
+        <div style={{fontSize:14,fontWeight:600,color:T.textSub}}>Nessun documento generato</div>
+        <div style={{fontSize:12,marginTop:4}}>Clicca "Nuovo documento" per generare consensi e moduli</div>
+      </div>}
+      {documentiEmessi.map((d,i)=>(
+        <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8}}>
+          <span style={{fontSize:20}}>📄</span>
+          <div style={{flex:1}}><div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{d.label}</div><div style={{fontSize:12,color:T.textSub,marginTop:2}}>Generato il {fmtDate(d.data)}</div></div>
+          <button onClick={()=>{const t=TEMPLATES_DOCUMENTI.find(x=>x.id===d.templateId);if(t)generaEStampa(t);}} style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,backgroundColor:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🖨️ Visualizza</button>
+          <button onClick={()=>setDocumentiEmessi(ds=>ds.filter(x=>x.id!==d.id))} style={{padding:"6px 12px",borderRadius:T.r,border:"1px solid #FECACA",backgroundColor:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+        </div>
+      ))}
+      {preview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,padding:"20px",overflowY:"auto"}}>
+        <div style={{background:"#fff",borderRadius:T.rLg,maxWidth:760,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
+          <div className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:T.bg,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}>
+            <div style={{fontSize:14,fontWeight:700,color:T.text}}>Anteprima documento</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={stampa} style={{padding:"8px 18px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨️ Stampa / PDF</button>
+              <button onClick={()=>setPreview(null)} style={{padding:"8px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,backgroundColor:"#fff",color:T.textSub,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✕ Chiudi</button>
+            </div>
+          </div>
+          <div id="documento-stampa" style={{padding:"40px 50px",fontFamily:"Georgia,serif",fontSize:11.5,lineHeight:1.7,color:"#1a1a1a"}}>
+            <div style={{textAlign:"center",marginBottom:28,paddingBottom:16,borderBottom:"2px solid #1a1a1a"}}>
+              <div style={{fontSize:18,fontWeight:700,letterSpacing:1,marginBottom:4}}>STUDIO DENTISTICO SARDO</div>
+              <div style={{fontSize:11,color:"#555"}}>Oristano (OR)</div>
+            </div>
+            <div style={{textAlign:"center",marginBottom:24}}>
+              <div style={{fontSize:15,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>{preview.titolo}</div>
+              <div style={{fontSize:11,color:"#555",fontStyle:"italic"}}>{preview.sottotitolo}</div>
+            </div>
+            <div style={{background:"#f5f5f5",padding:"14px 18px",borderRadius:6,marginBottom:22,border:"1px solid #ddd"}}>
+              <div style={{fontSize:12,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>Dati del paziente</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 20px",fontSize:11.5}}>
+                <div><b>Cognome e Nome:</b> {paziente.cognome} {paziente.nome}</div>
+                <div><b>Data di nascita:</b> {fmtDate(paziente.dataNascita)||"—"}</div>
+                <div><b>Codice Fiscale:</b> {paziente.codiceFiscale||"—"}</div>
+                <div><b>Telefono:</b> {paziente.telefono||"—"}</div>
+              </div>
+            </div>
+            {preview.sezioni.map((s,i)=>(
+              <div key={i} style={{marginBottom:16}}>
+                <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:0.4,marginBottom:6,borderBottom:"1px solid #ccc",paddingBottom:4}}>{i+1}. {s.titolo}</div>
+                <div style={{fontSize:11.5,color:"#333",whiteSpace:"pre-line",lineHeight:1.7}}>{s.testo}</div>
+              </div>
+            ))}
+            <div style={{marginTop:36,paddingTop:20,borderTop:"1px solid #ccc"}}>
+              <div style={{fontSize:11.5,marginBottom:20}}>
+                {preview.firmaLabel} <b>{paziente.cognome} {paziente.nome}</b>, dichiara di aver letto e compreso le informazioni riportate nel presente documento e presta il proprio consenso consapevole.
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:30,marginTop:30}}>
+                <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>Luogo e data<br/><span style={{fontSize:11.5}}>Oristano, {oggi}</span></div>
+                <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>Firma del paziente<br/><span style={{fontSize:24,color:"#ccc"}}>________________________</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   IMPOSTAZIONI VIEW
+══════════════════════════════════════════════ */
+
+function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,preventivi,fatture,listino,currentUser}){
+  const [activeTab,setActiveTab]=useState("studio");
+  const [saved,setSaved]=useState(false);
+  function updateStudio(k,v){setImpostazioni(p=>({...p,studio:{...p.studio,[k]:v}}));}
+  function updateCampo(k,v){setImpostazioni(p=>({...p,campiObbligatori:{...p.campiObbligatori,[k]:v}}));}
+  function salva(){try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}setSaved(true);setTimeout(()=>setSaved(false),2500);}
+  function esportaDati(){
+    const data={esportato:new Date().toISOString(),studio:impostazioni.studio,pazienti,appuntamenti,preventivi,fatture,listino};
+    const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`backup_studio_${new Date().toISOString().slice(0,10)}.json`;a.click();URL.revokeObjectURL(url);
+  }
+  function esportaCSV(){
+    const headers=["Cognome","Nome","Telefono","Email","Data Nascita","Codice Fiscale","Indirizzo"];
+    const rows=pazienti.map(p=>[p.cognome||"",p.nome||"",p.telefono||"",p.email||"",p.dataNascita||"",p.codiceFiscale||"",p.indirizzo||""]);
+    const csv=[headers,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
+    const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+    const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`pazienti_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
+  }
+  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"utenti",label:"👥 Utenti"},{id:"backup",label:"💾 Backup & Dati"}];
+  const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
+  const CAMPI_LABELS={nome:"Nome",cognome:"Cognome",telefono:"Telefono",email:"Email",dataNascita:"Data di nascita",codiceFiscale:"Codice fiscale",indirizzo:"Indirizzo"};
+  const stats={pazienti:pazienti.length,appuntamenti:appuntamenti.length,preventivi:preventivi.length,fatture:fatture.length,listino:listino.length,dimensione:(new Blob([JSON.stringify({pazienti,appuntamenti,preventivi,fatture,listino})]).size/1024).toFixed(1)};
+  return(
+    <div style={{maxWidth:860}}>
+      <PageHdr title="Impostazioni" subtitle="Configurazione dello studio e del gestionale"/>
+      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:24}}>
+        {tabs.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{padding:"10px 20px",fontSize:13.5,fontWeight:activeTab===t.id?700:400,border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",color:activeTab===t.id?T.brand:T.textSub,borderBottom:activeTab===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s"}}>{t.label}</button>)}
+      </div>
+      {activeTab==="studio"&&<Card>
+        <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 20px"}}>Dati dello studio</h3>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          {[{k:"nome",label:"Nome studio",ph:"Studio Dentistico Sardo"},{k:"telefono",label:"Telefono",ph:"0783 000000"},{k:"email",label:"Email",ph:"info@studio.it"},{k:"piva",label:"Partita IVA",ph:"12345678901"},{k:"cf",label:"Codice Fiscale",ph:"RSSMRA80A01H501A"}].map(({k,label,ph})=>(
+            <div key={k}><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>{label}</label><input value={impostazioni.studio[k]||""} onChange={e=>updateStudio(k,e.target.value)} placeholder={ph} style={inputStyle}/></div>
+          ))}
+        </div>
+        <div style={{marginTop:16}}><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Indirizzo</label><input value={impostazioni.studio.indirizzo||""} onChange={e=>updateStudio("indirizzo",e.target.value)} placeholder="Via Roma 1" style={inputStyle}/></div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 100px",gap:12,marginTop:16}}>
+          <div><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Citta'</label><input value={impostazioni.studio.citta||""} onChange={e=>updateStudio("citta",e.target.value)} placeholder="Oristano" style={inputStyle}/></div>
+          <div><label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Prov.</label><input value={impostazioni.studio.provincia||""} onChange={e=>updateStudio("provincia",e.target.value)} placeholder="OR" style={{...inputStyle,textTransform:"uppercase"}} maxLength={2}/></div>
+        </div>
+        <div style={{marginTop:16,padding:"12px 14px",background:"#FFF9F0",borderRadius:T.r,border:"1px solid #FDE68A",fontSize:12,color:"#92400E"}}>
+          I dati dello studio vengono usati automaticamente nei documenti generati dalla sezione Documenti nella scheda paziente.
+        </div>
+      </Card>}
+      {activeTab==="pazienti"&&<Card>
+        <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 6px"}}>Campi obbligatori — Nuovo paziente</h3>
+        <p style={{fontSize:13,color:T.textSub,marginBottom:20}}>Seleziona i campi obbligatori prima di salvare un nuovo paziente.</p>
+        <div style={{display:"flex",flexDirection:"column",gap:0,border:`1px solid ${T.border}`,borderRadius:T.rLg,overflow:"hidden"}}>
+          {Object.entries(CAMPI_LABELS).map(([k,label],i)=>(
+            <div key={k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",borderBottom:i<Object.keys(CAMPI_LABELS).length-1?`1px solid ${T.border}`:"none",background:i%2===0?"#fff":T.bg}}>
+              <div style={{fontSize:13.5,fontWeight:500,color:T.text}}>{label}{(k==="nome"||k==="cognome")&&<span style={{fontSize:11,color:T.textMuted,marginLeft:8}}>sempre obbligatorio</span>}</div>
+              {(k==="nome"||k==="cognome")
+                ?<span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:T.brandLight,color:T.brandDark,fontWeight:600}}>Sempre ✓</span>
+                :<div onClick={()=>updateCampo(k,!impostazioni.campiObbligatori[k])} style={{width:44,height:24,borderRadius:12,cursor:"pointer",transition:"background 0.2s",background:impostazioni.campiObbligatori[k]?T.success:"#CBD5E1",position:"relative",flexShrink:0}}>
+                  <div style={{position:"absolute",top:2,left:impostazioni.campiObbligatori[k]?22:2,width:20,height:20,borderRadius:"50%",background:"#fff",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.2)"}}/>
+                </div>
+              }
+            </div>
+          ))}
+        </div>
+      </Card>}
+      {activeTab==="utenti"&&<UtentiView currentUser={currentUser}/>}
+      {activeTab==="backup"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <Card>
+          <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Riepilogo dati</h3>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:12}}>
+            {[{icon:"👥",label:"Pazienti",value:stats.pazienti},{icon:"📅",label:"Appuntamenti",value:stats.appuntamenti},{icon:"📄",label:"Preventivi",value:stats.preventivi},{icon:"🧾",label:"Fatture",value:stats.fatture},{icon:"💾",label:"Dimensione",value:stats.dimensione+" KB"}].map((s,i)=>(
+              <div key={i} style={{padding:"14px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,textAlign:"center"}}>
+                <div style={{fontSize:24,marginBottom:6}}>{s.icon}</div>
+                <div style={{fontSize:20,fontWeight:700,color:T.text}}>{s.value}</div>
+                <div style={{fontSize:11.5,color:T.textSub,marginTop:2}}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card>
+          <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 20px"}}>Esporta dati</h3>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 18px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+              <div><div style={{fontSize:14,fontWeight:600,color:T.text}}>Backup completo (JSON)</div><div style={{fontSize:12,color:T.textSub,marginTop:3}}>Tutti i dati: pazienti, appuntamenti, preventivi, fatture</div></div>
+              <button onClick={esportaDati} style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0,marginLeft:16}}>Scarica JSON</button>
+            </div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 18px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+              <div><div style={{fontSize:14,fontWeight:600,color:T.text}}>Lista pazienti (CSV)</div><div style={{fontSize:12,color:T.textSub,marginTop:3}}>Anagrafica pazienti in formato Excel</div></div>
+              <button onClick={esportaCSV} style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:"#059669",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0,marginLeft:16}}>Scarica CSV</button>
+            </div>
+          </div>
+        </Card>
+      </div>}
+      {(activeTab==="studio"||activeTab==="pazienti")&&<div style={{marginTop:20,display:"flex",alignItems:"center",gap:12}}>
+        <button onClick={salva} style={{padding:"11px 28px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Salva impostazioni</button>
+        {saved&&<span style={{fontSize:13,color:T.success,fontWeight:600}}>✓ Salvato</span>}
+      </div>}
+    </div>
+  );
+}
+
+
+function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -895,7 +1180,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
 
           {/* Tabs */}
           <div style={{display:"flex",gap:0,overflowX:"auto"}}>
-            {[{id:"overview",label:"Overview"},{id:"dentale",label:"🦷 Dentale"},{id:"preventivi",label:"Preventivi",count:pPrev.length},{id:"fatture",label:"Fatture",count:pFatt.length},{id:"clinica",label:"Dati Clinici"}].map(t=>(
+            {[{id:"overview",label:"Overview"},{id:"dentale",label:"🦷 Dentale"},{id:"preventivi",label:"Preventivi",count:pPrev.length},{id:"fatture",label:"Fatture",count:pFatt.length},{id:"clinica",label:"Dati Clinici"},{id:"documenti",label:"📄 Documenti"}].map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
                 style={{padding:"11px 18px",fontSize:13.5,fontWeight:tab===t.id?600:400,border:"none",background:"none",cursor:"pointer",
                   color:tab===t.id?T.brand:T.textSub,borderBottom:tab===t.id?`2px solid ${T.brand}`:"2px solid transparent",
@@ -949,7 +1234,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             </div>
             <div>
               <div style={{fontSize:12,fontWeight:600,color:T.textSub,marginBottom:12,textTransform:"uppercase",letterSpacing:0.5}}>Riepilogo dentale</div>
-              {Object.entries(STATO_COLORS).map(([k,v])=>{
+              {Object.entries(CONDIZIONI).map(([k,v])=>{
                 const cnt=Object.values(pd.dentiStato||{}).filter(d=>d?.stato===k).length;
                 if(cnt===0) return null;
                 return <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",borderRadius:T.r,background:v.bg,marginBottom:6,border:`1px solid ${v.color}33`}}>
@@ -1016,6 +1301,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
                 style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",resize:"vertical",boxSizing:"border-box",color:T.text}}/>
             </div>
           </div>}
+
+          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio}/>
         </div>
       </div>
 
@@ -1079,7 +1366,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             {label:"Telefono",render:r=><span style={{color:T.textSub}}>{r.telefono||"—"}</span>,nowrap:true},
             {label:"Email",render:r=><span style={{color:T.textSub,fontSize:12.5}}>{r.email||"—"}</span>},
             {label:"Nato il",render:r=><span style={{color:T.textSub}}>{fmtDate(r.dataNascita)}</span>,nowrap:true},
-            {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r);}}>🖨️ Stampa</Btn></div>,nowrap:true},
+            {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn></div>,nowrap:true},
           ]}
           data={filtered}
           onRowClick={r=>{setDetail(r.id);setTab("overview");}}
@@ -1107,7 +1394,7 @@ const HOURS=Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2
 const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const GIORNI=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
-function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
+function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino, onNav}) {
   const [curDate, setCurDate] = useState(new Date()); const [calView, setCalView] = useState("week"); const [modal, setModal] = useState(false); const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({pazienteId:"",data:todayISO(),oraInizio:"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
@@ -1198,7 +1485,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, listino}) {
 }
 
 
-function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture}) {
+function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav}) {
   const [filter, setFilter]=useState("tutti");
   const [search, setSearch]=useState("");
   const [sortCol, setSortCol]=useState("data");
@@ -1328,7 +1615,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
                     <td style={{padding:"12px 16px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:10}}>
                         <Av name={getPaz(r.pazienteId)} size={30} fs={10}/>
-                        <span style={{fontWeight:600,fontSize:13,color:T.text}}>{getPaz(r.pazienteId)}</span>
+                        <span onClick={e=>{e.stopPropagation();if(onNav)onNav("pazienti",r.pazienteId);}} style={{fontWeight:600,fontSize:13,color:T.brand,cursor:"pointer",textDecoration:"underline"}}>{getPaz(r.pazienteId)}</span>
                       </div>
                     </td>
                     <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{fmtDate(r.data)}</td>
@@ -1353,7 +1640,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
                         }
                         {/* Modifica */}
                         {!hasFattura&&r.stato!=="accettato"&&
-                          <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r);}}>🖨️ Stampa</Btn>
+                          <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
                         }
                         {/* Elimina — solo se rifiutato e non fatturato */}
                         {!hasFattura&&r.stato==="rifiutato"&&
@@ -1440,7 +1727,8 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture})
   </div>;
 }
 
-function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi}) {
+
+function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav}) {
   const [subtab, setSubtab] = useState("fatture");
   const [filter, setFilter]=useState("tutti");
   const [bancaPeriod, setBancaPeriod]=useState("mese");
@@ -1684,6 +1972,13 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
       <StatCard icon="🧾" label="Totale fatture" value={fatture.length} color={T.info}/>
     </div>
 
+    {/* Banner preventivi accettati */}
+    {prevDaFatturare&&prevDaFatturare.length>0&&<div style={{padding:"12px 16px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+      <span style={{fontSize:18}}>📋</span>
+      <div style={{flex:1,fontSize:13,fontWeight:700,color:"#92400E"}}>{prevDaFatturare.length} preventivo/i accettato/i in attesa di fattura</div>
+      <button onClick={openNew} style={{padding:"8px 16px",borderRadius:T.r,border:"none",background:"#F59E0B",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Nuova fattura</button>
+    </div>}
+
     {/* Sub-tabs Fatture / Banca */}
     <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20}}>
       {[{id:"fatture",label:"📋 Registro fatture"},{id:"banca",label:"🏦 Prima nota / Banca"}].map(t=>(
@@ -1725,14 +2020,15 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{r.metodoPagamento}</td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:15,color:T.text}}>{fmtEur(r.totale)}</b></td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
-                  <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",
-                    borderRadius:20,fontSize:12.5,fontWeight:600,
-                    background:BADGE[r.statoPagamento]?.bg||T.bg,
-                    color:BADGE[r.statoPagamento]?.color||T.text,
-                    border:`1px solid ${BADGE[r.statoPagamento]?.dot||T.border}44`}}>
-                    <span style={{width:6,height:6,borderRadius:"50%",background:BADGE[r.statoPagamento]?.dot||T.border}}/>
-                    {r.statoPagamento?.replace("_"," ")||"—"}
-                  </span>
+                  <select value={r.statoPagamento||"non_pagato"} onChange={e=>{e.stopPropagation();cambiaStato(r.id,e.target.value);}} onClick={e=>e.stopPropagation()}
+                    style={{padding:"5px 10px",fontSize:12.5,fontWeight:600,borderRadius:20,fontFamily:"inherit",cursor:"pointer",border:"2px solid",
+                      borderColor:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
+                      color:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
+                      background:r.statoPagamento==="pagato"?"#ECFDF5":r.statoPagamento==="parziale"?"#FFFBEB":"#FEF2F2"}}>
+                    <option value="non_pagato">Non pagato</option>
+                    <option value="parziale">Acconto</option>
+                    <option value="pagato">Pagato</option>
+                  </select>
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div style={{display:"flex",gap:4}}>
@@ -1900,6 +2196,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
 }
 
 
+
 function ListinoView({listino, setListino}) {
   const [modal,setModal]=useState(false); const [editId,setEditId]=useState(null); const [search,setSearch]=useState("");
   const [form,setForm]=useState({categoria:"Prevenzione",nome:"",prezzo:""});
@@ -1921,7 +2218,7 @@ function ListinoView({listino, setListino}) {
           <Btn size="xs" onClick={()=>{setForm({categoria:cat,nome:"",prezzo:""});setEditId(null);setModal(true);}}>+ Aggiungi in {cat}</Btn>
         </div>
       </div>
-      <Tbl columns={[{label:"Trattamento",render:r=><span style={{fontWeight:500}}>{r.nome}</span>},{label:"Prezzo",render:r=><b style={{fontSize:14}}>{fmtEur(r.prezzo)}</b>,nowrap:true},{label:"",render:r=><div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r);}}>🖨️ Stampa</Btn><Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn></div>,nowrap:true}]} data={items} emptyText=""/>
+      <Tbl columns={[{label:"Trattamento",render:r=><span style={{fontWeight:500}}>{r.nome}</span>},{label:"Prezzo",render:r=><b style={{fontSize:14}}>{fmtEur(r.prezzo)}</b>,nowrap:true},{label:"",render:r=><div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn></div>,nowrap:true}]} data={items} emptyText=""/>
     </Card>)}
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica trattamento":"Nuovo trattamento"}
       footer={<>{editId&&<Btn variant="danger" onClick={()=>{del(editId);setModal(false);}}>Elimina</Btn>}<Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Aggiungi"}</Btn></>}>
@@ -2021,7 +2318,7 @@ function UtentiView({currentUser}) {
       {label:"Utente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/><div><div style={{fontWeight:600}}>{r.nome} {r.cognome}</div><div style={{fontSize:12,color:T.textSub}}>{r.email}</div></div></div>},
       {label:"Ruolo",render:r=><Badge label={r.ruolo} status={r.ruolo}/>,nowrap:true},
       {label:"Stato",render:r=><Badge label={r.attivo?"Attivo":"Disattivo"} status={r.attivo?"confermato":"annullato"}/>,nowrap:true},
-      {label:"",render:r=>currentUser?.ruolo==="admin"&&r.id!==currentUser.id&&<div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r);}}>🖨️ Stampa</Btn><Btn size="xs" variant={r.attivo?"danger":"success"} onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>{r.attivo?"Disattiva":"Attiva"}</Btn></div>,nowrap:true},
+      {label:"",render:r=>currentUser?.ruolo==="admin"&&r.id!==currentUser.id&&<div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant={r.attivo?"danger":"success"} onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>{r.attivo?"Disattiva":"Attiva"}</Btn></div>,nowrap:true},
     ]} data={utenti} emptyText="Nessun utente"/></Card>
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica utente":"Nuovo utente"}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
@@ -2038,7 +2335,7 @@ const NAV=[
   {section:"Clinica",items:[{id:"agenda",icon:"📅",label:"Agenda"},{id:"pazienti",icon:"👤",label:"Pazienti"}]},
   {section:"Amministrazione",items:[{id:"preventivi",icon:"📄",label:"Preventivi"},{id:"fatture",icon:"🧾",label:"Fatturazione"},{id:"listino",icon:"💊",label:"Listino prezzi"}]},
   {section:"Analisi",items:[{id:"report",icon:"📊",label:"Report"}]},
-  {section:"Impostazioni",items:[{id:"utenti",icon:"👥",label:"Utenti"}]},
+  {section:"Impostazioni",items:[{id:"utenti",icon:"👥",label:"Utenti"},{id:"impostazioni",icon:"⚙️",label:"Impostazioni"}]},
 ];
 
 function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventivi, fatture}) {
@@ -2085,14 +2382,21 @@ export default function App() {
   const {user, login, logout} = useAuth();
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [openPazienteId, setOpenPazienteId] = useState(null);
   const [pazienti, setPazienti] = useStore("pazienti", INIT_PAZIENTI);
   const [appuntamenti, setAppuntamenti] = useStore("appuntamenti", INIT_APPUNTAMENTI);
   const [preventivi, setPreventivi] = useStore("preventivi", INIT_PREVENTIVI);
   const [fatture, setFatture] = useStore("fatture", INIT_FATTURE);
   const [listino, setListino] = useStore("listino", DEFAULT_LISTINO);
+  const [impostazioni, setImpostazioni] = useState(()=>{
+    try{const s=localStorage.getItem("dsd_impostazioni");if(s)return JSON.parse(s);}catch(e){}
+    return {studio:{nome:"Studio Dentistico Sardo",indirizzo:"Via G. Spano, 1",citta:"Oristano",provincia:"OR",telefono:"0783212280",email:"",piva:"01284760954",cf:"PRCLRZ99A46G113D"},campiObbligatori:{nome:true,cognome:true,telefono:false,email:false,dataNascita:false,codiceFiscale:false,indirizzo:false}};
+  });
+  useEffect(()=>{try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}}, [impostazioni]);
 
   if (!user) return <LoginPage onLogin={login}/>;
 
+  function navTo(v,pazId){setView(v);if(pazId!==undefined)setOpenPazienteId(pazId);setSidebarOpen(false);}
   const isMobile = typeof window!=="undefined"&&window.innerWidth<768;
   const titles={dashboard:"Dashboard",agenda:"Agenda",pazienti:"Pazienti",preventivi:"Preventivi",fatture:"Fatturazione",listino:"Listino prezzi",report:"Report",utenti:"Utenti"};
 
@@ -2112,14 +2416,15 @@ export default function App() {
         </div>
       </header>
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
-        {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={setView}/>}
-        {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino}/>}
+        {view==="dashboard"&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
+        {view==="agenda"&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} listino={listino} onNav={navTo}/>}
         {view==="pazienti"&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={setView}/>}
-        {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture}/>}
-        {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi}/>}
+        {view==="preventivi"&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo}/>}
+        {view==="fatture"&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo}/>}
         {view==="listino"&&<ListinoView listino={listino} setListino={setListino}/>}
         {view==="report"&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
+        {view==="impostazioni"&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user}/>}
       </main>
       {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 8px",display:"flex",justifyContent:"space-around",position:"sticky",bottom:0,zIndex:50}}>
         {[{id:"dashboard",icon:"⊞"},{id:"agenda",icon:"📅"},{id:"pazienti",icon:"👤"},{id:"preventivi",icon:"📄"},{id:"fatture",icon:"🧾"}].map(v=>(
@@ -2131,4 +2436,5 @@ export default function App() {
       </nav>}
     </div>
   </div>;
+}
 }
