@@ -2197,8 +2197,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     ]);
     const totale=righe.reduce((s,f)=>s+(f.totale||0),0);
     rows.push(["","","","","","TOTALE",(totale).toFixed(2)]);
-    const csv=[headers,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("
-");
+    const csv=[headers,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
     const blob=new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8"});
     const url=URL.createObjectURL(blob);
     const a=document.createElement("a");
