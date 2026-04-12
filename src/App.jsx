@@ -2066,7 +2066,7 @@ function stampaFattura(fatt, pazientiList) {
 
       // Tabella voci
       +"<div class='table-header'>"
-      +"<span>FATTURA DI SALDO per prestazioni sanitarie odontoiatriche</span>"
+      +"+(fatt.tipoFattura==="acconto"?"FATTURA DI ACCONTO":"FATTURA DI SALDO")+" per prestazioni sanitarie odontoiatriche
       +"<span>Importo</span>"
       +"</div>"
       +"<table>"+righeVoci+"</table>"
@@ -2165,6 +2165,8 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const imponibile=Math.max(0,totalelordo-scontoNum);
   const bolloAuto=imponibile>77.67;
   const totale=imponibile+(marcaBollo?2:0);
+  const importoDisplay=tipoFatt==="acconto"?(Number(accontoValore)||0):totale;
+  const residuoAcconto=tipoFatt==="acconto"&&accontoValore?Math.max(0,totale-(Number(accontoValore)||0)):0;
   function save(){
     if(!form.pazienteId)return alert("Seleziona paziente");
     if(!form.preventivoId)return alert("Non puoi emettere una fattura senza un preventivo accettato.\nVai nei Preventivi, crea e accetta un preventivo, poi torna qui.");
@@ -2310,15 +2312,22 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 <td style={{padding:"12px 16px",fontSize:13,color:T.textSub,whiteSpace:"nowrap"}}>{r.metodoPagamento}</td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:15,color:T.text}}>{fmtEur(r.totale)}</b></td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
-                  <select value={r.statoPagamento||"non_pagato"} onChange={e=>{e.stopPropagation();cambiaStato(r.id,e.target.value);}} onClick={e=>e.stopPropagation()}
-                    style={{padding:"5px 10px",fontSize:12.5,fontWeight:600,borderRadius:20,fontFamily:"inherit",cursor:"pointer",border:"2px solid",
-                      borderColor:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
-                      color:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
-                      background:r.statoPagamento==="pagato"?"#ECFDF5":r.statoPagamento==="parziale"?"#FFFBEB":"#FEF2F2"}}>
-                    <option value="non_pagato">Non pagato</option>
-                    <option value="parziale">Acconto</option>
-                    <option value="pagato">Pagato</option>
-                  </select>
+                  <div>
+                    <select value={r.statoPagamento||"non_pagato"} onChange={e=>{e.stopPropagation();cambiaStato(r.id,e.target.value);}} onClick={e=>e.stopPropagation()}
+                      style={{padding:"5px 10px",fontSize:12.5,fontWeight:600,borderRadius:20,fontFamily:"inherit",cursor:"pointer",border:"2px solid",
+                        borderColor:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
+                        color:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
+                        background:r.statoPagamento==="pagato"?"#ECFDF5":r.statoPagamento==="parziale"?"#FFFBEB":"#FEF2F2"}}>
+                      <option value="non_pagato">Non pagato</option>
+                      <option value="parziale">Acconto</option>
+                      <option value="pagato">Pagato</option>
+                    </select>
+                    {r.tipoFattura==="acconto"&&r.preventivoId&&(()=>{
+                      const prev=preventivi.find(p=>String(p.id)===String(r.preventivoId));
+                      const residuo=prev?Math.max(0,prev.totale-r.totale):0;
+                      return residuo>0?<div style={{fontSize:11,color:"#92400E",marginTop:3,fontWeight:600,whiteSpace:"nowrap"}}>⚠️ Residuo {fmtEur(residuo)}</div>:null;
+                    })()}
+                  </div>
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div style={{display:"flex",gap:4}}>
@@ -2409,7 +2418,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
         <select value={form.preventivoId||""} onChange={e=>{ff("preventivoId")(e.target.value);loadPrev(e.target.value);}}
           style={{width:"100%",padding:"9px 12px",fontSize:13,color:T.text,background:T.surface,border:"1.5px solid "+T.border,borderRadius:T.r,outline:"none",boxSizing:"border-box",fontFamily:"inherit"}}>
           <option value="">— Nessun preventivo —</option>
-          {preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))&&(form.pazienteId===""||Number(p.pazienteId)===Number(form.pazienteId))).map(p=><option key={p.id} value={p.id}>Prev. {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}
+          {preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id)&&f.statoPagamento==="pagato")&&(form.pazienteId===""||Number(p.pazienteId)===Number(form.pazienteId))).map(p=><option key={p.id} value={p.id}>Prev. {fmtDate(p.data)} — {fmtEur(p.totale)}</option>)}
         </select>
         {form.pazienteId&&preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>Number(f.preventivoId)===Number(p.id))&&Number(p.pazienteId)===Number(form.pazienteId)).length===0&&
           <p style={{margin:"5px 0 0",fontSize:12,color:T.warning}}>⚠️ Nessun preventivo accettato per questo paziente. Vai nei Preventivi e imposta lo stato su Accettato.</p>}
@@ -2463,8 +2472,14 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
               <span style={{fontSize:13,fontWeight:700,color:"#6366F1"}}>+ € 2,00</span>
             </div>}
             {(marcaBollo||(scontoAttivo&&scontoNum>0))&&<div style={{display:"flex",justifyContent:"space-between",paddingTop:6,borderTop:`2px solid ${T.border}`,marginTop:4}}>
-              <span style={{fontSize:15,fontWeight:700,color:T.text}}>Totale fattura:</span>
-              <span style={{fontSize:18,fontWeight:700,color:T.text}}>{fmtEur(totale)}</span>
+              <span style={{fontSize:15,fontWeight:700,color:T.text}}>
+                {tipoFatt==="acconto"?"Importo acconto:":"Totale fattura:"}
+              </span>
+              <span style={{fontSize:18,fontWeight:700,color:tipoFatt==="acconto"?T.warning:T.text}}>{fmtEur(importoDisplay)}</span>
+            </div>}
+            {tipoFatt==="acconto"&&accontoValore&&residuoAcconto>0&&<div style={{display:"flex",justifyContent:"space-between",padding:"6px 14px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginTop:6}}>
+              <span style={{fontSize:12.5,color:"#92400E",fontWeight:600}}>⚠️ Residuo da saldare</span>
+              <span style={{fontSize:13,fontWeight:700,color:"#92400E"}}>{fmtEur(residuoAcconto)}</span>
             </div>}
           </div>
       </div>}
