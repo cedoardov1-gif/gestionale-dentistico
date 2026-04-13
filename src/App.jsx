@@ -1862,8 +1862,8 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
   const weekDays=useMemo(()=>Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return d;}),[weekStart]);
   const monthDays=useMemo(()=>{const y=curDate.getFullYear(),m=curDate.getMonth();const first=new Date(y,m,1);const startDow=first.getDay()===0?6:first.getDay()-1;const dim=new Date(y,m+1,0).getDate();const prev=new Date(y,m,0).getDate();const cells=[];for(let i=0;i<startDow;i++)cells.push({d:new Date(y,m-1,prev-startDow+1+i),other:true});for(let i=1;i<=dim;i++)cells.push({d:new Date(y,m,i),other:false});while(cells.length%7!==0)cells.push({d:new Date(y,m+1,cells.length-startDow-dim+1),other:true});return cells;},[curDate]);
   const nav=dir=>{const d=new Date(curDate);d.setDate(d.getDate()+dir*(calView==="week"?7:1));setCurDate(d);};
-  function openNew(data,ora){setForm({pazienteId:"",data:data.toISOString().slice(0,10),oraInizio:ora||"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});setEditId(null);setModal(true);}
-  function openEdit(a){setForm(a);setEditId(a.id);setModal(true);}
+  function openNew(data,ora){setForm({pazienteId:"",data:data.toISOString().slice(0,10),oraInizio:ora||"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});setEditId(null);setShowNewPaz(false);setNewPazForm({nome:"",cognome:"",telefono:"",email:""});setModal(true);}
+  function openEdit(a){setForm(a);setEditId(a.id);setShowNewPaz(false);setModal(true);}
   function save(){if(!form.pazienteId||!form.data)return alert("Seleziona paziente e data");if(editId)setAppuntamenti(p=>p.map(x=>x.id===editId?{...form,id:editId,durata:Number(form.durata)}:x));else setAppuntamenti(p=>[...p,{...form,id:uid(),durata:Number(form.durata)}]);setModal(false);}
   function del(id){if(confirm("Eliminare?"))setAppuntamenti(p=>p.filter(x=>x.id!==id));}
 
@@ -2002,18 +2002,18 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
       footer={<>{editId&&<Btn variant="danger" onClick={()=>{del(editId);setModal(false);}}>Elimina</Btn>}<Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
       <div style={{marginBottom:14}}>
         <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Paziente *</label>
-        <div style={{display:"flex",gap:8}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <select value={form.pazienteId} onChange={e=>ff("pazienteId")(e.target.value)} required
             style={{flex:1,padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",outline:"none"}}>
             <option value="">— Seleziona paziente —</option>
             {pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}
           </select>
-          <button type="button" onClick={()=>setShowNewPaz(!showNewPaz)}
+          {!editId&&<button type="button" onClick={()=>setShowNewPaz(!showNewPaz)}
             style={{padding:"9px 14px",borderRadius:T.r,border:`1.5px solid ${showNewPaz?T.brand:T.border}`,
               background:showNewPaz?T.brandLight:"#fff",color:showNewPaz?T.brand:T.textSub,
               fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>
             {showNewPaz?"✕ Annulla":"+ Nuovo paziente"}
-          </button>
+          </button>}
         </div>
         {showNewPaz&&<div style={{marginTop:10,padding:"14px 16px",background:T.brandLight,borderRadius:T.r,
           border:`1.5px solid ${T.brand}44`,display:"flex",flexDirection:"column",gap:10}}>
