@@ -954,7 +954,7 @@ const TEMPLATES_DOCUMENTI=[
      ],firmaLabel:"Il/La sottoscritto/a",paziente:paz})},
 ];
 
-function DocumentiTab({paziente,studioInfo}){
+function DocumentiTab({paziente,studioInfo,impostazioni}){
   const studio=studioInfo||{};
   const [showSelector,setShowSelector]=useState(false);
   const [documentiEmessi,setDocumentiEmessi]=useState([]);
@@ -1074,7 +1074,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`pazienti_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
   }
-  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},{id:"backup",label:"💾 Backup & Dati"}];
+  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
   const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
   const CAMPI_LABELS={nome:"Nome",cognome:"Cognome",telefono:"Telefono",email:"Email",dataNascita:"Data di nascita",codiceFiscale:"Codice fiscale",indirizzo:"Indirizzo"};
   const stats={pazienti:pazienti.length,appuntamenti:appuntamenti.length,preventivi:preventivi.length,fatture:fatture.length,listino:listino.length,dimensione:(new Blob([JSON.stringify({pazienti,appuntamenti,preventivi,fatture,listino})]).size/1024).toFixed(1)};
@@ -1191,6 +1191,48 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
         ))}
       </Card>}
 
+      {activeTab==="documenti"&&<div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+          <div>
+            <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 4px"}}>📄 Template documenti</h3>
+            <p style={{fontSize:13,color:T.textSub,margin:0}}>Gestisci i moduli da far firmare ai pazienti. Il gestionale compila automaticamente nome, data e dati studio.</p>
+          </div>
+          <Btn icon="+" onClick={()=>{const name=prompt("Nome del documento:");if(!name)return;const newDoc={id:uid(),nome:name,tipo:"consenso",testo:"",attivo:true};setImpostazioni(s=>({...s,documenti:[...(s.documenti||[]),newDoc]}))}}>Nuovo documento</Btn>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {(impostazioni.documenti||[{id:1,nome:"Modulo Privacy (GDPR)",tipo:"privacy",testo:"",attivo:true},{id:2,nome:"Consenso informato trattamento canalare",tipo:"consenso",testo:"",attivo:true},{id:3,nome:"Consenso implantologia",tipo:"consenso",testo:"",attivo:false},{id:4,nome:"Consenso sbiancamento",tipo:"consenso",testo:"",attivo:false}]).map((doc,i)=>(
+            <div key={doc.id} style={{padding:"16px 18px",background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,boxShadow:T.shadow}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:20}}>{doc.tipo==="privacy"?"🔒":"📋"}</span>
+                  <input value={doc.nome} onChange={e=>setImpostazioni(s=>({...s,documenti:(s.documenti||[]).map((d,j)=>j===i?{...d,nome:e.target.value}:d)}))}
+                    style={{fontSize:14,fontWeight:700,border:"none",outline:"none",fontFamily:"inherit",color:T.text,background:"transparent",minWidth:200}}/>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <label style={{display:"flex",alignItems:"center",gap:6,fontSize:13,cursor:"pointer"}}>
+                    <input type="checkbox" checked={doc.attivo!==false}
+                      onChange={e=>setImpostazioni(s=>({...s,documenti:(s.documenti||[]).map((d,j)=>j===i?{...d,attivo:e.target.checked}:d)}))}
+                      style={{accentColor:T.brand}}/>
+                    <span style={{color:T.textSub}}>Attivo</span>
+                  </label>
+                  <button onClick={()=>{if(confirm("Eliminare questo documento?"))setImpostazioni(s=>({...s,documenti:(s.documenti||[]).filter((_,j)=>j!==i)}))}}
+                    style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>🗑️</button>
+                </div>
+              </div>
+              <textarea value={doc.testo||""} onChange={e=>setImpostazioni(s=>({...s,documenti:(s.documenti||[]).map((d,j)=>j===i?{...d,testo:e.target.value}:d)}))}
+                placeholder={"Incolla qui il testo del "+doc.nome+". Usa {{NOME}}, {{COGNOME}}, {{DATA}}, {{STUDIO}} come segnaposto che verranno compilati automaticamente."}
+                rows={6} style={{width:"100%",padding:"10px 12px",fontSize:12.5,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"monospace",resize:"vertical",outline:"none",boxSizing:"border-box",color:T.text,lineHeight:1.6}}/>
+              <div style={{fontSize:11.5,color:T.textMuted,marginTop:6}}>
+                Segnaposto: <code style={{background:T.bg,padding:"1px 5px",borderRadius:3}}>{"{{NOME}}"}</code> <code style={{background:T.bg,padding:"1px 5px",borderRadius:3}}>{"{{COGNOME}}"}</code> <code style={{background:T.bg,padding:"1px 5px",borderRadius:3}}>{"{{DATA}}"}</code> <code style={{background:T.bg,padding:"1px 5px",borderRadius:3}}>{"{{STUDIO}}"}</code> <code style={{background:T.bg,padding:"1px 5px",borderRadius:3}}>{"{{CF}}"}</code>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}>
+          <Btn onClick={()=>{try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}alert("Template documenti salvati!");}}>💾 Salva template</Btn>
+        </div>
+      </div>}
+
       {activeTab==="backup"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
         <Card>
           <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 16px"}}>Riepilogo dati</h3>
@@ -1227,7 +1269,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
 }
 
 
-function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni}) {
+function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -1241,6 +1283,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
   const [dentiOpenPaz, setDentiOpenPaz] = useState(false);
   const [anamnesiEdit, setAnamnesiEdit] = useState(false);
   const [fattModal, setFattModal] = useState(false);
+  const [aptModal, setAptModal] = useState(false);
+  const [aptForm, setAptForm] = useState({pazienteId:"",data:todayISO(),oraInizio:"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});
   const [fattPrevId, setFattPrevId] = useState("");
   const [fattMetodo, setFattMetodo] = useState("Contanti");
   const [fattStato, setFattStato] = useState("pagato");
@@ -1293,6 +1337,14 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
     const totale=prevVoci.reduce((s,v)=>s+v.prezzo*v.qty,0);
     setPreventivi(p=>[...p,{id:uid(),pazienteId:detail,data:todayISO(),voci:prevVoci,totale,stato:"in_attesa",note:prevNote}]);
     setPrevModal(false);setPrevVoci([]);setPrevNote("");
+  }
+
+  function saveApt(){
+    if(!aptForm.pazienteId)return alert("Paziente mancante");
+    if(!aptForm.data)return alert("Inserisci la data");
+    const newApt={...aptForm,id:uid(),pazienteId:Number(aptForm.pazienteId)||aptForm.pazienteId};
+    setAppuntamenti(a=>[...a,newApt]);
+    setAptModal(false);
   }
 
   function openFattModal(){
@@ -1437,7 +1489,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           {tab==="appuntamenti"&&<div>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <div style={{fontSize:13,color:T.textSub}}>{pApts.length} appuntamenti totali</div>
-              <Btn icon="+" onClick={()=>openNew&&openNew(new Date())}>Nuovo appuntamento</Btn>
+              <Btn icon="+" onClick={()=>{setAptModal(true);setAptForm({pazienteId:detail,data:todayISO(),oraInizio:"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});}}>Nuovo appuntamento</Btn>
             </div>
             {pApts.length===0
               ?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun appuntamento</div>
@@ -1488,16 +1540,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
               <div style={{fontSize:13,color:T.textSub}}>{pPrev.length} preventivi</div>
               <Btn icon="+" onClick={()=>setPrevModal(true)}>Nuovo preventivo</Btn>
             </div>
-            {/* Banner accettati senza fattura */}
-            {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length>0&&(
-              <div style={{padding:"10px 14px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:14,display:"flex",gap:10,alignItems:"center"}}>
-                <span style={{fontSize:16}}>📋</span>
-                <div style={{flex:1,fontSize:13,color:"#92400E",fontWeight:600}}>
-                  {pPrev.filter(p=>p.stato==="accettato"&&!pFatt.some(f=>String(f.preventivoId)===String(p.id))).length} preventivo/i accettato/i in attesa di fattura
-                </div>
-                <Btn size="sm" onClick={openFattModal}>💳 Emetti fattura</Btn>
-              </div>
-            )}
+
             {pPrev.length===0?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>Nessun preventivo</div>:
             pPrev.map(p=>{
               const fattPreventivo=pFatt.filter(f=>String(f.preventivoId)===String(p.id));
@@ -1699,7 +1742,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             </div>
           </div>}
 
-          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio}/>}
+          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio} impostazioni={impostazioni}/>}
         </div>
       </div>
 
@@ -1759,6 +1802,48 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
         <FTextarea label="Note" value={prevNote} onChange={e=>setPrevNote(e.target.value)} rows={2}/>
       </Modal>
 
+      {/* Modal nuovo appuntamento da scheda */}
+      <Modal open={aptModal} onClose={()=>setAptModal(false)} title="Nuovo appuntamento"
+        subtitle={pd?`Per ${pd.cognome} ${pd.nome}`:""} width={480}
+        footer={<><Btn variant="secondary" onClick={()=>setAptModal(false)}>Annulla</Btn><Btn onClick={saveApt}>💾 Crea appuntamento</Btn></>}>
+        <Grid2>
+          <FInput label="Data" required type="date" value={aptForm.data} onChange={e=>setAptForm(f=>({...f,data:e.target.value}))}/>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Ora</label>
+            <select value={aptForm.oraInizio} onChange={e=>setAptForm(f=>({...f,oraInizio:e.target.value}))}
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",outline:"none"}}>
+              {Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2===0?"00":"30";return `${String(h).padStart(2,"0")}:${m}`;}).filter(h=>parseInt(h)<20).map(h=><option key={h} value={h}>{h}</option>)}
+            </select>
+          </div>
+        </Grid2>
+        <Grid2>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Durata</label>
+            <select value={aptForm.durata} onChange={e=>setAptForm(f=>({...f,durata:Number(e.target.value)}))}
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",outline:"none"}}>
+              {[15,30,45,60,90,120].map(d=><option key={d} value={d}>{d} min</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Stato</label>
+            <select value={aptForm.stato} onChange={e=>setAptForm(f=>({...f,stato:e.target.value}))}
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",outline:"none"}}>
+              {["confermato","attesa","urgente"].map(s=><option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        </Grid2>
+        <div>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Trattamento</label>
+          <select value={aptForm.tipo} onChange={e=>setAptForm(f=>({...f,tipo:e.target.value}))}
+            style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",outline:"none"}}>
+            <option value="">— Seleziona trattamento —</option>
+            {listino.map(l=><option key={l.id} value={l.nome}>{l.nome}</option>)}
+          </select>
+        </div>
+        <FInput label="Operatore" value={aptForm.operatore} onChange={e=>setAptForm(f=>({...f,operatore:e.target.value}))} placeholder="Dr.ssa Porcedda"/>
+        <FTextarea label="Note" value={aptForm.note||""} onChange={e=>setAptForm(f=>({...f,note:e.target.value}))} rows={2}/>
+      </Modal>
+
       {/* Modal emetti fattura da scheda */}
       <Modal open={fattModal} onClose={()=>setFattModal(false)} title="Emetti Fattura"
         subtitle={pd?`Per ${pd.cognome} ${pd.nome}`:""}  width={480}
@@ -1769,13 +1854,13 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
           <select value={fattPrevId} onChange={e=>setFattPrevId(e.target.value)}
             style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${fattPrevId?T.brand:T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}>
             <option value="">— Seleziona preventivo —</option>
-            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).map(p=>{
+            {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato")).map(p=>{
               const acc=fatture.find(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale");
               const residuo=acc?Math.max(0,p.totale-acc.totale):null;
               return <option key={p.id} value={p.id}>{fmtDate(p.data)} — {residuo!==null?"Residuo: "+fmtEur(residuo):fmtEur(p.totale)}{residuo!==null?" (acconto pagato)":""}</option>;
             })}
           </select>
-          {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id))).length===0&&(
+          {preventivi.filter(p=>p.pazienteId===detail&&p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato")).length===0&&(
             <p style={{fontSize:12,color:T.warning,marginTop:6}}>⚠️ Nessun preventivo accettato disponibile.</p>
           )}
         </div>
@@ -1826,6 +1911,39 @@ function PazientiView({pazienti, setPazienti, appuntamenti, preventivi, setPreve
             })()}
           </div>}
         </div>
+      </Modal>
+
+      {/* Modal nuovo appuntamento dalla scheda */}
+      <Modal open={aptModal} onClose={()=>setAptModal(false)} title="Nuovo appuntamento"
+        subtitle={pd?`Per ${pd.cognome} ${pd.nome}`:""} width={480}
+        footer={<><Btn variant="secondary" onClick={()=>setAptModal(false)}>Annulla</Btn><Btn onClick={()=>{
+          if(!aptForm.oraInizio)return alert("Inserisci l'ora");
+          const newApt={id:uid(),pazienteId:detail,data:aptForm.data||todayISO(),oraInizio:aptForm.oraInizio,
+            durata:Number(aptForm.durata)||60,tipo:aptForm.tipo,stato:aptForm.stato,
+            note:aptForm.note,operatore:aptForm.operatore};
+          setAppuntamenti(p=>[...p,newApt]);
+          setAptModal(false);
+        }}>Crea appuntamento</Btn></>}>
+        <Grid2>
+          <FInput label="Data" type="date" required value={aptForm.data||todayISO()} onChange={e=>setAptForm(f=>({...f,data:e.target.value}))}/>
+          <FSelect label="Ora" value={aptForm.oraInizio} onChange={e=>setAptForm(f=>({...f,oraInizio:e.target.value}))}>
+            {Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2===0?"00":"30";return `${String(h).padStart(2,"0")}:${m}`;}).filter(h=>parseInt(h)<20).map(h=><option key={h}>{h}</option>)}
+          </FSelect>
+        </Grid2>
+        <Grid2>
+          <FSelect label="Durata" value={aptForm.durata} onChange={e=>setAptForm(f=>({...f,durata:e.target.value}))}>
+            {[15,30,45,60,90,120].map(d=><option key={d} value={d}>{d} min</option>)}
+          </FSelect>
+          <FSelect label="Stato" value={aptForm.stato} onChange={e=>setAptForm(f=>({...f,stato:e.target.value}))}>
+            {["confermato","attesa","urgente","completato","annullato"].map(s=><option key={s}>{s}</option>)}
+          </FSelect>
+        </Grid2>
+        <FSelect label="Trattamento" value={aptForm.tipo} onChange={e=>setAptForm(f=>({...f,tipo:e.target.value}))}>
+          <option value="">— Seleziona dal listino —</option>
+          {[...new Set(listino.map(l=>l.categoria))].map(cat=><optgroup key={cat} label={cat}>{listino.filter(l=>l.categoria===cat).map(l=><option key={l.id} value={l.nome}>{l.nome}</option>)}</optgroup>)}
+        </FSelect>
+        <FInput label="Operatore" value={aptForm.operatore} onChange={e=>setAptForm(f=>({...f,operatore:e.target.value}))}/>
+        <FTextarea label="Note" value={aptForm.note||""} onChange={e=>setAptForm(f=>({...f,note:e.target.value}))} rows={2}/>
       </Modal>
 
       {/* Modal modifica paziente */}
@@ -2954,6 +3072,12 @@ function ListinoView({listino, setListino}) {
   return <div>
     <PageHdr title="Listino prezzi" subtitle={`${listino.length} trattamenti`} action={<Btn icon="+" onClick={openNew}>Nuovo trattamento</Btn>}/>
     <div style={{marginBottom:16}}><SBar value={search} onChange={setSearch} placeholder="Cerca trattamento..."/></div>
+    {/* Global column header */}
+    <div style={{display:"grid",gridTemplateColumns:"1fr 100px 72px",gap:0,padding:"7px 20px",background:T.bg,border:`1px solid ${T.border}`,borderRadius:T.r,marginBottom:8,fontSize:11.5,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.4}}>
+      <span>Trattamento</span>
+      <span style={{textAlign:"right"}}>Prezzo</span>
+      <span/>
+    </div>
     {Object.entries(bycat).map(([cat,items])=><Card key={cat} style={{marginBottom:14}} p={0}>
       <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center",background:T.bg,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}>
         <h3 style={{fontSize:14,fontWeight:700,color:T.text,margin:0}}>{cat}</h3>
@@ -2962,7 +3086,25 @@ function ListinoView({listino, setListino}) {
           <Btn size="xs" onClick={()=>{setForm({categoria:cat,nome:"",prezzo:""});setEditId(null);setModal(true);}}>+ Aggiungi in {cat}</Btn>
         </div>
       </div>
-      <Tbl columns={[{label:"Trattamento",render:r=><span style={{fontWeight:500}}>{r.nome}</span>},{label:"Prezzo",render:r=><b style={{fontSize:14}}>{fmtEur(r.prezzo)}</b>,nowrap:true},{label:"",render:r=><div style={{display:"flex",gap:4}}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn><Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn></div>,nowrap:true}]} data={items} emptyText=""/>
+      <div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 100px 72px",padding:"5px 16px",background:T.bg,borderBottom:`1px solid ${T.border}`}}>
+            <span style={{fontSize:10.5,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:0.5}}>Trattamento</span>
+            <span style={{fontSize:10.5,fontWeight:700,color:T.textMuted,textTransform:"uppercase",letterSpacing:0.5,textAlign:"right"}}>Prezzo</span>
+            <span/>
+          </div>
+          {items.map((r,i)=>(
+            <div key={r.id} style={{display:"grid",gridTemplateColumns:"1fr 100px 72px",gap:0,
+              padding:"10px 16px",borderBottom:i<items.length-1?`1px solid ${T.border}`:"none",
+              background:i%2===0?"#fff":T.bg,alignItems:"center"}}>
+              <span style={{fontSize:13,fontWeight:500,color:T.text}}>{r.nome}</span>
+              <span style={{fontSize:14,fontWeight:700,fontFamily:"Georgia,serif",color:T.text,textAlign:"right"}}>{fmtEur(r.prezzo)}</span>
+              <div style={{display:"flex",gap:4,justifyContent:"flex-end"}}>
+                <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
+                <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
+              </div>
+            </div>
+          ))}
+        </div>
     </Card>)}
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica trattamento":"Nuovo trattamento"}
       footer={<>{editId&&<Btn variant="danger" onClick={()=>{del(editId);setModal(false);}}>Elimina</Btn>}<Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Aggiungi"}</Btn></>}>
@@ -3353,8 +3495,8 @@ Cordiali saluti,
 Studio Dentistico Sardo
 Tel. 0783212280`,
       filtraPazienti:(pz)=>pz.filter(p=>{
-        if(!p.dataNascita)return false;
-        const dob=p.dataNascita.slice(5);
+        if(!p.dataNascita||p.dataNascita.length<7)return false;
+        const dob=p.dataNascita.slice(5,10); // "MM-DD"
         return dob===todayMMDD;
       })
     },
@@ -3378,8 +3520,8 @@ Studio Dentistico Sardo`,
       filtraPazienti:(pz,apts)=>{
         const domani=new Date(today);domani.setDate(domani.getDate()+1);
         const domanIso=domani.toISOString().slice(0,10);
-        const pazConApt=new Set(apts.filter(a=>a.data===domanIso&&a.stato!=="annullato").map(a=>a.pazienteId));
-        return pz.filter(p=>pazConApt.has(p.id));
+        const pazConApt=new Set(apts.filter(a=>a.data===domanIso&&a.stato!=="annullato").map(a=>String(a.pazienteId)));
+        return pz.filter(p=>pazConApt.has(String(p.id)));
       }
     },
     richiamo_igiene: {
@@ -3402,7 +3544,7 @@ Studio Dentistico Sardo`,
         const seimesiAgoIso=seimesiAgo.toISOString().slice(0,10);
         const treMonthAgo=new Date(today);treMonthAgo.setMonth(treMonthAgo.getMonth()-3);
         return pz.filter(p=>{
-          const ultiIgiene=apts.filter(a=>String(a.pazienteId)===String(p.id)&&(a.tipo||"").toLowerCase().includes("igiene")&&a.stato==="completato").sort((a,b)=>b.data.localeCompare(a.data))[0];
+          const ultiIgiene=apts.filter(a=>String(a.pazienteId)===String(p.id)&&(["igiene","pulizia","profilassi","detartrasi"].some(k=>(a.tipo||"").toLowerCase().includes(k)))&&a.stato==="completato").sort((a,b)=>b.data.localeCompare(a.data))[0];
           if(!ultiIgiene)return false;
           return ultiIgiene.data<=seimesiAgoIso;
         });
@@ -3592,7 +3734,7 @@ export default function App() {
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
         {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} setPazienti={setPazienti} listino={listino} onNav={navTo}/>}
-        {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} impostazioni={impostazioni}/>}
+        {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} impostazioni={impostazioni}/>}
         {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo}/>}
         {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo}/>}
         {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino}/>}
