@@ -86,6 +86,7 @@ const SEZIONI = [
   {id:"listino",label:"Listino",icon:"💊"},
   {id:"report",label:"Report",icon:"📊"},
   {id:"impostazioni",label:"Impostazioni",icon:"⚙️"},
+  {id:"comunicazioni",label:"Comunicazioni",icon:"📧"},
 ];
 
 const PERMESSI_DEFAULT = {
@@ -378,6 +379,22 @@ function LoginPage({onLogin}) {
   const [pwd, setPwd] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [recoveryResult, setRecoveryResult] = useState(null);
+
+  function handleRecovery(){
+    const stored=()=>{try{const s=localStorage.getItem("dsd_utenti");if(s)return JSON.parse(s);}catch(e){}return UTENTI_DEFAULT;};
+    const u=stored().find(x=>x.email===recoveryEmail.trim());
+    if(!u){setRecoveryResult({ok:false,msg:"Nessun account trovato con questa email."});return;}
+    // Generate a temporary reset code stored in localStorage
+    const code=Math.random().toString(36).slice(2,8).toUpperCase();
+    try{const codes=JSON.parse(localStorage.getItem("dsd_reset_codes")||"{}");
+      codes[recoveryEmail.trim()]={code,ts:Date.now()};
+      localStorage.setItem("dsd_reset_codes",JSON.stringify(codes));
+    }catch(e){}
+    setRecoveryResult({ok:true,name:u.nome,code});
+  }
   function go() { setLoading(true); setErr(""); setTimeout(()=>{ const stored=()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}}; const u=stored().find(u=>u.email===email&&u.password===pwd&&u.attivo!==false); if(u){onLogin(u);}else{setErr("Email o password non corretti");} setLoading(false); },600); }
   const onKey = e => { if(e.key==="Enter") go(); };
   return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#EBF8F7 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
@@ -406,6 +423,37 @@ function LoginPage({onLogin}) {
             boxShadow:"0 3px 10px rgba(91,191,181,0.45)",transition:"all 0.15s",opacity:loading?0.85:1}}>
           {loading?"Accesso in corso...":"Accedi →"}
         </button>
+        {/* Recovery link */}
+        <div style={{textAlign:"center",marginTop:16}}>
+          <button type="button" onClick={()=>{setShowRecovery(!showRecovery);setRecoveryResult(null);setRecoveryEmail("");}}
+            style={{background:"none",border:"none",color:T.brand,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:600,textDecoration:"underline"}}>
+            {showRecovery?"✕ Annulla":"Password dimenticata?"}
+          </button>
+        </div>
+        {showRecovery&&<div style={{marginTop:14,padding:"16px",background:"#EBF8F7",borderRadius:T.rLg,border:`1px solid ${T.brand}44`}}>
+          {!recoveryResult?<>
+            <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:10}}>🔑 Recupero accesso</div>
+            <p style={{fontSize:12.5,color:T.textSub,marginBottom:12}}>Inserisci la tua email. Verrà generato un codice temporaneo da mostrare all'amministratore.</p>
+            <input value={recoveryEmail} onChange={e=>setRecoveryEmail(e.target.value)}
+              placeholder="La tua email" type="email"
+              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:10}}/>
+            <button onClick={handleRecovery}
+              style={{width:"100%",padding:"10px",borderRadius:T.r,border:"none",background:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              Genera codice
+            </button>
+          </>:<>
+            {recoveryResult.ok
+              ?<div style={{textAlign:"center"}}>
+                <div style={{fontSize:28,marginBottom:8}}>✅</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:4}}>Codice generato per {recoveryResult.name}</div>
+                <div style={{fontSize:11,color:T.textSub,marginBottom:12}}>Mostra questo codice all'amministratore. Lui potrà usarlo per reimpostare la tua password da Impostazioni → Utenti.</div>
+                <div style={{fontSize:32,fontWeight:900,letterSpacing:6,color:T.brand,padding:"12px",background:"#fff",borderRadius:T.r,border:`2px dashed ${T.brand}`,fontFamily:"monospace"}}>{recoveryResult.code}</div>
+                <div style={{fontSize:11,color:T.textMuted,marginTop:8}}>Codice valido per 24 ore</div>
+              </div>
+              :<div style={{textAlign:"center",color:T.danger,fontSize:13}}>{recoveryResult.msg}</div>
+            }
+          </>}
+        </div>}
         <div style={{marginTop:18,padding:"12px 14px",background:"#F8FAFC",borderRadius:T.r,fontSize:12,color:T.textSub,border:`1px solid ${T.border}`}}>
           <div style={{fontWeight:700,color:T.text,marginBottom:6}}>Account demo:</div>
           <div>👩‍⚕️ Admin: lgporcedda@studio.it / <b>admin123</b></div>
@@ -1912,10 +1960,18 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
       {/* Header oggi */}
       <div style={{background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,overflow:"hidden",marginBottom:8}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
-          <div style={{fontSize:16,fontWeight:700,color:T.text}}>
+          <div style={{fontSize:16,fontWeight:700,color:T.text,textTransform:"capitalize"}}>
             {curDate.toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}
           </div>
           <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>setCalView("week")}
+              style={{padding:"7px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",color:T.textSub,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              ← Settimana
+            </button>
+            <button onClick={()=>openNew(curDate)}
+              style={{padding:"7px 14px",borderRadius:T.r,border:`1px solid ${T.success}`,background:"#ECFDF5",color:T.success,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              + Appuntamento
+            </button>
             <button onClick={()=>stampaAgendaGiorno(curDate,getApts(curDate.toISOString().slice(0,10)),pazienti)}
               style={{padding:"7px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,background:T.brandLight,color:T.brand,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
               🖨️ Stampa agenda
@@ -1959,7 +2015,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
       <div style={{minWidth:700,background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.shadow}}>
         <div style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
           <div style={{padding:"12px 8px"}}/>
-          {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const cnt=getApts(iso).length;return <div key={i} style={{textAlign:"center",padding:"10px 4px",borderLeft:`1px solid ${T.border}`}}>
+          {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const cnt=getApts(iso).length;return <div key={i} onClick={()=>{setCurDate(dt);setCalView("oggi");}} style={{textAlign:"center",padding:"10px 4px",cursor:"pointer",borderLeft:`1px solid ${T.border}`}}>
             <div style={{fontSize:11,fontWeight:600,color:isToday?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5}}>{GIORNI[i]}</div>
             <div style={{width:30,height:30,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"4px auto 0",fontSize:15,fontWeight:700,color:isToday?"#fff":T.text}}>{dt.getDate()}</div>
             {cnt>0&&<div style={{fontSize:10,color:T.brand,fontWeight:600,marginTop:2}}>{cnt}</div>}
@@ -1988,7 +2044,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
         {monthDays.map(({d,other},i)=>{const iso=d.toISOString().slice(0,10);const isToday=iso===todayISO();const apts=getApts(iso);
-          return <div key={i} onClick={()=>openNew(d)} style={{minHeight:96,padding:6,border:`1px solid ${T.border}`,background:isToday?T.brandLight:other?"#FAFAFA":T.surface,cursor:"pointer"}}
+          return <div key={i} onClick={()=>{setCurDate(d);setCalView("oggi");}} style={{minHeight:96,padding:6,border:`1px solid ${T.border}`,background:isToday?T.brandLight:other?"#FAFAFA":T.surface,cursor:"pointer"}}
             onMouseEnter={e=>e.currentTarget.style.background=T.brandLight}
             onMouseLeave={e=>e.currentTarget.style.background=isToday?T.brandLight:other?"#FAFAFA":T.surface}>
             <div style={{width:26,height:26,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:isToday?700:400,color:isToday?"#fff":other?T.textMuted:T.text,marginBottom:4}}>{d.getDate()}</div>
@@ -3138,6 +3194,63 @@ function ReportView({fatture, appuntamenti, pazienti, listino, preventivi}) {
 }
 
 
+function RecoveryCodeVerifier({utenti, setUtenti}) {
+  const [code, setCode] = useState("");
+  const [newPwd, setNewPwd] = useState("");
+  const [result, setResult] = useState(null);
+  const [showPwd, setShowPwd] = useState(false);
+
+  function verify(){
+    if(!code.trim())return;
+    try{
+      const codes=JSON.parse(localStorage.getItem("dsd_reset_codes")||"{}");
+      const entry=Object.entries(codes).find(([,v])=>v.code===code.trim().toUpperCase());
+      if(!entry){setResult({ok:false,msg:"Codice non trovato o scaduto."});return;}
+      const [email,{ts}]=entry;
+      if(Date.now()-ts>24*60*60*1000){setResult({ok:false,msg:"Codice scaduto (oltre 24 ore)."});return;}
+      const u=utenti.find(x=>x.email===email);
+      if(!u){setResult({ok:false,msg:"Utente non trovato."});return;}
+      setResult({ok:true,email,nome:u.nome+" "+u.cognome});
+    }catch(e){setResult({ok:false,msg:"Errore lettura codice."});}
+  }
+
+  function resetPassword(){
+    if(!newPwd||newPwd.length<4)return alert("Password minimo 4 caratteri");
+    try{
+      const codes=JSON.parse(localStorage.getItem("dsd_reset_codes")||"{}");
+      const entry=Object.entries(codes).find(([,v])=>v.code===code.trim().toUpperCase());
+      if(!entry)return;
+      const [email]=entry;
+      setUtenti(p=>p.map(u=>u.email===email?{...u,password:newPwd}:u));
+      delete codes[email];
+      localStorage.setItem("dsd_reset_codes",JSON.stringify(codes));
+      setResult(null); setCode(""); setNewPwd("");
+      alert("Password reimpostata con successo!");
+    }catch(e){alert("Errore.");}
+  }
+
+  return <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:400}}>
+    <div style={{display:"flex",gap:8}}>
+      <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Inserisci codice (es. AB12CD)"
+        style={{flex:1,padding:"9px 12px",fontSize:14,fontWeight:700,letterSpacing:3,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"monospace",outline:"none",textTransform:"uppercase"}}/>
+      <Btn onClick={verify}>Verifica</Btn>
+    </div>
+    {result&&!result.ok&&<div style={{fontSize:13,color:T.danger,fontWeight:600}}>⚠️ {result.msg}</div>}
+    {result?.ok&&<div style={{padding:"12px 14px",background:"#ECFDF5",borderRadius:T.r,border:`1px solid ${T.success}`}}>
+      <div style={{fontSize:13,fontWeight:700,color:T.success,marginBottom:8}}>✅ Codice valido — {result.nome} ({result.email})</div>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+        <div style={{position:"relative",flex:1}}>
+          <input type={showPwd?"text":"password"} value={newPwd} onChange={e=>setNewPwd(e.target.value)}
+            placeholder="Nuova password" style={{width:"100%",padding:"8px 32px 8px 10px",fontSize:13,border:`1.5px solid ${T.success}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
+          <button onClick={()=>setShowPwd(!showPwd)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14}}>{showPwd?"🙈":"👁️"}</button>
+        </div>
+        <Btn onClick={resetPassword}>Reimposta</Btn>
+      </div>
+    </div>}
+  </div>;
+}
+
+
 function UtentiView({currentUser}) {
   const [utenti,setUtenti]=useState(()=>{
     try{const s=localStorage.getItem("dsd_utenti");if(s)return JSON.parse(s);}catch(e){}
@@ -3182,6 +3295,13 @@ function UtentiView({currentUser}) {
       </div>,nowrap:true},
     ]} data={utenti} emptyText="Nessun utente"/></Card>
 
+    {/* Recupero codice - solo admin */}
+    {isAdmin&&<Card style={{marginTop:16}}>
+      <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 6px"}}>🔑 Verifica codice di recupero</h3>
+      <p style={{fontSize:13,color:T.textSub,marginBottom:14}}>Se un utente ha generato un codice di recupero, inseriscilo qui per reimpostare la sua password.</p>
+      <RecoveryCodeVerifier utenti={utenti} setUtenti={setUtenti}/>
+    </Card>}
+
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica utente":"Nuovo utente"}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
       <Grid2>
@@ -3210,11 +3330,172 @@ function UtentiView({currentUser}) {
 
 
 
+function ComunicazioniView({pazienti, appuntamenti}) {
+  const [search, setSearch] = useState("");
+  const [template, setTemplate] = useState("compleanno");
+  const [customMsg, setCustomMsg] = useState("");
+  const today = new Date();
+  const todayMMDD = (today.getMonth()+1).toString().padStart(2,"0")+"-"+today.getDate().toString().padStart(2,"0");
+
+  const TEMPLATES = {
+    compleanno: {
+      label:"🎂 Auguri compleanno",
+      icon:"🎂",
+      colore:"#F59E0B",
+      coloreLight:"#FFFBEB",
+      getMsg:(p)=>`Gentile ${p.nome},
+
+Lo Studio Dentistico Sardo Le porge i più calorosi auguri di buon compleanno! 🎉
+
+Speriamo che questa giornata speciale sia piena di gioia e sorrisi.
+
+Cordiali saluti,
+Studio Dentistico Sardo
+Tel. 0783212280`,
+      filtraPazienti:(pz)=>pz.filter(p=>{
+        if(!p.dataNascita)return false;
+        const dob=p.dataNascita.slice(5);
+        return dob===todayMMDD;
+      })
+    },
+    reminder_apt: {
+      label:"📅 Reminder appuntamento",
+      icon:"📅",
+      colore:"#3B82F6",
+      coloreLight:"#EFF6FF",
+      getMsg:(p,apt)=>`Gentile ${p.nome},
+
+Le ricordiamo che ha un appuntamento presso il nostro studio:
+
+📅 Data: ${apt?new Date(apt.data+"T00:00").toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):""}
+🕐 Ora: ${apt?.oraInizio||""}
+🦷 Trattamento: ${apt?.tipo||""}
+
+Per modifiche o cancellazioni contattarci al 0783212280.
+
+A presto,
+Studio Dentistico Sardo`,
+      filtraPazienti:(pz,apts)=>{
+        const domani=new Date(today);domani.setDate(domani.getDate()+1);
+        const domanIso=domani.toISOString().slice(0,10);
+        const pazConApt=new Set(apts.filter(a=>a.data===domanIso&&a.stato!=="annullato").map(a=>a.pazienteId));
+        return pz.filter(p=>pazConApt.has(p.id));
+      }
+    },
+    richiamo_igiene: {
+      label:"🦷 Richiamo igiene 6 mesi",
+      icon:"🦷",
+      colore:"#10B981",
+      coloreLight:"#ECFDF5",
+      getMsg:(p)=>`Gentile ${p.nome},
+
+Sono passati circa 6 mesi dalla Sua ultima seduta di igiene orale professionale presso il nostro studio.
+
+Le consigliamo di fissare un appuntamento per mantenere la salute del sorriso! 😊
+
+Per prenotare: 0783212280
+
+A presto,
+Studio Dentistico Sardo`,
+      filtraPazienti:(pz,apts)=>{
+        const seimesiAgo=new Date(today);seimesiAgo.setMonth(seimesiAgo.getMonth()-6);
+        const seimesiAgoIso=seimesiAgo.toISOString().slice(0,10);
+        const treMonthAgo=new Date(today);treMonthAgo.setMonth(treMonthAgo.getMonth()-3);
+        return pz.filter(p=>{
+          const ultiIgiene=apts.filter(a=>String(a.pazienteId)===String(p.id)&&(a.tipo||"").toLowerCase().includes("igiene")&&a.stato==="completato").sort((a,b)=>b.data.localeCompare(a.data))[0];
+          if(!ultiIgiene)return false;
+          return ultiIgiene.data<=seimesiAgoIso;
+        });
+      }
+    },
+    personalizzata: {
+      label:"✏️ Messaggio personalizzato",
+      icon:"✏️",
+      colore:"#8B5CF6",
+      coloreLight:"#F5F3FF",
+      getMsg:(p,apt,msg)=>msg||"Inserisci il tuo messaggio...",
+      filtraPazienti:(pz)=>pz
+    }
+  };
+
+  const tmpl = TEMPLATES[template];
+  const filtered = tmpl.filtraPazienti(pazienti, appuntamenti)
+    .filter(p=>!search||(p.nome+" "+p.cognome).toLowerCase().includes(search.toLowerCase()));
+
+  function openEmail(p){
+    const apt=appuntamenti.filter(a=>String(a.pazienteId)===String(p.id)&&a.data>todayISO()).sort((a,b)=>a.data.localeCompare(b.data))[0];
+    const msg=tmpl.getMsg(p,apt,customMsg);
+    const subj=encodeURIComponent(tmpl.label.replace(/[🎂📅🦷✏️]/g,"").trim()+" — Studio Dentistico Sardo");
+    const body=encodeURIComponent(msg);
+    window.open(`mailto:${p.email||""}?subject=${subj}&body=${body}`,"_blank");
+  }
+
+  return <div>
+    <PageHdr title="Comunicazioni" subtitle="Invia messaggi ai pazienti tramite il tuo client email"/>
+
+    {/* Selezione template */}
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginBottom:20}}>
+      {Object.entries(TEMPLATES).map(([k,t])=>(
+        <div key={k} onClick={()=>setTemplate(k)}
+          style={{padding:"12px 14px",borderRadius:T.rLg,border:`2px solid ${template===k?t.colore:T.border}`,
+            background:template===k?t.coloreLight:"#fff",cursor:"pointer",transition:"all 0.15s"}}>
+          <div style={{fontSize:20,marginBottom:6}}>{t.icon}</div>
+          <div style={{fontSize:13,fontWeight:700,color:template===k?t.colore:T.text}}>{t.label.replace(/[🎂📅🦷✏️]/g,"").trim()}</div>
+        </div>
+      ))}
+    </div>
+
+    {template==="personalizzata"&&<div style={{marginBottom:16}}>
+      <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Testo del messaggio</label>
+      <textarea value={customMsg} onChange={e=>setCustomMsg(e.target.value)} rows={5}
+        placeholder="Scrivi qui il tuo messaggio personalizzato..."
+        style={{width:"100%",padding:"10px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,
+          fontFamily:"inherit",resize:"vertical",outline:"none",boxSizing:"border-box"}}/>
+    </div>}
+
+    <Card p={0}>
+      <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:12}}>
+        <SBar value={search} onChange={setSearch} placeholder="Cerca paziente..."/>
+        <div style={{fontSize:13,color:T.textSub,flexShrink:0,fontWeight:600}}>
+          {filtered.length} pazient{filtered.length===1?"e":"i"}
+        </div>
+      </div>
+      {filtered.length===0
+        ?<div style={{textAlign:"center",padding:40,color:T.textMuted}}>
+            <div style={{fontSize:32,marginBottom:10}}>{tmpl.icon}</div>
+            <div style={{fontSize:14,fontWeight:600}}>Nessun paziente per questo template oggi</div>
+            <div style={{fontSize:13,color:T.textMuted,marginTop:6}}>
+              {template==="compleanno"&&"Nessun paziente compie gli anni oggi."}
+              {template==="reminder_apt"&&"Nessun appuntamento in programma domani."}
+              {template==="richiamo_igiene"&&"Nessun paziente da richiamare per igiene (6 mesi)."}
+            </div>
+          </div>
+        :<Tbl columns={[
+          {label:"Paziente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={r.nome+" "+r.cognome} size={32} fs={11}/><div><div style={{fontWeight:600}}>{r.cognome} {r.nome}</div><div style={{fontSize:12,color:T.textSub}}>{r.email||"Email non inserita"}</div></div></div>},
+          {label:"Telefono",render:r=><span style={{color:T.textSub}}>{r.telefono||"—"}</span>,nowrap:true},
+          {label:"",render:r=><div style={{display:"flex",gap:6}}>
+            {r.email&&<Btn size="xs" variant="primary" onClick={()=>openEmail(r)}>📧 Invia email</Btn>}
+            {r.telefono&&<a href={`https://wa.me/39${r.telefono.replace(/\D/g,"")}`} target="_blank" rel="noreferrer"
+              style={{padding:"5px 10px",borderRadius:T.r,background:"#ECFDF5",color:"#059669",fontSize:12,fontWeight:600,textDecoration:"none",border:`1px solid #059669`}}>
+              💬 WhatsApp
+            </a>}
+          </div>,nowrap:true}
+        ]} data={filtered} emptyText="Nessun paziente"/>}
+    </Card>
+
+    <div style={{marginTop:16,padding:"12px 16px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,fontSize:12.5,color:T.textSub}}>
+      ℹ️ <b>Come funziona:</b> cliccando "Invia email" si apre il tuo client email (Outlook, Apple Mail, Gmail) con il messaggio precompilato. Puoi modificarlo prima di inviare. Per WhatsApp si apre la chat con il numero del paziente.
+    </div>
+  </div>;
+}
+
+
 const NAV=[
   {section:null,items:[{id:"dashboard",icon:"⊞",label:"Dashboard"}]},
   {section:"Clinica",items:[{id:"agenda",icon:"📅",label:"Agenda"},{id:"pazienti",icon:"👤",label:"Pazienti"}]},
   {section:"Amministrazione",items:[{id:"preventivi",icon:"📄",label:"Preventivi"},{id:"fatture",icon:"🧾",label:"Fatturazione"},{id:"listino",icon:"💊",label:"Listino prezzi"}]},
   {section:"Analisi",items:[{id:"report",icon:"📊",label:"Report"}]},
+  {section:"Comunicazioni",items:[{id:"comunicazioni",icon:"📧",label:"Comunicazioni"}]},
   {section:"Impostazioni",items:[{id:"impostazioni",icon:"⚙️",label:"Impostazioni"}]},
 ];
 
@@ -3315,6 +3596,7 @@ export default function App() {
         {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo}/>}
         {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo}/>}
         {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino}/>}
+        {view==="comunicazioni"&&canView("comunicazioni")&&<ComunicazioniView pazienti={pazienti} appuntamenti={appuntamenti}/>}
         {view==="report"&&canView("report")&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino} preventivi={preventivi}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
         {view==="impostazioni"&&canView("impostazioni")&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user} permessi={permessi} setPermessi={setPermessi}/>}
