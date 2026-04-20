@@ -125,6 +125,8 @@ function useStore(key, init) {
             if (r.medico_base !== undefined) { r.medicoBase = r.medico_base; delete r.medico_base; }
             if (r.denti_stato !== undefined) { r.dentiStato = r.denti_stato || {}; delete r.denti_stato; }
             if (r.tipo_fattura !== undefined) { r.tipoFattura = r.tipo_fattura; delete r.tipo_fattura; }
+            if (r.luogo_nascita !== undefined) { r.luogoNascita = r.luogo_nascita; delete r.luogo_nascita; }
+            if (r.provincia_nascita !== undefined) { r.provinciaNascita = r.provincia_nascita; delete r.provincia_nascita; }
             if (r.marca_bollo !== undefined) { r.marcaBollo = r.marca_bollo; delete r.marca_bollo; }
             if (r.voci && typeof r.voci === "string") { try { r.voci = JSON.parse(r.voci); } catch(e) { r.voci = []; } }
             if (r.anamnesi && typeof r.anamnesi === "string") { try { r.anamnesi = JSON.parse(r.anamnesi); } catch(e) { r.anamnesi = {}; } }
@@ -153,24 +155,42 @@ function useStore(key, init) {
         const {error: delErr} = await supabase.from(table).delete().neq("id", 0);
         if (delErr) throw delErr;
         if (next.length > 0) {
-          const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, tipoFattura, marcaBollo, totalelordo, accontoValore, created_at, ...rest}) => ({
-            ...(id !== undefined && {id}),
-            ...rest,
-            ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
-            ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
-            ...(pazienteId !== undefined && {paziente_id: nullIfEmpty(pazienteId)}),
-            ...(preventivoId !== undefined && {preventivo_id: nullIfEmpty(preventivoId)}),
-            ...(codiceFiscale !== undefined && {codice_fiscale: nullIfEmpty(codiceFiscale)}),
-            ...(statoPagamento !== undefined && {stato_pagamento: nullIfEmpty(statoPagamento)}),
-            ...(metodoPagamento !== undefined && {metodo_pagamento: nullIfEmpty(metodoPagamento)}),
-            ...(oraInizio !== undefined && {ora_inizio: nullIfEmpty(oraInizio)}),
-            ...(gruppoSanguigno !== undefined && {gruppo_sanguigno: nullIfEmpty(gruppoSanguigno)}),
-            ...(medicoBase !== undefined && {medico_base: nullIfEmpty(medicoBase)}),
-            ...(dentiStato !== undefined && {denti_stato: dentiStato}),
-            ...(tipoFattura !== undefined && {tipo_fattura: nullIfEmpty(tipoFattura)}),
-            ...(marcaBollo !== undefined && {marca_bollo: marcaBollo}),
-            ...(totalelordo !== undefined && {totalelordo: totalelordo}),
-          }));
+          const toRow = (r) => {
+            const n = (x) => (x === "" || x === undefined) ? null : x;
+            if (table === "pazienti") return {
+              id: r.id, nome: n(r.nome), cognome: n(r.cognome),
+              telefono: n(r.telefono), email: n(r.email), indirizzo: n(r.indirizzo),
+              note: n(r.note), allergie: n(r.allergie), farmaci: n(r.farmaci),
+              data_nascita: n(r.dataNascita), data_registrazione: n(r.dataRegistrazione),
+              codice_fiscale: n(r.codiceFiscale), denti_stato: r.dentiStato||{},
+              anamnesi: r.anamnesi||{}, luogo_nascita: n(r.luogoNascita),
+              provincia_nascita: n(r.provinciaNascita),
+            };
+            if (table === "appuntamenti") return {
+              id: r.id, paziente_id: n(r.pazienteId), data: n(r.data),
+              ora_inizio: n(r.oraInizio), durata: r.durata||60,
+              tipo: n(r.tipo), stato: n(r.stato), note: n(r.note),
+              operatore: n(r.operatore),
+            };
+            if (table === "preventivi") return {
+              id: r.id, paziente_id: n(r.pazienteId), data: n(r.data),
+              voci: r.voci||[], totale: r.totale||0, stato: n(r.stato),
+              nota: n(r.nota), sconto: r.sconto||0,
+            };
+            if (table === "fatture") return {
+              id: r.id, paziente_id: n(r.pazienteId), preventivo_id: n(r.preventivoId),
+              data: n(r.data), numero: n(r.numero), voci: r.voci||[],
+              totale: r.totale||0, totalelordo: r.totalelordo||0, sconto: r.sconto||0,
+              stato_pagamento: n(r.statoPagamento), metodo_pagamento: n(r.metodoPagamento),
+              tipo_fattura: n(r.tipoFattura)||"saldo", marca_bollo: r.marcaBollo||false,
+              note: n(r.note),
+            };
+            if (table === "listino") return {
+              id: r.id, nome: n(r.nome), categoria: n(r.categoria), prezzo: r.prezzo||0,
+            };
+            return {id: r.id};
+          };
+          const rows = next.map(toRow);
           const {error: insErr} = await supabase.from(table).insert(rows);
           if (insErr) throw insErr;
         }
