@@ -124,7 +124,10 @@ function useStore(key, init) {
             if (r.gruppo_sanguigno !== undefined) { r.gruppoSanguigno = r.gruppo_sanguigno; delete r.gruppo_sanguigno; }
             if (r.medico_base !== undefined) { r.medicoBase = r.medico_base; delete r.medico_base; }
             if (r.denti_stato !== undefined) { r.dentiStato = r.denti_stato || {}; delete r.denti_stato; }
+            if (r.tipo_fattura !== undefined) { r.tipoFattura = r.tipo_fattura; delete r.tipo_fattura; }
+            if (r.marca_bollo !== undefined) { r.marcaBollo = r.marca_bollo; delete r.marca_bollo; }
             if (r.voci && typeof r.voci === "string") { try { r.voci = JSON.parse(r.voci); } catch(e) { r.voci = []; } }
+            if (r.anamnesi && typeof r.anamnesi === "string") { try { r.anamnesi = JSON.parse(r.anamnesi); } catch(e) { r.anamnesi = {}; } }
             return r;
           });
           setVal(mapped);
@@ -150,7 +153,7 @@ function useStore(key, init) {
         const {error: delErr} = await supabase.from(table).delete().neq("id", 0);
         if (delErr) throw delErr;
         if (next.length > 0) {
-          const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
+          const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, tipoFattura, marcaBollo, totalelordo, accontoValore, created_at, ...rest}) => ({
             ...(id !== undefined && {id}),
             ...rest,
             ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
@@ -164,6 +167,9 @@ function useStore(key, init) {
             ...(gruppoSanguigno !== undefined && {gruppo_sanguigno: nullIfEmpty(gruppoSanguigno)}),
             ...(medicoBase !== undefined && {medico_base: nullIfEmpty(medicoBase)}),
             ...(dentiStato !== undefined && {denti_stato: dentiStato}),
+            ...(tipoFattura !== undefined && {tipo_fattura: nullIfEmpty(tipoFattura)}),
+            ...(marcaBollo !== undefined && {marca_bollo: marcaBollo}),
+            ...(totalelordo !== undefined && {totalelordo: totalelordo}),
           }));
           const {error: insErr} = await supabase.from(table).insert(rows);
           if (insErr) throw insErr;
