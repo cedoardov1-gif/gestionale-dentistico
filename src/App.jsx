@@ -2150,10 +2150,10 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
               {apts.map(a=>{
                 const bs=BADGE[a.stato]||{};
                 const dur=a.durata||60;
-                const slotH=Math.max(Math.round(dur/60*50),28);
+                const slotH=Math.max(Math.round(dur/60*50),28);const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?24:0;
                 return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}}
                   style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,
-                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",
+                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",marginTop:topOffset,
                     display:"flex",alignItems:"flex-start",gap:10}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:700,color:bs.color||T.brandDark}}>{a.oraInizio} — {getPaz(a.pazienteId)}</div>
@@ -2180,17 +2180,21 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
             <div style={{fontSize:11,fontWeight:600,color:isToday?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5}}>{GIORNI[i]}</div>
             <div style={{width:30,height:30,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"4px auto 0",fontSize:15,fontWeight:700,color:isToday?"#fff":T.text}}>{dt.getDate()}</div>
             {cnt>0&&<div style={{fontSize:10,color:T.brand,fontWeight:600,marginTop:2}}>{cnt}</div>}
-            {isClosed&&<div style={{fontSize:9,color:"#EF4444",fontWeight:700,marginTop:1}}>🔴</div>}
+            <button onClick={e=>{e.stopPropagation();toggleGiornoChiuso(iso);}}
+              style={{marginTop:3,padding:"2px 6px",borderRadius:8,border:`1px solid ${isClosed?"#EF4444":T.border}`,background:isClosed?"#FEF2F2":"transparent",color:isClosed?"#EF4444":T.textMuted,cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:600,display:"block",margin:"3px auto 0"}}>
+              {isClosed?"🔴 Chiuso":"Chiudi"}
+            </button>
           </div>;})}
         </div>
         <div style={{maxHeight:560,overflowY:"auto"}}>
           {HOURS.map(hour=><div key={hour} style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",minHeight:46,borderBottom:`1px solid ${T.border}`}}>
             <div style={{padding:"4px 8px",textAlign:"right",fontSize:11,color:T.textMuted,paddingTop:6,borderRight:`1px solid ${T.border}`,background:T.bg}}>{hour}</div>
             {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const apts=getApts(iso).filter(a=>a.oraInizio&&a.oraInizio.split(":")[0]===hour.split(":")[0]);
-              return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
+              const isClosed=giorniChiusi.includes(iso);
+              return <div key={i} onClick={()=>!isClosed&&apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isClosed?"repeating-linear-gradient(45deg,#fee2e2,#fee2e2 3px,#fff 3px,#fff 10px)":isToday?"#FAFFFE":"transparent",cursor:isClosed?"not-allowed":apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
-                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=dur<=30?22:dur<=45?33:dur<=60?44:Math.round(dur/60*44);const multiSlot=dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
+                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=dur<=30?22:dur<=45?33:dur<=60?44:Math.round(dur/60*44);const multiSlot=dur>60;const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?22:0;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",marginTop:topOffset,position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
                   <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
                   <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}{a.durata?" ("+a.durata+"min)":""}</div>
                 </div>;})}
