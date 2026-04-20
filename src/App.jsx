@@ -471,7 +471,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
   const meseInc=mese.filter(f=>f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
   const mesePrev=fatture.filter(f=>{const d=new Date(f.data);const p=new Date(now);p.setMonth(p.getMonth()-1);return d.getMonth()===p.getMonth()&&d.getFullYear()===p.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
   const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
-  const daPagare=fatture.filter(f=>f.statoPagamento!=="pagato").reduce((s,f)=>s+f.totale,0);
+  const daPagare=fatture.filter(f=>f.statoPagamento==="non_pagato").reduce((s,f)=>s+f.totale,0);
   const trend=mesePrev>0?Math.round((meseInc-mesePrev)/mesePrev*100):0;
   const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return{label:d.toLocaleDateString("it-IT",{weekday:"short"}),rev,isToday:iso===today};});
   const maxRev=Math.max(...last7.map(d=>d.rev),1);
@@ -494,7 +494,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
     {icon:"📅",label:"Appuntamenti oggi",value:todayApts.length,sub:todayApts.filter(a=>a.stato==="urgente").length+" urgenti",color:T.brand,nav:"agenda"},
     {icon:"👥",label:"Pazienti",value:pazienti.length,color:T.info,nav:"pazienti"},
     {icon:"💰",label:"Incasso mese",value:fmtEurShort(meseInc),sub:"Anno: "+fmtEurShort(annInc),color:T.success,trend,nav:"fatture"},
-    {icon:"⏳",label:"Da incassare",value:fmtEurShort(daPagare),color:daPagare>0?T.danger:T.success,sub:fatture.filter(f=>f.statoPagamento!=="pagato").length+" fatture",nav:"fatture"},
+    {icon:"⏳",label:"Da incassare",value:fmtEurShort(daPagare),color:daPagare>0?T.danger:T.success,sub:fatture.filter(f=>f.statoPagamento==="non_pagato").length+" fatture",nav:"fatture"},
     {icon:"📄",label:"Preventivi aperti",value:preventivi.filter(p=>p.stato==="in_attesa").length,color:T.warning,nav:"preventivi"},
   ];
 
@@ -1273,71 +1273,38 @@ function stampaAnamnesi(pd, impostazioni) {
   if(!pd) return;
   const studio = impostazioni?.studio || {};
   const anam = pd.anamnesi || {};
-  const patologie = (anam.patologie||[]).join(", ") || "Nessuna";
-  const anticoag = (anam.anticoag||[]).join(", ") || "Nessuno";
-  const eta = pd.dataNascita ? Math.floor((new Date()-new Date(pd.dataNascita))/(365.25*24*3600*1000))+" anni" : "—";
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/>
-  <title>Anamnesi — ${pd.cognome} ${pd.nome}</title>
-  <style>
-    body{font-family:Arial,sans-serif;font-size:10.5pt;margin:0;padding:16mm 20mm;color:#111}
-    h1{font-size:16pt;margin:0 0 2px;color:#1F2937}
-    .sub{font-size:10pt;color:#6B7280;margin-bottom:16px}
-    .section{margin-bottom:14px}
-    .section h2{font-size:11pt;font-weight:700;color:#5BBFB5;margin:0 0 6px;padding-bottom:4px;border-bottom:1.5px solid #5BBFB5;text-transform:uppercase;letter-spacing:0.5px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 20px}
-    .row{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #F0F0F0}
-    .lbl{font-weight:600;color:#374151;min-width:140px;flex-shrink:0}
-    .val{color:#111}
-    .firma{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:30px}
-    .firma-box{border-top:1px solid #000;padding-top:8px;font-size:9pt;color:#6B7280}
-    @media print{body{margin:0}}
-  </style></head><body>
-  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
-    <div>
-      <h1>${studio.nome||"Studio Dentistico Sardo"}</h1>
-      <div class="sub">${studio.indirizzo||""} — Tel. ${studio.telefono||""}</div>
-    </div>
-    <div style="text-align:right;font-size:9pt;color:#6B7280">Stampato il ${new Date().toLocaleDateString("it-IT")}</div>
-  </div>
-  <div style="background:#F0FDF4;padding:10px 14px;border-radius:6px;margin-bottom:18px;border:1px solid #BBF7D0">
-    <div style="font-size:13pt;font-weight:700">${pd.cognome} ${pd.nome}</div>
-    <div style="font-size:10pt;color:#374151;margin-top:4px">
-      ${pd.dataNascita?`Nato/a il ${new Date(pd.dataNascita+"T00:00").toLocaleDateString("it-IT")} (${eta})`:""}
-      ${pd.codiceFiscale?` — CF: ${pd.codiceFiscale}`:""}
-    </div>
-  </div>
-  <div class="section">
-    <h2>Dati generali</h2>
-    <div class="grid">
-      <div class="row"><span class="lbl">Allergie:</span><span class="val">${pd.allergie||"Nessuna"}</span></div>
-      <div class="row"><span class="lbl">Farmaci in uso:</span><span class="val">${pd.farmaci||"Nessuno"}</span></div>
-      <div class="row"><span class="lbl">Fumatore:</span><span class="val">${anam.fumatore||"No"}</span></div>
-      <div class="row"><span class="lbl">Alcol:</span><span class="val">${anam.alcol||"No"}</span></div>
-    </div>
-  </div>
-  <div class="section">
-    <h2>Patologie sistemiche</h2>
-    <div class="row"><span class="val">${patologie}</span></div>
-  </div>
-  <div class="section">
-    <h2>Farmaci anticoagulanti</h2>
-    <div class="row"><span class="val">${anticoag}</span></div>
-  </div>
-  <div class="section">
-    <h2>Anestesia locale</h2>
-    <div class="row"><span class="val">${anam.anestesia||"Nessuna reazione nota"}</span></div>
-  </div>
-  ${anam.note?`<div class="section"><h2>Note anamnestiche</h2><div style="padding:8px 10px;background:#F9FAFB;border-radius:4px;line-height:1.6">${anam.note}</div></div>`:""}
-  ${anam.patFamiliari?`<div class="section"><h2>Patologie familiari</h2><div style="padding:8px 10px;background:#F9FAFB;border-radius:4px;line-height:1.6">${anam.patFamiliari}</div></div>`:""}
-  <div class="firma">
-    <div class="firma-box">Firma del paziente</div>
-    <div class="firma-box">Firma del medico</div>
-  </div>
-  <script>window.onload=function(){window.print();}<\/script>
-  </body></html>`;
-  const w = window.open("","_blank","width=900,height=700");
+  const eta = pd.dataNascita ? Math.floor((new Date()-new Date(pd.dataNascita))/(365.25*24*3600*1000))+" anni" : "";
+  const html = "<!DOCTYPE html><html><head><meta charset='utf-8'/><title>Anamnesi "+pd.cognome+" "+pd.nome+"</title>"
+    +"<style>body{font-family:Arial,sans-serif;font-size:10.5pt;margin:0;padding:16mm 20mm;color:#111}"
+    +"h1{font-size:15pt;margin:0 0 2px}h2{font-size:11pt;font-weight:700;color:#5BBFB5;margin:12px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #5BBFB5;text-transform:uppercase;letter-spacing:0.5px}"
+    +".row{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #F0F0F0}.lbl{font-weight:600;min-width:160px;flex-shrink:0;color:#374151}"
+    +".firma{margin-top:30px;display:grid;grid-template-columns:1fr 1fr;gap:40px}"
+    +".firma-box{border-top:1px solid #000;padding-top:8px;font-size:9pt;color:#6B7280}"
+    +"@media print{body{margin:0}}</style></head><body>"
+    +"<div style='display:flex;justify-content:space-between;margin-bottom:20px'>"
+    +"<div><h1>"+(studio.nome||"Studio Dentistico Sardo")+"</h1><div style='font-size:9pt;color:#6B7280'>"+(studio.indirizzo||"")+" — Tel. "+(studio.telefono||"")+"</div></div>"
+    +"<div style='text-align:right;font-size:9pt;color:#6B7280'>Stampato il "+new Date().toLocaleDateString("it-IT")+"</div></div>"
+    +"<div style='background:#F0FDF4;padding:10px 14px;border-radius:6px;margin-bottom:16px;border:1px solid #BBF7D0'>"
+    +"<div style='font-size:13pt;font-weight:700'>"+pd.cognome+" "+pd.nome+"</div>"
+    +"<div style='font-size:10pt;color:#374151;margin-top:3px'>"+(pd.dataNascita?new Date(pd.dataNascita+"T00:00").toLocaleDateString("it-IT")+" ("+eta+")":"")+(pd.codiceFiscale?" — CF: "+pd.codiceFiscale:"")+"</div></div>"
+    +"<h2>Dati generali</h2>"
+    +"<div class='row'><span class='lbl'>Allergie:</span><span>"+(pd.allergie||"Nessuna")+"</span></div>"
+    +"<div class='row'><span class='lbl'>Farmaci in uso:</span><span>"+(pd.farmaci||"Nessuno")+"</span></div>"
+    +"<div class='row'><span class='lbl'>Fumatore:</span><span>"+(anam.fumatore||"No")+"</span></div>"
+    +"<div class='row'><span class='lbl'>Alcol:</span><span>"+(anam.alcol||"No")+"</span></div>"
+    +"<div class='row'><span class='lbl'>Anestesia locale:</span><span>"+(anam.anestesia||"Nessuna reazione")+"</span></div>"
+    +"<h2>Patologie sistemiche</h2>"
+    +"<div style='padding:6px 0'>"+(anam.patologie?.length?(anam.patologie.join(", ")):"Nessuna")+"</div>"
+    +"<h2>Anticoagulanti</h2>"
+    +"<div style='padding:6px 0'>"+(anam.anticoag?.length?(anam.anticoag.join(", ")):"Nessuno")+"</div>"
+    +(anam.note?"<h2>Note anamnestiche</h2><div style='padding:6px 10px;background:#F9FAFB;border-radius:4px;line-height:1.6'>"+anam.note+"</div>":"")
+    +(anam.patFamiliari?"<h2>Patologie familiari</h2><div style='padding:6px 10px;background:#F9FAFB;border-radius:4px;line-height:1.6'>"+anam.patFamiliari+"</div>":"")
+    +"<div class='firma'><div class='firma-box'>Firma del paziente</div><div class='firma-box'>Firma del medico</div></div>"
+    +"<script>window.onload=function(){window.print();}<\/script></body></html>";
+  const w=window.open("","_blank","width=900,height=700");
   if(w){w.document.write(html);w.document.close();}
 }
+
 
 function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni}) {
   const [search, setSearch] = useState("");
@@ -2089,13 +2056,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
   const [showNewPaz, setShowNewPaz] = useState(false);
   const [giorniChiusi, setGiorniChiusi] = useState(()=>{try{return JSON.parse(localStorage.getItem("dsd_giorni_chiusi")||"[]");}catch(e){return [];}});
-  function toggleGiornoChiuso(iso){
-    setGiorniChiusi(prev=>{
-      const next=prev.includes(iso)?prev.filter(d=>d!==iso):[...prev,iso];
-      try{localStorage.setItem("dsd_giorni_chiusi",JSON.stringify(next));}catch(e){}
-      return next;
-    });
-  }
+  function toggleGiornoChiuso(iso){setGiorniChiusi(prev=>{const next=prev.includes(iso)?prev.filter(d=>d!==iso):[...prev,iso];try{localStorage.setItem("dsd_giorni_chiusi",JSON.stringify(next));}catch(e){}return next;});}
   const [newPazForm, setNewPazForm] = useState({nome:"",cognome:"",telefono:"",email:""});
   function saveNewPaziente(){
     if(!newPazForm.nome||!newPazForm.cognome)return alert("Nome e cognome obbligatori");
@@ -2215,22 +2176,18 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
       <div style={{minWidth:700,background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,overflow:"hidden",boxShadow:T.shadow}}>
         <div style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",borderBottom:`1px solid ${T.border}`,background:T.bg}}>
           <div style={{padding:"12px 8px"}}/>
-          {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const cnt=getApts(iso).length;const isClosed=giorniChiusi.includes(iso);return <div key={i} style={{textAlign:"center",padding:"6px 4px",borderLeft:`1px solid ${T.border}`}}>
-            <div style={{fontSize:11,fontWeight:600,color:isClosed?"#EF4444":isToday?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5}}>{GIORNI[i]}</div>
+          {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const cnt=getApts(iso).length;const isClosed=giorniChiusi.includes(iso);return <div key={i} onClick={()=>{setCurDate(dt);setCalView("oggi");}} style={{textAlign:"center",padding:"10px 4px",cursor:"pointer",borderLeft:`1px solid ${T.border}`,background:isClosed?"#FEF2F2":"transparent"}}>
+            <div style={{fontSize:11,fontWeight:600,color:isToday?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5}}>{GIORNI[i]}</div>
             <div style={{width:30,height:30,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"4px auto 0",fontSize:15,fontWeight:700,color:isToday?"#fff":T.text}}>{dt.getDate()}</div>
             {cnt>0&&<div style={{fontSize:10,color:T.brand,fontWeight:600,marginTop:2}}>{cnt}</div>}
-            <button onClick={e=>{e.stopPropagation();toggleGiornoChiuso(iso);}}
-              style={{fontSize:9,marginTop:2,padding:"1px 5px",borderRadius:8,border:`1px solid ${isClosed?"#EF4444":T.border}`,background:isClosed?"#FEF2F2":"transparent",color:isClosed?"#EF4444":T.textMuted,cursor:"pointer",fontFamily:"inherit",display:"block",margin:"2px auto 0"}}>
-              {isClosed?"🔴 Chiuso":"Chiudi"}
-            </button>
-          </div>)}
+            {isClosed&&<div style={{fontSize:9,color:"#EF4444",fontWeight:700,marginTop:1}}>🔴</div>}
+          </div>;})}
         </div>
         <div style={{maxHeight:560,overflowY:"auto"}}>
           {HOURS.map(hour=><div key={hour} style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",minHeight:46,borderBottom:`1px solid ${T.border}`}}>
             <div style={{padding:"4px 8px",textAlign:"right",fontSize:11,color:T.textMuted,paddingTop:6,borderRight:`1px solid ${T.border}`,background:T.bg}}>{hour}</div>
             {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const apts=getApts(iso).filter(a=>a.oraInizio&&a.oraInizio.split(":")[0]===hour.split(":")[0]);
-              const isClosed=giorniChiusi.includes(iso);
-              return <div key={i} onClick={()=>!isClosed&&apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isClosed?"repeating-linear-gradient(45deg,#fee2e2,#fee2e2 4px,#fff 4px,#fff 12px)":isToday?"#FAFFFE":"transparent",cursor:isClosed?"not-allowed":apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
+              return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
                 {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=dur<=30?22:dur<=45?33:dur<=60?44:Math.round(dur/60*44);const multiSlot=dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
@@ -2239,7 +2196,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
                 </div>;})}
               </div>;
             })}
-          </div>})}
+          </div>)}
         </div>
       </div>
     </div>}
@@ -2249,7 +2206,8 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
       </div>
       <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}}>
         {monthDays.map(({d,other},i)=>{const iso=d.toISOString().slice(0,10);const isToday=iso===todayISO();const apts=getApts(iso);
-          return <div key={i} onClick={()=>{setCurDate(d);setCalView("oggi");}} style={{minHeight:96,padding:6,border:`1px solid ${T.border}`,background:isToday?T.brandLight:other?"#FAFAFA":T.surface,cursor:"pointer"}}
+          const isClosed=giorniChiusi.includes(iso);
+          return <div key={i} onClick={()=>{if(!isClosed){setCurDate(d);setCalView("oggi");}}} style={{minHeight:96,padding:6,border:`1px solid ${T.border}`,background:isClosed?"repeating-linear-gradient(45deg,#fee2e2,#fee2e2 3px,#fff 3px,#fff 10px)":isToday?T.brandLight:other?"#FAFAFA":T.surface,cursor:isClosed?"not-allowed":"pointer",position:"relative"}}
             onMouseEnter={e=>e.currentTarget.style.background=T.brandLight}
             onMouseLeave={e=>e.currentTarget.style.background=isToday?T.brandLight:other?"#FAFAFA":T.surface}>
             <div style={{width:26,height:26,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:isToday?700:400,color:isToday?"#fff":other?T.textMuted:T.text,marginBottom:4}}>{d.getDate()}</div>
@@ -2786,12 +2744,10 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     const residuoFatt=existingAcc?Math.max(0,totale-existingAcc.totale):totale;
     const importoFatt=isAcconto?(Number(accontoValore)||0):residuoFatt;
     const statoFatt=isAcconto?"parziale":"pagato";
-    const haBollo=importoFatt>77.47||(importoFatt>0&&marcaBollo);
-    const vociFinal=[...form.voci.filter(v=>v.nome!=="Marca da bollo"),...(haBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
-    const totaleFin=importoFatt+(haBollo&&!form.voci.some(v=>v.nome==="Marca da bollo")?2:0);
+    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
     const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),
-      totalelordo,sconto:scontoNum,totale:totaleFin,
-      marcaBollo:haBollo,tipoFattura:tipoFatt,
+      totalelordo,sconto:scontoNum,totale:importoFatt,
+      marcaBollo,tipoFattura:tipoFatt,
       statoPagamento:statoFatt};
     if(editId){
       setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
@@ -2846,7 +2802,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const now=new Date();
   const meseInc=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
   const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
-  const daPagare=fatture.filter(f=>f.statoPagamento!=="pagato").reduce((s,f)=>s+f.totale,0);
+  const daPagare=fatture.filter(f=>f.statoPagamento==="non_pagato").reduce((s,f)=>s+f.totale,0);
   const prevDaFatturare=preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)));
 
   // PRIMA NOTA / BANCA
