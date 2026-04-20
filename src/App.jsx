@@ -151,6 +151,7 @@ function useStore(key, init) {
         if (delErr) throw delErr;
         if (next.length > 0) {
           const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
+            ...(id !== undefined && {id}),
             ...rest,
             ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
             ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
