@@ -2585,8 +2585,11 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
 
 
 
-function stampaFattura(fatt, pazientiList) {
+function stampaFattura(fatt, pazientiList, fattureList) {
     const paz = (pazientiList||[]).find(x=>x.id===fatt.pazienteId);
+    const isSaldo = fatt.tipoFattura==="saldo" && fatt.preventivoId;
+    const accontoFatt = isSaldo ? (fattureList||[]).find(f=>String(f.preventivoId)===String(fatt.preventivoId)&&f.statoPagamento==="parziale") : null;
+    const accontoBase = accontoFatt ? (accontoFatt.marcaBollo ? accontoFatt.totale-2 : accontoFatt.totale) : 0;
     const nomePaz = paz ? paz.cognome+" "+paz.nome : "—";
     const indPaz = [paz?.indirizzo, paz?.citta, paz?.codiceFiscale].filter(Boolean);
     const dataEmissione = fatt.data
@@ -2677,12 +2680,16 @@ function stampaFattura(fatt, pazientiList) {
       +"<div>MARCA DA</div><div>BOLLO SU</div><div>ORIGINALE</div>"
       +"</td>"
       +"<td style='width:40%;font-size:10.5pt;vertical-align:top;line-height:2'>"
-      +"<div>TOTALE</div>"
-      +"<div>BOLLO</div>"
-      +"<div>TOTALE FATTURA</div>"
+      +"<div>TOTALE PRESTAZIONI</div>"
+      +(accontoBase>0?"<div style=\'color:#D97706\'>ACCONTO GIÀ FATTURATO</div>":"")
+      +(accontoBase>0?"<div style=\'color:#1D4ED8\'>NETTO DA SALDARE</div>":"")
+      +"<div>MARCA DA BOLLO</div>"
+      +"<div style=\'font-weight:700\'>TOTALE FATTURA</div>"
       +"</td>"
-      +"<td style='width:35%;text-align:right;font-size:10.5pt;vertical-align:top;line-height:2'>"
+      +"<td style=\'width:35%;text-align:right;font-size:10.5pt;vertical-align:top;line-height:2\'>"
       +"<div>&euro; "+totaleVoci.toFixed(2)+"</div>"
+      +(accontoBase>0?"<div style=\'color:#D97706\'>&minus;&euro; "+accontoBase.toFixed(2)+"</div>":"")
+      +(accontoBase>0?"<div style=\'color:#1D4ED8\'>&euro; "+(totaleVoci-accontoBase).toFixed(2)+"</div>":"")
       +"<div>&euro; "+bolloVal.toFixed(2)+"</div>"
       +"<div><b>&euro; "+totaleFattura.toFixed(2)+"</b></div>"
       +"</td>"
@@ -2775,10 +2782,12 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     const residuoFatt=existingAcc?Math.max(0,totale-existingAcc.totale):totale;
     const importoFatt=isAcconto?(Number(accontoValore)||0):residuoFatt;
     const statoFatt=isAcconto?"parziale":"pagato";
-    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
+    const haBollo=importoFatt>77.47;
+    const vociFinal=[...form.voci.filter(v=>v.nome!=="Marca da bollo"),...(haBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
+    const totaleFin=importoFatt+(haBollo?2:0);
     const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),
-      totalelordo,sconto:scontoNum,totale:importoFatt,
-      marcaBollo,tipoFattura:tipoFatt,
+      totalelordo,sconto:scontoNum,totale:totaleFin,
+      marcaBollo:haBollo,tipoFattura:tipoFatt,
       statoPagamento:statoFatt};
     if(editId){
       setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
@@ -2932,7 +2941,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div style={{display:"flex",gap:4}}>
-                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti);}}>🖨️ Stampa</Btn>
+                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti,fatture);}}>🖨️ Stampa</Btn>
                     <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
                   </div>
                 </td>
@@ -2982,7 +2991,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                     <div style={{fontSize:13,color:T.textSub}}>{f.metodoPagamento}</div>
                     <div style={{fontSize:14,fontWeight:700,color:T.success}}>{fmtEur(f.totale)}</div>
                     <div style={{display:"flex",gap:4}}>
-                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f,pazienti)}>🖨️</Btn>
+                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f,pazienti,fatture)}>🖨️</Btn>
                     </div>
                   </div>
                 ))}
