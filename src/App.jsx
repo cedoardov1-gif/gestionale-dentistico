@@ -151,7 +151,14 @@ function useStore(key, init) {
             let next=[...prev];
             const row=payload.new?fromSupabaseRow(payload.new):null;
             if(payload.eventType==="INSERT"){if(!next.find(x=>String(x.id)===String(row.id)))next=[...next,row];}
-            else if(payload.eventType==="UPDATE"){next=next.map(x=>String(x.id)===String(row.id)?row:x);}
+            else if(payload.eventType==="UPDATE"){
+              const old=next.find(x=>String(x.id)===String(row.id));
+              next=next.map(x=>String(x.id)===String(row.id)?row:x);
+              // Conflict toast: notify if this record was recently modified locally
+              if(old&&row._remoteUpdate){
+                try{const t=window._showToast;if(t)t("Dati aggiornati da un altro utente","info");}catch(e){}
+              }
+            }
             else if(payload.eventType==="DELETE"){next=next.filter(x=>String(x.id)!==String(payload.old.id));}
             try{localStorage.setItem("dsd_"+key,JSON.stringify(next));}catch(e){}
             return next;
@@ -269,6 +276,162 @@ function useConfirm(){
   const no=useCallback(()=>setSt(s=>{s.resolve&&s.resolve(false);return{...s,open:false};}),[]);
   const modal=<ConfirmModal open={st.open} title={st.title} message={st.message} confirmLabel={st.confirmLabel} danger={st.danger} onConfirm={ok} onCancel={no}/>;
   return [confirm,modal];
+}
+
+// ── Ricerca Globale (Cmd+K / Ctrl+K) ─────────────────────────────────────
+function GlobalSearch({pazienti, preventivi, fatture, onNav, onOpenPaziente, onOpenFattura, onOpenPreventivo}){
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const inputRef = useRef(null);
+
+  // Keyboard shortcut
+  useEffect(()=>{
+    function onKey(e){
+      if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setOpen(o=>!o);}
+      if(e.key==="Escape")setOpen(false);
+    }
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[]);
+
+  // Focus input when opened
+  useEffect(()=>{
+    if(open)setTimeout(()=>inputRef.current?.focus(),50);
+    else setQ("");
+  },[open]);
+
+  const trimQ = q.trim().toLowerCase();
+
+  const resPazienti = trimQ.length<2 ? [] : pazienti.filter(p=>
+    (p.cognome+" "+p.nome).toLowerCase().includes(trimQ)||
+    (p.telefono||"").includes(trimQ)||
+    (p.codiceFiscale||"").toLowerCase().includes(trimQ)
+  ).slice(0,5);
+
+  const resPreventivi = trimQ.length<2 ? [] : preventivi.filter(p=>{
+    const paz=pazienti.find(x=>String(x.id)===String(p.pazienteId));
+    return (paz?.cognome+" "+paz?.nome).toLowerCase().includes(trimQ)||
+      (p.voci||[]).some(v=>(v.nome||"").toLowerCase().includes(trimQ));
+  }).slice(0,4);
+
+  const resFatture = trimQ.length<2 ? [] : fatture.filter(f=>{
+    const paz=pazienti.find(x=>String(x.id)===String(f.pazienteId));
+    return (f.numero||"").toLowerCase().includes(trimQ)||
+      (paz?.cognome+" "+paz?.nome).toLowerCase().includes(trimQ);
+  }).slice(0,4);
+
+  const total = resPazienti.length + resPreventivi.length + resFatture.length;
+
+  function goTo(fn){setOpen(false);setQ("");fn();}
+
+  if(!open)return(
+    <button onClick={()=>setOpen(true)}
+      style={{display:"flex",alignItems:"center",gap:8,padding:"7px 14px",borderRadius:8,border:"1px solid rgba(255,255,255,0.15)",background:"rgba(255,255,255,0.08)",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:13,fontFamily:"inherit",minWidth:180}}>
+      <span>🔍</span>
+      <span style={{flex:1,textAlign:"left"}}>Cerca...</span>
+      <span style={{fontSize:11,opacity:0.6,background:"rgba(255,255,255,0.1)",padding:"1px 6px",borderRadius:4}}>⌘K</span>
+    </button>
+  );
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9500,display:"flex",alignItems:"flex-start",justifyContent:"center",paddingTop:80}} onClick={()=>setOpen(false)}>
+      <div style={{background:"#fff",borderRadius:14,width:"100%",maxWidth:580,boxShadow:"0 25px 80px rgba(0,0,0,0.3)",overflow:"hidden"}} onClick={e=>e.stopPropagation()}>
+        {/* Search input */}
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 20px",borderBottom:"1px solid #F3F4F6"}}>
+          <span style={{fontSize:18,flexShrink:0}}>🔍</span>
+          <input ref={inputRef} value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="Cerca pazienti, preventivi, fatture..."
+            style={{flex:1,border:"none",outline:"none",fontSize:16,color:"#1F2937",fontFamily:"inherit",background:"transparent"}}/>
+          {q&&<button onClick={()=>setQ("")} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"#9CA3AF",padding:0}}>×</button>}
+          <span style={{fontSize:11,color:"#9CA3AF",background:"#F3F4F6",padding:"2px 8px",borderRadius:5,flexShrink:0}}>ESC</span>
+        </div>
+
+        {/* Results */}
+        <div style={{maxHeight:400,overflowY:"auto"}}>
+          {trimQ.length<2&&(
+            <div style={{padding:"32px 20px",textAlign:"center",color:"#9CA3AF",fontSize:14}}>
+              Digita almeno 2 caratteri per cercare
+            </div>
+          )}
+          {trimQ.length>=2&&total===0&&(
+            <div style={{padding:"32px 20px",textAlign:"center",color:"#9CA3AF",fontSize:14}}>
+              Nessun risultato per "<b>{q}</b>"
+            </div>
+          )}
+
+          {resPazienti.length>0&&(
+            <div>
+              <div style={{padding:"10px 20px 4px",fontSize:11,fontWeight:700,color:"#6B7280",textTransform:"uppercase",letterSpacing:0.5}}>👤 Pazienti</div>
+              {resPazienti.map(p=>(
+                <div key={p.id} onClick={()=>goTo(()=>{onOpenPaziente(p.id);onNav("pazienti");})}
+                  style={{padding:"10px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,borderRadius:8,margin:"0 8px"}}
+                  onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                  onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <div style={{width:36,height:36,borderRadius:"50%",background:"#EBF8F7",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,fontWeight:700,color:"#5BBFB5",flexShrink:0}}>
+                    {(p.cognome||"?")[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:600,color:"#1F2937"}}>{p.cognome} {p.nome}</div>
+                    <div style={{fontSize:12,color:"#6B7280"}}>{p.telefono||""}{p.dataNascita?" · "+new Date(p.dataNascita+"T00:00").toLocaleDateString("it-IT"):""}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {resPreventivi.length>0&&(
+            <div>
+              <div style={{padding:"10px 20px 4px",fontSize:11,fontWeight:700,color:"#6B7280",textTransform:"uppercase",letterSpacing:0.5}}>📄 Preventivi</div>
+              {resPreventivi.map(p=>{
+                const paz=pazienti.find(x=>String(x.id)===String(p.pazienteId));
+                const STATO={in_attesa:{c:"#D97706",bg:"#FFFBEB",l:"In attesa"},accettato:{c:"#059669",bg:"#ECFDF5",l:"Accettato"},rifiutato:{c:"#DC2626",bg:"#FEF2F2",l:"Rifiutato"}};
+                const st=STATO[p.stato]||STATO.in_attesa;
+                return(
+                  <div key={p.id} onClick={()=>goTo(()=>{onOpenPreventivo(p.id);onNav("preventivi");})}
+                    style={{padding:"10px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,borderRadius:8,margin:"0 8px"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <div style={{width:36,height:36,borderRadius:8,background:"#EFF6FF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>📄</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:600,color:"#1F2937"}}>{paz?paz.cognome+" "+paz.nome:"—"}</div>
+                      <div style={{fontSize:12,color:"#6B7280"}}>{fmtEur(p.totale)} · {p.data?new Date(p.data+"T00:00").toLocaleDateString("it-IT"):""}</div>
+                    </div>
+                    <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:st.bg,color:st.c,fontWeight:600}}>{st.l}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {resFatture.length>0&&(
+            <div>
+              <div style={{padding:"10px 20px 4px",fontSize:11,fontWeight:700,color:"#6B7280",textTransform:"uppercase",letterSpacing:0.5}}>🧾 Fatture</div>
+              {resFatture.map(f=>{
+                const paz=pazienti.find(x=>String(x.id)===String(f.pazienteId));
+                const STATO={pagato:{c:"#059669",bg:"#ECFDF5",l:"Pagata"},parziale:{c:"#D97706",bg:"#FFFBEB",l:"Acconto"},non_pagato:{c:"#DC2626",bg:"#FEF2F2",l:"Da pagare"}};
+                const st=STATO[f.statoPagamento]||STATO.non_pagato;
+                return(
+                  <div key={f.id} onClick={()=>goTo(()=>{onOpenFattura(f.id);onNav("fatture");})}
+                    style={{padding:"10px 20px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,borderRadius:8,margin:"0 8px"}}
+                    onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
+                    onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <div style={{width:36,height:36,borderRadius:8,background:"#F0FDF4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🧾</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontSize:14,fontWeight:600,color:"#1F2937"}}>N. {f.numero||"—"} · {paz?paz.cognome+" "+paz.nome:"—"}</div>
+                      <div style={{fontSize:12,color:"#6B7280"}}>{fmtEur(f.totale)} · {f.data?new Date(f.data+"T00:00").toLocaleDateString("it-IT"):""}</div>
+                    </div>
+                    <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:st.bg,color:st.c,fontWeight:600}}>{st.l}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {total>0&&<div style={{height:8}}/>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Badge({label, status}) {
@@ -2400,8 +2563,12 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
 }
 
 
-function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav}) {
+function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav, initialPreventivoId, onPreventivoOpened}) {
   const [filter, setFilter]=useState("tutti");
+  const [highlightId, setHighlightId] = useState(null);
+  useEffect(()=>{
+    if(initialPreventivoId){setHighlightId(initialPreventivoId);setTimeout(()=>{setHighlightId(null);onPreventivoOpened&&onPreventivoOpened();},3000);}
+  },[initialPreventivoId]);
   const [search, setSearch]=useState("");
   const [sortCol, setSortCol]=useState("data");
   const [sortAsc, setSortAsc]=useState(false);
@@ -2421,6 +2588,10 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
 
   const prevConFattura = useMemo(()=>{
     return new Set(fatture.map(f=>Number(f.preventivoId)).filter(Boolean));
+  },[fatture]);
+  const prevConAcconto = useMemo(()=>{
+    const saldati=new Set(fatture.filter(f=>f.statoPagamento==="pagato").map(f=>Number(f.preventivoId)).filter(Boolean));
+    return new Set(fatture.filter(f=>f.statoPagamento==="parziale"&&!saldati.has(Number(f.preventivoId))).map(f=>Number(f.preventivoId)).filter(Boolean));
   },[fatture]);
 
   function toggleSort(col){ if(sortCol===col)setSortAsc(a=>!a); else{setSortCol(col);setSortAsc(true);} }
@@ -2591,9 +2762,11 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
                           </button>
                         }
                         {/* Bloccato se fatturato */}
-                        {hasFattura&&
-                          <span style={{fontSize:11.5,color:"#1D4ED8",padding:"4px 10px",background:"#EFF6FF",borderRadius:6,fontWeight:600}}>🔒 Fatturato</span>
-                        }
+                        {hasFattura&&(
+                            prevConAcconto.has(r.id)
+                            ? <span style={{fontSize:11.5,color:"#D97706",padding:"4px 10px",background:"#FFFBEB",borderRadius:6,fontWeight:600}}>💰 Acconto</span>
+                            : <span style={{fontSize:11.5,color:"#1D4ED8",padding:"4px 10px",background:"#EFF6FF",borderRadius:6,fontWeight:600}}>🔒 Fatturato</span>
+                          )}
                       </div>
                     </td>
                   </tr>;
@@ -2898,8 +3071,12 @@ function stampaFattura(fatt, pazientiList, fattureList) {
     const w = window.open("","_blank","width=900,height=750");
     if(w){w.document.write(html);w.document.close();}
   }
-function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav}) {
+function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav, initialFatturaId, onFatturaOpened}) {
   const [subtab, setSubtab] = useState("fatture");
+  const [highlightId, setHighlightId] = useState(null);
+  useEffect(()=>{
+    if(initialFatturaId){setSubtab("fatture");setHighlightId(initialFatturaId);setTimeout(()=>{setHighlightId(null);onFatturaOpened&&onFatturaOpened();},3000);}
+  },[initialFatturaId]);
   const [filter, setFilter]=useState("tutti");
   const [bancaPeriod, setBancaPeriod]=useState("mese");
   const [search, setSearch]=useState("");
@@ -2998,7 +3175,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
       setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
     } else {
       const newId=uid();
-      setFatture(p=>[...p,{...fattData,id:newId,numero:nextN()}]);
+      setFatture(p=>[...p,{...fattData,id:newId,numero:(form.numero&&form.numero.trim())?form.numero.trim():nextN()}]);
       // Marca il preventivo come fatturato solo per saldo
       if(form.preventivoId&&!isAcconto){
         setPreventivi(p=>p.map(x=>x.id===Number(form.preventivoId)?{...x,stato:"fatturato"}:x));
@@ -3087,9 +3264,12 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     </div>
 
     {/* Banner preventivi accettati */}
-    {prevDaFatturare&&prevDaFatturare.length>0&&<div style={{padding:"12px 16px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+    {prevDaFatturare&&(prevDaFatturare.length>0||prevDaSaldare.length>0)&&<div style={{padding:"12px 16px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:16,display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
       <span style={{fontSize:18}}>📋</span>
-      <div style={{flex:1,fontSize:13,fontWeight:700,color:"#92400E"}}>{prevDaFatturare.length} preventivo/i accettato/i in attesa di fattura</div>
+      <div style={{flex:1,fontSize:13,fontWeight:700,color:"#92400E"}}>
+        {prevDaFatturare.length>0&&<div>{prevDaFatturare.length} preventivo/i in attesa di prima fattura</div>}
+        {prevDaSaldare.length>0&&<div style={{color:"#D97706",marginTop:prevDaFatturare.length>0?4:0}}>⚠️ {prevDaSaldare.length} preventivo/i con acconto — saldo da emettere</div>}
+      </div>
       <button onClick={openNew} style={{padding:"8px 16px",borderRadius:T.r,border:"none",background:"#F59E0B",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Nuova fattura</button>
     </div>}
 
@@ -3257,6 +3437,10 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica fattura":"Nuova fattura"} width={560}
       footer={<><Btn variant="secondary" onClick={()=>setModal(false)}>Annulla</Btn><Btn onClick={save}>{editId?"Salva":"Crea"}</Btn></>}>
       <Grid2><FSelect label="Paziente" required value={form.pazienteId} onChange={e=>{ff("pazienteId")(e.target.value);setForm(f=>({...f,preventivoId:"",voci:[]}));}}><option value="">— Seleziona —</option>{pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}</FSelect><FInput label="Data" type="date" value={form.data} onChange={ff("data")}/></Grid2>
+      <Grid2>
+        <FInput label="N. Fattura (opzionale)" value={form.numero||""} onChange={ff("numero")} placeholder={`Auto: ${nextN()}`}/>
+        <div style={{display:"flex",alignItems:"flex-end",paddingBottom:8}}><span style={{fontSize:12,color:T.textSub}}>Lascia vuoto per numerazione automatica</span></div>
+      </Grid2>
       <div style={{marginBottom:14}}>
         <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5}}>
           Importa da preventivo accettato{form.pazienteId?" — "+getPaz(Number(form.pazienteId)):""} <span style={{fontWeight:400,color:T.textMuted}}>(opzionale)</span>
@@ -4047,7 +4231,7 @@ const NAV=[
 ];
 
 
-function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventivi, fatture, canView}) {
+function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventivi, fatture, canView, onOpenPaziente, onOpenFattura, onOpenPreventivo}) {
   const counts={agenda:appuntamenti.filter(a=>a.data===todayISO()).length,pazienti:pazienti.length,preventivi:preventivi.filter(p=>p.stato==="in_attesa").length,fatture:(()=>{
       const nonPagate=fatture.filter(f=>f.statoPagamento==="non_pagato").length;
       const daSaldare=preventivi.filter(p=>p.stato==="accettato"&&fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale")&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato")).length;
@@ -4060,6 +4244,10 @@ function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventiv
         <img src={LOGO} alt="Studio" style={{width:36,height:36,borderRadius:8,objectFit:"contain",background:"white",padding:3}}/>
         <div><div style={{fontSize:13,fontWeight:700,color:"#fff",lineHeight:1.2}}>Studio Dentistico Sardo</div><div style={{fontSize:10.5,color:"rgba(255,255,255,0.4)",marginTop:1}}>Oristano</div></div>
       </div>
+    </div>
+    <div style={{padding:"0 10px 10px"}}>
+      <GlobalSearch pazienti={pazienti} preventivi={preventivi} fatture={fatture}
+        onNav={onNav} onOpenPaziente={onOpenPaziente} onOpenFattura={onOpenFattura} onOpenPreventivo={onOpenPreventivo}/>
     </div>
     <nav style={{flex:1,padding:"8px",overflowY:"auto"}}>
       {NAV.map((group,gi)=><div key={gi} style={{marginBottom:8}}>
@@ -4096,6 +4284,7 @@ export default function App() {
   const [confirmFn,confirmModal]=useConfirm();
   const toast=useToast();
   React.useEffect(()=>{_cr.fn=confirmFn;},[confirmFn]);
+  React.useEffect(()=>{window._showToast=toast;},[toast]);
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openPazienteId, setOpenPazienteId] = useState(null);
@@ -4131,7 +4320,7 @@ export default function App() {
   return <ToastProvider><div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
     {sidebarOpen&&isMobile&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:90}}/>}
     <div style={{transform:isMobile?(sidebarOpen?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform 0.25s ease",position:isMobile?"fixed":"relative",zIndex:isMobile?100:1}}>
-      <Sidebar view={view} onNav={v=>{setView(v);setSidebarOpen(false);}} onLogout={logout} user={user} canView={canView} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture}/>
+      <Sidebar view={view} onNav={v=>{setView(v);setSidebarOpen(false);}} onLogout={logout} user={user} canView={canView} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onOpenPaziente={id=>{setOpenPazienteId(id);}} onOpenFattura={id=>{setOpenFatturaId(id);}} onOpenPreventivo={id=>{setOpenPreventivoId(id);}}/>
     </div>
     <div style={{flex:1,display:"flex",flexDirection:"column",marginLeft:isMobile?0:0,minWidth:0,overflow:"hidden"}}>
       <header style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 24px",height:56,display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:50,flexShrink:0}}>
@@ -4147,7 +4336,7 @@ export default function App() {
         {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
         {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} setPazienti={setPazienti} listino={listino} onNav={navTo}/>}
         {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} impostazioni={impostazioni}/>}
-        {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo}/>}
+        {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo} initialPreventivoId={openPreventivoId} onPreventivoOpened={()=>setOpenPreventivoId(null)}/>}
         {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo}/>}
         {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino}/>}
         {view==="comunicazioni"&&canView("comunicazioni")&&<ComunicazioniView pazienti={pazienti} appuntamenti={appuntamenti}/>}
