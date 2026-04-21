@@ -210,6 +210,67 @@ const BADGE = {
   fatturato:{bg:"#EFF6FF",color:"#1D4ED8",dot:"#3B82F6"},
 };
 
+const _cr={fn:null};
+async function gConfirm(t,m="",l="Conferma",d=true){
+  if(_cr.fn)return _cr.fn(t,m,l,d);
+  return window.confirm(t+(m?"\n"+m:""));
+}
+const ToastCtx=createContext(null);
+function ToastProvider({children}){
+  const [ts,setTs]=useState([]);
+  const show=useCallback((msg,type="success",ms=3500)=>{
+    const id=Date.now()+Math.random();
+    setTs(t=>[...t,{id,msg,type}]);
+    setTimeout(()=>setTs(t=>t.filter(x=>x.id!==id)),ms);
+  },[]);
+  const C={
+    success:{bg:"#F0FDF4",br:"#BBF7D0",tx:"#065F46",ic:"✅"},
+    error:{bg:"#FEF2F2",br:"#FECACA",tx:"#991B1B",ic:"❌"},
+    warning:{bg:"#FFFBEB",br:"#FDE68A",tx:"#92400E",ic:"⚠️"},
+    info:{bg:"#EFF6FF",br:"#BFDBFE",tx:"#1E40AF",ic:"ℹ️"},
+  };
+  return(
+    <ToastCtx.Provider value={show}>
+      {children}
+      <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,display:"flex",flexDirection:"column",gap:8,pointerEvents:"none"}}>
+        {ts.map(t=>{
+          const c=C[t.type]||C.info;
+          return(
+            <div key={t.id} style={{padding:"12px 18px",background:c.bg,border:`1px solid ${c.br}`,borderRadius:10,boxShadow:"0 4px 12px rgba(0,0,0,0.12)",display:"flex",alignItems:"center",gap:10,fontSize:13.5,fontWeight:600,color:c.tx,maxWidth:360}}>
+              <span style={{fontSize:18}}>{c.ic}</span>
+              <span>{t.msg}</span>
+            </div>
+          );
+        })}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+function useToast(){return useContext(ToastCtx)||(()=>{});}
+function ConfirmModal({open,title,message,confirmLabel,danger,onConfirm,onCancel}){
+  if(!open)return null;
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:8000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onCancel}>
+      <div style={{background:"#fff",borderRadius:14,padding:"28px 32px",maxWidth:420,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.2)"}} onClick={e=>e.stopPropagation()}>
+        <div style={{fontSize:18,fontWeight:700,color:"#1F2937",marginBottom:10}}>{title}</div>
+        {message&&<div style={{fontSize:14,color:"#6B7280",lineHeight:1.6,marginBottom:24,whiteSpace:"pre-line"}}>{message}</div>}
+        <div style={{display:"flex",gap:10,justifyContent:"flex-end"}}>
+          <button onClick={onCancel} style={{padding:"9px 20px",borderRadius:8,border:"1px solid #E5E7EB",background:"#fff",cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit",color:"#374151"}}>Annulla</button>
+          <button onClick={onConfirm} style={{padding:"9px 20px",borderRadius:8,border:"none",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"inherit",background:danger?"#EF4444":"#5BBFB5",color:"#fff"}}>{confirmLabel||"Conferma"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function useConfirm(){
+  const [st,setSt]=useState({open:false,title:"",message:"",confirmLabel:"Conferma",danger:true,resolve:null});
+  const confirm=useCallback((t,m="",l="Conferma",d=true)=>new Promise(r=>setSt({open:true,title:t,message:m,confirmLabel:l,danger:d,resolve:r})),[]);
+  const ok=useCallback(()=>setSt(s=>{s.resolve&&s.resolve(true);return{...s,open:false};}),[]);
+  const no=useCallback(()=>setSt(s=>{s.resolve&&s.resolve(false);return{...s,open:false};}),[]);
+  const modal=<ConfirmModal open={st.open} title={st.title} message={st.message} confirmLabel={st.confirmLabel} danger={st.danger} onConfirm={ok} onCancel={no}/>;
+  return [confirm,modal];
+}
+
 function Badge({label, status}) {
   const s = BADGE[status||label] || {bg:"#F3F4F6",color:"#6B7280",dot:"#9CA3AF"};
   return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:s.bg,color:s.color,whiteSpace:"nowrap"}}><span style={{width:5,height:5,borderRadius:"50%",background:s.dot}}/>{label}</span>;
@@ -1108,17 +1169,17 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
   function importaDati(e){
     const file=e.target.files?.[0];if(!file)return;
     const reader=new FileReader();
-    reader.onload=(ev)=>{try{
+    reader.onload=async(ev)=>{try{
       const data=JSON.parse(ev.target.result);
       if(!data.pazienti)return alert("File non valido.");
-      if(!confirm("Ripristino backup del "+new Date(data.esportato).toLocaleDateString("it-IT")+"\nSostituirà tutti i dati. Continuare?"))return;
+      if(!await gConfirm("Ripristino backup","Ripristino del "+new Date(data.esportato).toLocaleDateString("it-IT")+"\n\nSostituirà tutti i dati.","Ripristina"))return;
       if(data.pazienti)setPazienti(data.pazienti);
       if(data.appuntamenti)setAppuntamenti(data.appuntamenti);
       if(data.preventivi)setPreventivi(data.preventivi);
       if(data.fatture)setFatture(data.fatture);
       if(data.listino)setListino(data.listino);
-      alert("✓ Backup ripristinato!");
-    }catch(err){alert("Errore: "+err.message);}};
+      toast("Backup ripristinato ✓");
+    }catch(err){toast("Errore: "+err.message,"error");}};
     reader.readAsText(file);e.target.value="";
   }
   const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
@@ -1262,7 +1323,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
                       style={{accentColor:T.brand}}/>
                     <span style={{color:T.textSub}}>Attivo</span>
                   </label>
-                  <button onClick={()=>{if(confirm("Eliminare questo documento?"))setImpostazioni(s=>({...s,documenti:(s.documenti||[]).filter((_,j)=>j!==i)}))}}
+                  <button onClick={()=>{gConfirm("Elimina documento","Eliminare questo documento?","Elimina").then(ok=>{if(ok)setImpostazioni(s=>({...s,documenti:(s.documenti||[]).filter((_,j)=>j!==i)}))})}}
                     style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>🗑️</button>
                 </div>
               </div>
@@ -1276,7 +1337,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
           ))}
         </div>
         <div style={{marginTop:16,display:"flex",justifyContent:"flex-end"}}>
-          <Btn onClick={()=>{try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}alert("Template documenti salvati!");}}>💾 Salva template</Btn>
+          <Btn onClick={()=>{try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}toast("Template salvati ✓");}}>💾 Salva template</Btn>
         </div>
       </div>}
 
@@ -1419,7 +1480,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
     else setPazienti(p=>[...p,{...form,id:uid(),dataRegistrazione:todayISO(),dentiStato:{}}]);
     setModal(false);
   }
-  function del(id){if(confirm("Eliminare questo paziente?"))setPazienti(p=>p.filter(x=>x.id!==id));}
+  function del(id){gConfirm("Elimina paziente","Eliminare questo paziente?","Elimina").then(ok=>{if(ok)setPazienti(p=>p.filter(x=>x.id!==id));});}
   function updateDenti(denti){setPazienti(p=>p.map(x=>x.id===detail?{...x,dentiStato:denti}:x));}
 
   // Preventivo diretto dalla scheda
@@ -1841,7 +1902,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
                   </div>
                 </div>
                 <div style={{marginTop:12,display:"flex",justifyContent:"flex-end"}}>
-                  <button onClick={()=>alert("Anamnesi salvata")} style={{padding:"8px 20px",borderRadius:T.r,border:"none",background:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva anamnesi</button>
+                  <button onClick={()=>toast("Anamnesi salvata ✓")} style={{padding:"8px 20px",borderRadius:T.r,border:"none",background:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>💾 Salva anamnesi</button>
                 </div>
               </div>
             </div>
@@ -2139,7 +2200,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
   function openNew(data,ora){setForm({pazienteId:"",data:data.toISOString().slice(0,10),oraInizio:ora||"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});setEditId(null);setShowNewPaz(false);setNewPazForm({nome:"",cognome:"",telefono:"",email:""});setModal(true);}
   function openEdit(a){setForm(a);setEditId(a.id);setShowNewPaz(false);setModal(true);}
   function save(){if(!form.pazienteId||!form.data)return alert("Seleziona paziente e data");if(editId)setAppuntamenti(p=>p.map(x=>x.id===editId?{...form,id:editId,durata:Number(form.durata)}:x));else setAppuntamenti(p=>[...p,{...form,id:uid(),durata:Number(form.durata)}]);setModal(false);}
-  function del(id){if(confirm("Eliminare?"))setAppuntamenti(p=>p.filter(x=>x.id!==id));}
+  function del(id){gConfirm("Elimina","Eliminare questo appuntamento?","Elimina").then(ok=>{if(ok)setAppuntamenti(p=>p.filter(x=>x.id!==id));});}
 
   function stampaAgendaGiorno(data, apts, paz) {
     const dataLabel = data.toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
@@ -2395,9 +2456,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
     if(prevConFattura.has(p.id)){alert("⚠️ Fattura già emessa.\nQuesto preventivo non è eliminabile.");return;}
     if(p.stato==="accettato"){alert("⚠️ Non puoi eliminare un preventivo accettato.\nRifiutalo prima.");return;}
     if(p.stato==="in_attesa"){alert("⚠️ Non puoi eliminare un preventivo in attesa.\nRifiutalo prima.");return;}
-    if(confirm(`Eliminare il preventivo di ${getPaz(p.pazienteId)}?`)){
-      setPreventivi(prev=>prev.filter(x=>x.id!==p.id));
-    }
+    gConfirm("Elimina preventivo",`Eliminare il preventivo di ${getPaz(p.pazienteId)}?`,"Elimina").then(ok=>{if(ok)setPreventivi(prev=>prev.filter(x=>x.id!==p.id));});
   }
 
   function addV(){
@@ -2942,11 +3001,13 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   }
 
   
-  function del(id){
+  async function del(id){
     const fatt = fatture.find(f=>f.id===id);
     const num = fatt?.numero||String(id);
-    if(!window.confirm("Stai per eliminare la fattura N. "+num+".\nQuesta operazione non puo essere annullata. Confermi?")) return;
-    if(!window.confirm("Seconda conferma. Sei sicuro di voler eliminare la fattura N. "+num+"?")) return;
+    const _ok1=await gConfirm("Elimina fattura N. "+num,"Questa operazione non può essere annullata.","Elimina");
+    if(!_ok1)return;
+    const _ok2=await gConfirm("Conferma finale","Sei sicuro di eliminare la fattura N. "+num+"?","Sì, elimina");
+    if(!_ok2)return;
     setFatture(p=>p.filter(x=>x.id!==id));
     if(fatt?.preventivoId){
       setPreventivi(p=>p.map(x=>String(x.id)===String(fatt.preventivoId)?{...x,stato:"accettato"}:x));
@@ -3320,7 +3381,7 @@ function ListinoView({listino, setListino}) {
   function openNew(){setForm({categoria:"Prevenzione",nome:"",prezzo:""});setEditId(null);setModal(true);}
   function openEdit(l){setForm(l);setEditId(l.id);setModal(true);}
   function save(){if(!form.nome||!form.prezzo)return alert("Nome e prezzo obbligatori");const item={...form,prezzo:Number(form.prezzo)};if(editId)setListino(p=>p.map(x=>x.id===editId?{...item,id:editId}:x));else setListino(p=>[...p,{...item,id:uid()}]);setModal(false);}
-  function del(id){if(confirm("Eliminare questa voce?"))setListino(p=>p.filter(x=>x.id!==id));}
+  function del(id){gConfirm("Elimina voce","Eliminare questa voce dal listino?","Elimina").then(ok=>{if(ok)setListino(p=>p.filter(x=>x.id!==id));});}
   return <div>
     <PageHdr title="Listino prezzi" subtitle={`${listino.length} trattamenti`} action={<Btn icon="+" onClick={openNew}>Nuovo trattamento</Btn>}/>
     <div style={{marginBottom:16}}><SBar value={search} onChange={setSearch} placeholder="Cerca trattamento..."/></div>
@@ -3999,6 +4060,9 @@ function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventiv
 
 export default function App() {
   const {user, login, logout} = useAuth();
+  const [confirmFn,confirmModal]=useConfirm();
+  const toast=useToast();
+  React.useEffect(()=>{_cr.fn=confirmFn;},[confirmFn]);
   const [view, setView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openPazienteId, setOpenPazienteId] = useState(null);
@@ -4031,7 +4095,7 @@ export default function App() {
   };
   const titles={dashboard:"Dashboard",agenda:"Agenda",pazienti:"Pazienti",preventivi:"Preventivi",fatture:"Fatturazione",listino:"Listino prezzi",report:"Report",utenti:"Utenti"};
 
-  return <div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+  return <ToastProvider><div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
     {sidebarOpen&&isMobile&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:90}}/>}
     <div style={{transform:isMobile?(sidebarOpen?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform 0.25s ease",position:isMobile?"fixed":"relative",zIndex:isMobile?100:1}}>
       <Sidebar view={view} onNav={v=>{setView(v);setSidebarOpen(false);}} onLogout={logout} user={user} canView={canView} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture}/>
@@ -4067,5 +4131,5 @@ export default function App() {
         ))}
       </nav>}
     </div>
-    </div>;
+    </div>{confirmModal}</ToastProvider>;
 }
