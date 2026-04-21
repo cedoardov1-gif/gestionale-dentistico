@@ -228,23 +228,28 @@ function useAuth() {
   }, []);
 
   const login = async (email, password) => {
+    // Prima verifica credenziali locali
+    const stored = (() => { try { const s = localStorage.getItem("dsd_utenti"); return s ? JSON.parse(s) : UTENTI_DEFAULT; } catch(e) { return UTENTI_DEFAULT; } })();
+    const localUser = stored.find(u => u.email === email && u.password === password && u.attivo !== false);
+    if(!localUser) return {ok: false, error: "Email o password non corretti"};
+    
+    // Credenziali locali OK — prova anche Supabase Auth per la sessione persistente
     try {
       const {supabase} = await import("./supabase.js");
       const {data, error} = await supabase.auth.signInWithPassword({email, password});
-      if(error) throw error;
-      const role = UTENTI_DEFAULT.find(u => u.email === email);
-      if(!role) throw new Error("Utente non autorizzato");
-      const u = {...role, supabaseId: data.user.id};
-      localStorage.setItem("dsd_user", JSON.stringify(u));
-      setUser(u);
-      return {ok: true};
+      if(!error && data?.user) {
+        const u = {...localUser, supabaseId: data.user.id};
+        localStorage.setItem("dsd_user", JSON.stringify(u));
+        setUser(u);
+        return {ok: true};
+      }
     } catch(err) {
-      // Fallback to local auth if Supabase unavailable
-      const stored = (() => { try { const s = localStorage.getItem("dsd_utenti"); return s ? JSON.parse(s) : UTENTI_DEFAULT; } catch(e) { return UTENTI_DEFAULT; } })();
-      const u = stored.find(u => u.email === email && u.password === password && u.attivo !== false);
-      if(u) { localStorage.setItem("dsd_user", JSON.stringify(u)); setUser(u); return {ok: true}; }
-      return {ok: false, error: err.message || "Email o password non corretti"};
+      // Supabase non raggiungibile — usa solo auth locale
     }
+    // Fallback: login locale senza sessione Supabase
+    localStorage.setItem("dsd_user", JSON.stringify(localUser));
+    setUser(localUser);
+    return {ok: true};
   };
 
   const logout = async () => {
