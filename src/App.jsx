@@ -1424,7 +1424,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
     }catch(err){toast("Errore: "+err.message,"error");}};
     reader.readAsText(file);e.target.value="";
   }
-  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},...(user?.ruolo==="admin"?[{id:"log",label:"📋 Log attività"}]:[]),{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
+  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},...(currentUser?.ruolo==="admin"?[{id:"log",label:"📋 Log attività"}]:[]),{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
   const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
   const CAMPI_LABELS={nome:"Nome",cognome:"Cognome",telefono:"Telefono",email:"Email",dataNascita:"Data di nascita",codiceFiscale:"Codice fiscale",indirizzo:"Indirizzo"};
   const stats={pazienti:pazienti.length,appuntamenti:appuntamenti.length,preventivi:preventivi.length,fatture:fatture.length,listino:listino.length,dimensione:(new Blob([JSON.stringify({pazienti,appuntamenti,preventivi,fatture,listino})]).size/1024).toFixed(1)};
