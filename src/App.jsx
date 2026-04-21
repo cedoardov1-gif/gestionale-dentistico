@@ -1111,8 +1111,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
     reader.onload=(ev)=>{try{
       const data=JSON.parse(ev.target.result);
       if(!data.pazienti)return alert("File non valido.");
-      if(!confirm("Ripristino backup del "+new Date(data.esportato).toLocaleDateString("it-IT")+".
-Sostituirà tutti i dati. Continuare?"))return;
+      if(!confirm("Ripristino backup del "+new Date(data.esportato).toLocaleDateString("it-IT")+"\nSostituirà tutti i dati. Continuare?"))return;
       if(data.pazienti)setPazienti(data.pazienti);
       if(data.appuntamenti)setAppuntamenti(data.appuntamenti);
       if(data.preventivi)setPreventivi(data.preventivi);
