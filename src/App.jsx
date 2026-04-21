@@ -1524,7 +1524,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
     const numero=String(n).padStart(2,'0')+'/'+anno;
     const isAcconto=fattTipo==="acconto";
     const existingAcconto=fatture.find(f=>String(f.preventivoId)===String(prev.id)&&f.statoPagamento==="parziale");
-    const residuoSaldo=existingAcconto?Math.max(0,prev.totale-existingAcconto.totale):prev.totale;
+    const accontoBase=existingAcconto?(existingAcconto.marcaBollo?existingAcconto.totale-2:existingAcconto.totale):0;
+    const residuoSaldo=existingAcconto?Math.max(0,prev.totale-accontoBase):prev.totale;
     const importo=isAcconto?(Number(fattAcconto)||0):residuoSaldo;
     const haBollo=importo>77.47;
     const voceBollo=haBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[];
@@ -2276,10 +2277,10 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
               {apts.map(a=>{
                 const bs=BADGE[a.stato]||{};
                 const dur=a.durata||60;
-                const slotH=Math.max(Math.round(dur/60*50),28);
+                const slotH=Math.round(dur/60*50);const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?25:0;
                 return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}}
                   style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,
-                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",
+                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",marginTop:topOffset,
                     display:"flex",alignItems:"flex-start",gap:10}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:700,color:bs.color||T.brandDark}}>{a.oraInizio} — {getPaz(a.pazienteId)}</div>
@@ -2319,7 +2320,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
               return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
-                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=dur<=30?22:dur<=45?33:dur<=60?44:Math.round(dur/60*44);const multiSlot=dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
+                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=Math.round(dur/60*44);const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?22:0;const multiSlot=dur>30&&startsAtHalf||dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginTop:topOffset,marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
                   <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
                   <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}{a.durata?" ("+a.durata+"min)":""}</div>
                 </div>;})}
@@ -2774,8 +2775,11 @@ function stampaNoteCredito(nc,pazientiList,fattureList){
 }
 
 
-function stampaFattura(fatt, pazientiList) {
+function stampaFattura(fatt, pazientiList, fattureList) {
     const paz = (pazientiList||[]).find(x=>x.id===fatt.pazienteId);
+    const isSaldo=fatt.tipoFattura==="saldo"&&fatt.preventivoId;
+    const accontoFatt=isSaldo?(fattureList||[]).find(f=>String(f.preventivoId)===String(fatt.preventivoId)&&f.statoPagamento==="parziale"):null;
+    const accontoBase=accontoFatt?(accontoFatt.marcaBollo?accontoFatt.totale-2:accontoFatt.totale):0;
     const nomePaz = paz ? paz.cognome+" "+paz.nome : "—";
     const indPaz = [paz?.indirizzo, paz?.citta, paz?.codiceFiscale].filter(Boolean);
     const dataEmissione = fatt.data
@@ -2866,12 +2870,16 @@ function stampaFattura(fatt, pazientiList) {
       +"<div>MARCA DA</div><div>BOLLO SU</div><div>ORIGINALE</div>"
       +"</td>"
       +"<td style='width:40%;font-size:10.5pt;vertical-align:top;line-height:2'>"
-      +"<div>TOTALE</div>"
-      +"<div>BOLLO</div>"
-      +"<div>TOTALE FATTURA</div>"
+      +"<div>TOTALE PRESTAZIONI</div>"
+      +(accontoBase>0?"<div style=\'color:#D97706\'>ACCONTO GIÀ FATTURATO</div>":"")
+      +(accontoBase>0?"<div style=\'color:#1D4ED8\'>NETTO DA SALDARE</div>":"")
+      +"<div>MARCA DA BOLLO</div>"
+      +"<div style=\'font-weight:700\'>TOTALE FATTURA</div>"
       +"</td>"
-      +"<td style='width:35%;text-align:right;font-size:10.5pt;vertical-align:top;line-height:2'>"
+      +"<td style=\'width:35%;text-align:right;font-size:10.5pt;vertical-align:top;line-height:2\'>"
       +"<div>&euro; "+totaleVoci.toFixed(2)+"</div>"
+      +(accontoBase>0?"<div style=\'color:#D97706\'>&minus;&euro; "+accontoBase.toFixed(2)+"</div>":"")
+      +(accontoBase>0?"<div style=\'color:#1D4ED8\'>&euro; "+(totaleVoci-accontoBase).toFixed(2)+"</div>":"")
       +"<div>&euro; "+bolloVal.toFixed(2)+"</div>"
       +"<div><b>&euro; "+totaleFattura.toFixed(2)+"</b></div>"
       +"</td>"
@@ -2979,10 +2987,12 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     const residuoFatt=existingAcc?Math.max(0,totale-existingAcc.totale):totale;
     const importoFatt=isAcconto?(Number(accontoValore)||0):residuoFatt;
     const statoFatt=isAcconto?"parziale":"pagato";
-    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
+    const haBollo=importoFatt>77.47;
+    const vociFinal=[...form.voci.filter(v=>v.nome!=="Marca da bollo"),...(haBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
+    const totaleFin=importoFatt+(haBollo?2:0);
     const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),
-      totalelordo,sconto:scontoNum,totale:importoFatt,
-      marcaBollo,tipoFattura:tipoFatt,
+      totalelordo,sconto:scontoNum,totale:totaleFin,
+      marcaBollo:haBollo,tipoFattura:tipoFatt,
       statoPagamento:statoFatt};
     if(editId){
       setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
@@ -3125,15 +3135,12 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><b style={{fontSize:15,color:T.text}}>{fmtEur(r.totale)}</b></td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div>
-                    <select value={r.statoPagamento||"non_pagato"} onChange={e=>{e.stopPropagation();cambiaStato(r.id,e.target.value);}} onClick={e=>e.stopPropagation()}
-                      style={{padding:"5px 10px",fontSize:12.5,fontWeight:600,borderRadius:20,fontFamily:"inherit",cursor:"pointer",border:"2px solid",
-                        borderColor:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
-                        color:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
-                        background:r.statoPagamento==="pagato"?"#ECFDF5":r.statoPagamento==="parziale"?"#FFFBEB":"#FEF2F2"}}>
-                      <option value="non_pagato">Non pagato</option>
-                      <option value="parziale">Acconto</option>
-                      <option value="pagato">Pagato</option>
-                    </select>
+                    <span style={{padding:"4px 12px",fontSize:12.5,fontWeight:600,borderRadius:20,
+                      border:`1px solid ${r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626"}`,
+                      color:r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626",
+                      background:r.statoPagamento==="pagato"?"#ECFDF5":r.statoPagamento==="parziale"?"#FFFBEB":"#FEF2F2"}}>
+                      {r.statoPagamento==="pagato"?"✓ Pagato":r.statoPagamento==="parziale"?"💰 Acconto":"⏳ Da pagare"}
+                    </span>
                     {r.tipoFattura==="acconto"&&r.preventivoId&&(()=>{
                       const prev=preventivi.find(p=>String(p.id)===String(r.preventivoId));
                       const residuo=prev?Math.max(0,prev.totale-r.totale):0;
@@ -3220,7 +3227,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                     <div style={{fontSize:13,color:T.textSub}}>{f.metodoPagamento}</div>
                     <div style={{fontSize:14,fontWeight:700,color:T.success}}>{fmtEur(f.totale)}</div>
                     <div style={{display:"flex",gap:4}}>
-                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f,pazienti)}>🖨️</Btn>
+                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f,pazienti,fatture)}>🖨️</Btn>
                     </div>
                   </div>
                 ))}
@@ -4041,7 +4048,11 @@ const NAV=[
 
 
 function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventivi, fatture, canView}) {
-  const counts={agenda:appuntamenti.filter(a=>a.data===todayISO()).length,pazienti:pazienti.length,preventivi:preventivi.filter(p=>p.stato==="in_attesa").length,fatture:fatture.filter(f=>f.statoPagamento!=="pagato").length};
+  const counts={agenda:appuntamenti.filter(a=>a.data===todayISO()).length,pazienti:pazienti.length,preventivi:preventivi.filter(p=>p.stato==="in_attesa").length,fatture:(()=>{
+      const nonPagate=fatture.filter(f=>f.statoPagamento==="non_pagato").length;
+      const daSaldare=preventivi.filter(p=>p.stato==="accettato"&&fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale")&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato")).length;
+      return nonPagate+daSaldare;
+    })()};
   const alerts={preventivi:counts.preventivi>0,fatture:counts.fatture>0};
   return <aside style={{width:220,minHeight:"100vh",background:"#0F1923",display:"flex",flexDirection:"column",flexShrink:0}}>
     <div style={{padding:"16px",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
