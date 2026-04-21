@@ -124,12 +124,7 @@ function useStore(key, init) {
             if (r.gruppo_sanguigno !== undefined) { r.gruppoSanguigno = r.gruppo_sanguigno; delete r.gruppo_sanguigno; }
             if (r.medico_base !== undefined) { r.medicoBase = r.medico_base; delete r.medico_base; }
             if (r.denti_stato !== undefined) { r.dentiStato = r.denti_stato || {}; delete r.denti_stato; }
-            if (r.tipo_fattura !== undefined) { r.tipoFattura = r.tipo_fattura; delete r.tipo_fattura; }
-            if (r.luogo_nascita !== undefined) { r.luogoNascita = r.luogo_nascita; delete r.luogo_nascita; }
-            if (r.provincia_nascita !== undefined) { r.provinciaNascita = r.provincia_nascita; delete r.provincia_nascita; }
-            if (r.marca_bollo !== undefined) { r.marcaBollo = r.marca_bollo; delete r.marca_bollo; }
             if (r.voci && typeof r.voci === "string") { try { r.voci = JSON.parse(r.voci); } catch(e) { r.voci = []; } }
-            if (r.anamnesi && typeof r.anamnesi === "string") { try { r.anamnesi = JSON.parse(r.anamnesi); } catch(e) { r.anamnesi = {}; } }
             return r;
           });
           setVal(mapped);
@@ -155,42 +150,20 @@ function useStore(key, init) {
         const {error: delErr} = await supabase.from(table).delete().neq("id", 0);
         if (delErr) throw delErr;
         if (next.length > 0) {
-          const toRow = (r) => {
-            const n = (x) => (x === "" || x === undefined) ? null : x;
-            if (table === "pazienti") return {
-              id: r.id, nome: n(r.nome), cognome: n(r.cognome),
-              telefono: n(r.telefono), email: n(r.email), indirizzo: n(r.indirizzo),
-              note: n(r.note), allergie: n(r.allergie), farmaci: n(r.farmaci),
-              data_nascita: n(r.dataNascita), data_registrazione: n(r.dataRegistrazione),
-              codice_fiscale: n(r.codiceFiscale), denti_stato: r.dentiStato||{},
-              anamnesi: r.anamnesi||{}, luogo_nascita: n(r.luogoNascita),
-              provincia_nascita: n(r.provinciaNascita),
-            };
-            if (table === "appuntamenti") return {
-              id: r.id, paziente_id: n(r.pazienteId), data: n(r.data),
-              ora_inizio: n(r.oraInizio), durata: r.durata||60,
-              tipo: n(r.tipo), stato: n(r.stato), note: n(r.note),
-              operatore: n(r.operatore),
-            };
-            if (table === "preventivi") return {
-              id: r.id, paziente_id: n(r.pazienteId), data: n(r.data),
-              voci: r.voci||[], totale: r.totale||0, stato: n(r.stato),
-              nota: n(r.nota), sconto: r.sconto||0,
-            };
-            if (table === "fatture") return {
-              id: r.id, paziente_id: n(r.pazienteId), preventivo_id: n(r.preventivoId),
-              data: n(r.data), numero: n(r.numero), voci: r.voci||[],
-              totale: r.totale||0, totalelordo: r.totalelordo||0, sconto: r.sconto||0,
-              stato_pagamento: n(r.statoPagamento), metodo_pagamento: n(r.metodoPagamento),
-              tipo_fattura: n(r.tipoFattura)||"saldo", marca_bollo: r.marcaBollo||false,
-              note: n(r.note),
-            };
-            if (table === "listino") return {
-              id: r.id, nome: n(r.nome), categoria: n(r.categoria), prezzo: r.prezzo||0,
-            };
-            return {id: r.id};
-          };
-          const rows = next.map(toRow);
+          const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
+            ...rest,
+            ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
+            ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
+            ...(pazienteId !== undefined && {paziente_id: nullIfEmpty(pazienteId)}),
+            ...(preventivoId !== undefined && {preventivo_id: nullIfEmpty(preventivoId)}),
+            ...(codiceFiscale !== undefined && {codice_fiscale: nullIfEmpty(codiceFiscale)}),
+            ...(statoPagamento !== undefined && {stato_pagamento: nullIfEmpty(statoPagamento)}),
+            ...(metodoPagamento !== undefined && {metodo_pagamento: nullIfEmpty(metodoPagamento)}),
+            ...(oraInizio !== undefined && {ora_inizio: nullIfEmpty(oraInizio)}),
+            ...(gruppoSanguigno !== undefined && {gruppo_sanguigno: nullIfEmpty(gruppoSanguigno)}),
+            ...(medicoBase !== undefined && {medico_base: nullIfEmpty(medicoBase)}),
+            ...(dentiStato !== undefined && {denti_stato: dentiStato}),
+          }));
           const {error: insErr} = await supabase.from(table).insert(rows);
           if (insErr) throw insErr;
         }
@@ -2177,10 +2150,10 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
               {apts.map(a=>{
                 const bs=BADGE[a.stato]||{};
                 const dur=a.durata||60;
-                const slotH=Math.max(Math.round(dur/60*50),28);const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?24:0;
+                const slotH=Math.max(Math.round(dur/60*50),28);
                 return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}}
                   style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,
-                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",marginTop:topOffset,
+                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",
                     display:"flex",alignItems:"flex-start",gap:10}}>
                   <div style={{flex:1}}>
                     <div style={{fontSize:13,fontWeight:700,color:bs.color||T.brandDark}}>{a.oraInizio} — {getPaz(a.pazienteId)}</div>
@@ -2207,21 +2180,17 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
             <div style={{fontSize:11,fontWeight:600,color:isToday?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5}}>{GIORNI[i]}</div>
             <div style={{width:30,height:30,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"4px auto 0",fontSize:15,fontWeight:700,color:isToday?"#fff":T.text}}>{dt.getDate()}</div>
             {cnt>0&&<div style={{fontSize:10,color:T.brand,fontWeight:600,marginTop:2}}>{cnt}</div>}
-            <button onClick={e=>{e.stopPropagation();toggleGiornoChiuso(iso);}}
-              style={{marginTop:3,padding:"2px 6px",borderRadius:8,border:`1px solid ${isClosed?"#EF4444":T.border}`,background:isClosed?"#FEF2F2":"transparent",color:isClosed?"#EF4444":T.textMuted,cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:600,display:"block",margin:"3px auto 0"}}>
-              {isClosed?"🔴 Chiuso":"Chiudi"}
-            </button>
+            {isClosed&&<div style={{fontSize:9,color:"#EF4444",fontWeight:700,marginTop:1}}>🔴</div>}
           </div>;})}
         </div>
         <div style={{maxHeight:560,overflowY:"auto"}}>
           {HOURS.map(hour=><div key={hour} style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",minHeight:46,borderBottom:`1px solid ${T.border}`}}>
             <div style={{padding:"4px 8px",textAlign:"right",fontSize:11,color:T.textMuted,paddingTop:6,borderRight:`1px solid ${T.border}`,background:T.bg}}>{hour}</div>
             {weekDays.map((dt,i)=>{const iso=dt.toISOString().slice(0,10);const isToday=iso===todayISO();const apts=getApts(iso).filter(a=>a.oraInizio&&a.oraInizio.split(":")[0]===hour.split(":")[0]);
-              const isClosed=giorniChiusi.includes(iso);
-              return <div key={i} onClick={()=>!isClosed&&apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isClosed?"repeating-linear-gradient(45deg,#fee2e2,#fee2e2 3px,#fff 3px,#fff 10px)":isToday?"#FAFFFE":"transparent",cursor:isClosed?"not-allowed":apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
+              return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
-                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=dur<=30?22:dur<=45?33:dur<=60?44:Math.round(dur/60*44);const multiSlot=dur>60;const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?22:0;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",marginTop:topOffset,position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
+                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=dur<=30?22:dur<=45?33:dur<=60?44:Math.round(dur/60*44);const multiSlot=dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
                   <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
                   <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}{a.durata?" ("+a.durata+"min)":""}</div>
                 </div>;})}
@@ -2585,11 +2554,8 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
 
 
 
-function stampaFattura(fatt, pazientiList, fattureList) {
+function stampaFattura(fatt, pazientiList) {
     const paz = (pazientiList||[]).find(x=>x.id===fatt.pazienteId);
-    const isSaldo = fatt.tipoFattura==="saldo" && fatt.preventivoId;
-    const accontoFatt = isSaldo ? (fattureList||[]).find(f=>String(f.preventivoId)===String(fatt.preventivoId)&&f.statoPagamento==="parziale") : null;
-    const accontoBase = accontoFatt ? (accontoFatt.marcaBollo ? accontoFatt.totale-2 : accontoFatt.totale) : 0;
     const nomePaz = paz ? paz.cognome+" "+paz.nome : "—";
     const indPaz = [paz?.indirizzo, paz?.citta, paz?.codiceFiscale].filter(Boolean);
     const dataEmissione = fatt.data
@@ -2680,16 +2646,12 @@ function stampaFattura(fatt, pazientiList, fattureList) {
       +"<div>MARCA DA</div><div>BOLLO SU</div><div>ORIGINALE</div>"
       +"</td>"
       +"<td style='width:40%;font-size:10.5pt;vertical-align:top;line-height:2'>"
-      +"<div>TOTALE PRESTAZIONI</div>"
-      +(accontoBase>0?"<div style=\'color:#D97706\'>ACCONTO GIÀ FATTURATO</div>":"")
-      +(accontoBase>0?"<div style=\'color:#1D4ED8\'>NETTO DA SALDARE</div>":"")
-      +"<div>MARCA DA BOLLO</div>"
-      +"<div style=\'font-weight:700\'>TOTALE FATTURA</div>"
+      +"<div>TOTALE</div>"
+      +"<div>BOLLO</div>"
+      +"<div>TOTALE FATTURA</div>"
       +"</td>"
-      +"<td style=\'width:35%;text-align:right;font-size:10.5pt;vertical-align:top;line-height:2\'>"
+      +"<td style='width:35%;text-align:right;font-size:10.5pt;vertical-align:top;line-height:2'>"
       +"<div>&euro; "+totaleVoci.toFixed(2)+"</div>"
-      +(accontoBase>0?"<div style=\'color:#D97706\'>&minus;&euro; "+accontoBase.toFixed(2)+"</div>":"")
-      +(accontoBase>0?"<div style=\'color:#1D4ED8\'>&euro; "+(totaleVoci-accontoBase).toFixed(2)+"</div>":"")
       +"<div>&euro; "+bolloVal.toFixed(2)+"</div>"
       +"<div><b>&euro; "+totaleFattura.toFixed(2)+"</b></div>"
       +"</td>"
@@ -2782,12 +2744,10 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     const residuoFatt=existingAcc?Math.max(0,totale-existingAcc.totale):totale;
     const importoFatt=isAcconto?(Number(accontoValore)||0):residuoFatt;
     const statoFatt=isAcconto?"parziale":"pagato";
-    const haBollo=importoFatt>77.47;
-    const vociFinal=[...form.voci.filter(v=>v.nome!=="Marca da bollo"),...(haBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
-    const totaleFin=importoFatt+(haBollo?2:0);
+    const vociFinal=[...form.voci,...(marcaBollo?[{nome:"Marca da bollo",prezzo:2,qty:1}]:[])];
     const fattData={...form,voci:vociFinal,pazienteId:Number(form.pazienteId),
-      totalelordo,sconto:scontoNum,totale:totaleFin,
-      marcaBollo:haBollo,tipoFattura:tipoFatt,
+      totalelordo,sconto:scontoNum,totale:importoFatt,
+      marcaBollo,tipoFattura:tipoFatt,
       statoPagamento:statoFatt};
     if(editId){
       setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
@@ -2941,7 +2901,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div style={{display:"flex",gap:4}}>
-                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti,fatture);}}>🖨️ Stampa</Btn>
+                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti);}}>🖨️ Stampa</Btn>
                     <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
                   </div>
                 </td>
@@ -2991,7 +2951,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                     <div style={{fontSize:13,color:T.textSub}}>{f.metodoPagamento}</div>
                     <div style={{fontSize:14,fontWeight:700,color:T.success}}>{fmtEur(f.totale)}</div>
                     <div style={{display:"flex",gap:4}}>
-                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f,pazienti,fatture)}>🖨️</Btn>
+                      <Btn size="xs" variant="ghost" onClick={()=>stampaFattura(f,pazienti)}>🖨️</Btn>
                     </div>
                   </div>
                 ))}
