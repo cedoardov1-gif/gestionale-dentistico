@@ -178,9 +178,12 @@ function useStore(key, init) {
       const toUpsert=next.map(r=>toSupabaseRow(table,r));
       const toDelete=val.filter(x=>!nextIds.has(String(x.id))).map(x=>x.id);
       try{
+        try{window._setSyncing&&window._setSyncing(true);}catch(e){}
+        if(window._supabaseSaveStart)window._supabaseSaveStart();
         if(toUpsert.length>0){const{error}=await supabase.from(table).upsert(toUpsert,{onConflict:"id"});if(error)throw error;}
         if(toDelete.length>0){const{error}=await supabase.from(table).delete().in("id",toDelete);if(error)throw error;}
         console.log("✓ Supabase sync:",table);
+        try{window._setSyncing&&window._setSyncing(false);window._setLastSync&&window._setLastSync(new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}));}catch(e){}
       }catch(err){
         console.warn("✗ Supabase error:",err?.message||err);
         setTimeout(async()=>{try{const{supabase:sb}=await import("./supabase.js");if(toUpsert.length>0)await sb.from(table).upsert(toUpsert,{onConflict:"id"});if(toDelete.length>0)await sb.from(table).delete().in("id",toDelete);console.log("✓ Supabase retry ok:",table);}catch(e2){console.error("✗ Supabase failed:",e2?.message||e2);}},3000);
@@ -193,36 +196,70 @@ function useStore(key, init) {
 
 
 function useAuth() {
-  const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem("dsd_user")); } catch { return null; } });
-  const login = (u) => { localStorage.setItem("dsd_user", JSON.stringify(u)); setUser(u); };
-  const logout = () => { localStorage.removeItem("dsd_user"); setUser(null); };
-  return {user, login, logout};
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    // Check existing session on mount
+    import("./supabase.js").then(({supabase}) => {
+      supabase.auth.getSession().then(({data:{session}}) => {
+        if(session?.user) {
+          const role = UTENTI_DEFAULT.find(u => u.email === session.user.email);
+          if(role) setUser({...role, supabaseId: session.user.id});
+        }
+        setAuthLoading(false);
+      });
+      // Listen for auth changes
+      const {data:{subscription}} = supabase.auth.onAuthStateChange((_event, session) => {
+        if(session?.user) {
+          const role = UTENTI_DEFAULT.find(u => u.email === session.user.email);
+          if(role) setUser({...role, supabaseId: session.user.id});
+          else setUser(null);
+        } else {
+          setUser(null);
+        }
+      });
+      return () => subscription.unsubscribe();
+    }).catch(() => {
+      // Fallback: use localStorage if supabase unavailable
+      try { const s = localStorage.getItem("dsd_user"); if(s) setUser(JSON.parse(s)); } catch(e) {}
+      setAuthLoading(false);
+    });
+  }, []);
+
+  const login = async (email, password) => {
+    try {
+      const {supabase} = await import("./supabase.js");
+      const {data, error} = await supabase.auth.signInWithPassword({email, password});
+      if(error) throw error;
+      const role = UTENTI_DEFAULT.find(u => u.email === email);
+      if(!role) throw new Error("Utente non autorizzato");
+      const u = {...role, supabaseId: data.user.id};
+      localStorage.setItem("dsd_user", JSON.stringify(u));
+      setUser(u);
+      return {ok: true};
+    } catch(err) {
+      // Fallback to local auth if Supabase unavailable
+      const stored = (() => { try { const s = localStorage.getItem("dsd_utenti"); return s ? JSON.parse(s) : UTENTI_DEFAULT; } catch(e) { return UTENTI_DEFAULT; } })();
+      const u = stored.find(u => u.email === email && u.password === password && u.attivo !== false);
+      if(u) { localStorage.setItem("dsd_user", JSON.stringify(u)); setUser(u); return {ok: true}; }
+      return {ok: false, error: err.message || "Email o password non corretti"};
+    }
+  };
+
+  const logout = async () => {
+    try {
+      const {supabase} = await import("./supabase.js");
+      await supabase.auth.signOut();
+    } catch(e) {}
+    localStorage.removeItem("dsd_user");
+    setUser(null);
+  };
+
+  return {user, login, logout, authLoading};
 }
 
 
-const BADGE = {
-  confermato:{bg:"#ECFDF5",color:"#059669",dot:"#10B981"},
-  completato:{bg:"#EFF6FF",color:"#2563EB",dot:"#3B82F6"},
-  attesa:{bg:"#FFFBEB",color:"#D97706",dot:"#F59E0B"},
-  urgente:{bg:"#FEF2F2",color:"#DC2626",dot:"#EF4444"},
-  annullato:{bg:"#F9FAFB",color:"#6B7280",dot:"#9CA3AF"},
-  pagato:{bg:"#ECFDF5",color:"#059669",dot:"#10B981"},
-  non_pagato:{bg:"#FEF2F2",color:"#DC2626",dot:"#EF4444"},
-  parziale:{bg:"#FFFBEB",color:"#D97706",dot:"#F59E0B"},
-  in_attesa:{bg:"#FFFBEB",color:"#D97706",dot:"#F59E0B"},
-  accettato:{bg:"#ECFDF5",color:"#059669",dot:"#10B981"},
-  rifiutato:{bg:"#FEF2F2",color:"#DC2626",dot:"#EF4444"},
-  admin:{bg:"#EFF6FF",color:"#2563EB",dot:"#3B82F6"},
-  assistente:{bg:"#F5F3FF",color:"#7C3AED",dot:"#8B5CF6"},
-  fatturato:{bg:"#EFF6FF",color:"#1D4ED8",dot:"#3B82F6"},
-};
-
-const _cr={fn:null};
-async function gConfirm(t,m="",l="Conferma",d=true){
-  if(_cr.fn)return _cr.fn(t,m,l,d);
-  return window.confirm(t+(m?"\n"+m:""));
-}
-const ToastCtx=createContext(null);
 function ToastProvider({children}){
   const [ts,setTs]=useState([]);
   const show=useCallback((msg,type="success",ms=3500)=>{
@@ -434,6 +471,35 @@ function GlobalSearch({pazienti, preventivi, fatture, onNav, onOpenPaziente, onO
   );
 }
 
+// ── Indicatore connessione ────────────────────────────────────────────────
+function useConnectionStatus(){
+  const [status,setStatus]=useState("online");
+  const [syncCount,setSyncCount]=useState(0);
+  useEffect(()=>{
+    function onOnline(){setSyncCount(n=>{if(n<=0)setStatus("online");return n;});}
+    function onOffline(){setStatus("offline");}
+    window.addEventListener("online",onOnline);
+    window.addEventListener("offline",onOffline);
+    if(!navigator.onLine)setStatus("offline");
+    return()=>{window.removeEventListener("online",onOnline);window.removeEventListener("offline",onOffline);};
+  },[]);
+  useEffect(()=>{
+    window._supabaseSaveStart=()=>{setSyncCount(n=>n+1);setStatus("syncing");};
+    window._supabaseSaveEnd=()=>{setSyncCount(n=>{const next=Math.max(0,n-1);if(next===0)setStatus(navigator.onLine?"online":"offline");return next;});};
+  },[]);
+  return status;
+}
+function ConnectionIndicator(){
+  const status=useConnectionStatus();
+  const C={online:{color:"#10B981",bg:"rgba(16,185,129,0.15)",label:"🟢 Online"},offline:{color:"#EF4444",bg:"rgba(239,68,68,0.15)",label:"🔴 Offline"},syncing:{color:"#F59E0B",bg:"rgba(245,158,11,0.15)",label:"🔄 Sincronizzazione..."}};
+  const c=C[status]||C.online;
+  return(
+    <div style={{margin:"6px 10px 2px",padding:"5px 12px",borderRadius:20,background:c.bg,display:"flex",alignItems:"center",gap:6}}>
+      <span style={{fontSize:11.5,color:c.color,fontWeight:600}}>{c.label}</span>
+    </div>
+  );
+}
+
 function Badge({label, status}) {
   const s = BADGE[status||label] || {bg:"#F3F4F6",color:"#6B7280",dot:"#9CA3AF"};
   return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:s.bg,color:s.color,whiteSpace:"nowrap"}}><span style={{width:5,height:5,borderRadius:"50%",background:s.dot}}/>{label}</span>;
@@ -618,7 +684,25 @@ function LoginPage({onLogin}) {
     }catch(e){}
     setRecoveryResult({ok:true,name:u.nome,code});
   }
-  function go() { setLoading(true); setErr(""); setTimeout(()=>{ const stored=()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}}; const u=stored().find(u=>u.email===email&&u.password===pwd&&u.attivo!==false); if(u){onLogin(u);}else{setErr("Email o password non corretti");} setLoading(false); },600); }
+  function go() { setLoading(true); setErr("");
+    import("./supabase.js").then(async({supabase})=>{
+      const {data,error}=await supabase.auth.signInWithPassword({email:email.trim(),password:pwd});
+      if(error){
+        // Fallback locale
+        const stored=(()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}})();
+        const u=stored.find(u=>u.email===email.trim()&&u.password===pwd&&u.attivo!==false);
+        if(u){onLogin(u);}else{setErr("Email o password non corretti");}
+      } else {
+        const role=UTENTI_DEFAULT.find(u=>u.email===email.trim());
+        if(role){onLogin({...role,supabaseId:data.user.id});}else{setErr("Utente non autorizzato.");}
+      }
+      setLoading(false);
+    }).catch(()=>{
+      const stored=(()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}})();
+      const u=stored.find(u=>u.email===email.trim()&&u.password===pwd&&u.attivo!==false);
+      if(u){onLogin(u);}else{setErr("Email o password non corretti");}
+      setLoading(false);
+    }); }
   const onKey = e => { if(e.key==="Enter") go(); };
   return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#EBF8F7 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:"100%",maxWidth:400}}>
@@ -4271,16 +4355,18 @@ function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventiv
           <div style={{fontSize:12.5,color:"#fff",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nome} {user.cognome}</div>
           <Badge label={user.ruolo} status={user.ruolo}/>
         </div>
+        <ConnectionIndicator/>
         <button onClick={onLogout} title="Esci" style={{background:"none",border:"none",cursor:"pointer",color:"rgba(255,255,255,0.3)",fontSize:16,padding:"2px 4px",borderRadius:4}}
           onMouseEnter={e=>e.currentTarget.style.color="rgba(255,255,255,0.8)"}
           onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,0.3)"}>⏏</button>
       </div>
     </div>
+    <ConnectionIndicator/>
   </aside>;
 }
 
 export default function App() {
-  const {user, login, logout} = useAuth();
+  const {user, login, logout, authLoading} = useAuth();
   const [confirmFn,confirmModal]=useConfirm();
   const toast=useToast();
   React.useEffect(()=>{_cr.fn=confirmFn;},[confirmFn]);
@@ -4306,6 +4392,13 @@ export default function App() {
   });
   useEffect(()=>{try{localStorage.setItem("dsd_impostazioni",JSON.stringify(impostazioni));}catch(e){}}, [impostazioni]);
 
+  if(authLoading) return(
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#0F1923",flexDirection:"column",gap:16}}>
+      <div style={{width:48,height:48,border:"4px solid rgba(91,191,181,0.2)",borderTop:"4px solid #5BBFB5",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
+      <div style={{color:"rgba(255,255,255,0.6)",fontSize:14}}>Caricamento...</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
   if (!user) return <LoginPage onLogin={login}/>;
 
   function navTo(v,pazId){setView(v);if(pazId!==undefined)setOpenPazienteId(pazId);setSidebarOpen(false);}
