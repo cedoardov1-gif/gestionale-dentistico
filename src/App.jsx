@@ -653,11 +653,10 @@ function LoginPage({onLogin}) {
     }catch(e){}
     setRecoveryResult({ok:true,name:u.nome,code});
   }
-  function go() {
+  async function go() {
     setLoading(true); setErr("");
-    const stored=(()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}})();
-    const u=stored.find(u=>u.email===email.trim()&&u.password===pwd&&u.attivo!==false);
-    if(u){onLogin(u);}else{setErr("Email o password non corretti");}
+    const result = await onLogin(email.trim(), pwd);
+    if(result && !result.ok) setErr(result.error || "Email o password non corretti");
     setLoading(false);
   }
   const onKey = e => { if(e.key==="Enter") go(); };
