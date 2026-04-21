@@ -2420,7 +2420,7 @@ const HOURS_FORM=Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const 
 const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const GIORNI=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
-function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listino, onNav}, user}) {
+function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listino, onNav, user}) {
   const [curDate, setCurDate] = useState(new Date()); const [calView, setCalView] = useState("week"); const [modal, setModal] = useState(false); const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({pazienteId:"",data:todayISO(),oraInizio:"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
