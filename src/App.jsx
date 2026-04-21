@@ -260,6 +260,13 @@ function useAuth() {
 }
 
 
+const _cr={fn:null};
+async function gConfirm(t,m="",l="Conferma",d=true){
+  if(_cr.fn)return _cr.fn(t,m,l,d);
+  return window.confirm(t+(m?"\n"+m:""));
+}
+
+const ToastCtx = createContext(null);
 function ToastProvider({children}){
   const [ts,setTs]=useState([]);
   const show=useCallback((msg,type="success",ms=3500)=>{
