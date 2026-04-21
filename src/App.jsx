@@ -200,63 +200,20 @@ function useAuth() {
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    // Check existing session on mount
-    import("./supabase.js").then(({supabase}) => {
-      supabase.auth.getSession().then(({data:{session}}) => {
-        if(session?.user) {
-          const role = UTENTI_DEFAULT.find(u => u.email === session.user.email);
-          if(role) setUser({...role, supabaseId: session.user.id});
-        }
-        setAuthLoading(false);
-      });
-      // Listen for auth changes
-      const {data:{subscription}} = supabase.auth.onAuthStateChange((_event, session) => {
-        if(session?.user) {
-          const role = UTENTI_DEFAULT.find(u => u.email === session.user.email);
-          if(role) setUser({...role, supabaseId: session.user.id});
-          else setUser(null);
-        } else {
-          setUser(null);
-        }
-      });
-      return () => subscription.unsubscribe();
-    }).catch(() => {
-      // Fallback: use localStorage if supabase unavailable
-      try { const s = localStorage.getItem("dsd_user"); if(s) setUser(JSON.parse(s)); } catch(e) {}
-      setAuthLoading(false);
-    });
+    try { const s = localStorage.getItem("dsd_user"); if(s) setUser(JSON.parse(s)); } catch(e) {}
+    setAuthLoading(false);
   }, []);
 
   const login = async (email, password) => {
-    // Prima verifica credenziali locali
     const stored = (() => { try { const s = localStorage.getItem("dsd_utenti"); return s ? JSON.parse(s) : UTENTI_DEFAULT; } catch(e) { return UTENTI_DEFAULT; } })();
-    const localUser = stored.find(u => u.email === email && u.password === password && u.attivo !== false);
-    if(!localUser) return {ok: false, error: "Email o password non corretti"};
-    
-    // Credenziali locali OK — prova anche Supabase Auth per la sessione persistente
-    try {
-      const {supabase} = await import("./supabase.js");
-      const {data, error} = await supabase.auth.signInWithPassword({email, password});
-      if(!error && data?.user) {
-        const u = {...localUser, supabaseId: data.user.id};
-        localStorage.setItem("dsd_user", JSON.stringify(u));
-        setUser(u);
-        return {ok: true};
-      }
-    } catch(err) {
-      // Supabase non raggiungibile — usa solo auth locale
-    }
-    // Fallback: login locale senza sessione Supabase
-    localStorage.setItem("dsd_user", JSON.stringify(localUser));
-    setUser(localUser);
+    const u = stored.find(u => u.email === email && u.password === password && u.attivo !== false);
+    if(!u) return {ok: false, error: "Email o password non corretti"};
+    localStorage.setItem("dsd_user", JSON.stringify(u));
+    setUser(u);
     return {ok: true};
   };
 
-  const logout = async () => {
-    try {
-      const {supabase} = await import("./supabase.js");
-      await supabase.auth.signOut();
-    } catch(e) {}
+  const logout = () => {
     localStorage.removeItem("dsd_user");
     setUser(null);
   };
@@ -696,25 +653,13 @@ function LoginPage({onLogin}) {
     }catch(e){}
     setRecoveryResult({ok:true,name:u.nome,code});
   }
-  function go() { setLoading(true); setErr("");
-    import("./supabase.js").then(async({supabase})=>{
-      const {data,error}=await supabase.auth.signInWithPassword({email:email.trim(),password:pwd});
-      if(error){
-        // Fallback locale
-        const stored=(()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}})();
-        const u=stored.find(u=>u.email===email.trim()&&u.password===pwd&&u.attivo!==false);
-        if(u){onLogin(u);}else{setErr("Email o password non corretti");}
-      } else {
-        const role=UTENTI_DEFAULT.find(u=>u.email===email.trim());
-        if(role){onLogin({...role,supabaseId:data.user.id});}else{setErr("Utente non autorizzato.");}
-      }
-      setLoading(false);
-    }).catch(()=>{
-      const stored=(()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}})();
-      const u=stored.find(u=>u.email===email.trim()&&u.password===pwd&&u.attivo!==false);
-      if(u){onLogin(u);}else{setErr("Email o password non corretti");}
-      setLoading(false);
-    }); }
+  function go() {
+    setLoading(true); setErr("");
+    const stored=(()=>{try{const s=localStorage.getItem("dsd_utenti");return s?JSON.parse(s):UTENTI_DEFAULT;}catch(e){return UTENTI_DEFAULT;}})();
+    const u=stored.find(u=>u.email===email.trim()&&u.password===pwd&&u.attivo!==false);
+    if(u){onLogin(u);}else{setErr("Email o password non corretti");}
+    setLoading(false);
+  }
   const onKey = e => { if(e.key==="Enter") go(); };
   return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#EBF8F7 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:"100%",maxWidth:400}}>
