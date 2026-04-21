@@ -757,9 +757,9 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
   const today=todayISO(), now=new Date();
   const todayApts=appuntamenti.filter(a=>a.data===today).sort((a,b)=>a.oraInizio.localeCompare(b.oraInizio));
   const mese=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
-  const meseInc=mese.filter(f=>f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
+  const meseInc=mese.filter(f=>f.statoPagamento==="pagato"||f.statoPagamento==="parziale").reduce((s,f)=>s+f.totale,0);
   const mesePrev=fatture.filter(f=>{const d=new Date(f.data);const p=new Date(now);p.setMonth(p.getMonth()-1);return d.getMonth()===p.getMonth()&&d.getFullYear()===p.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
-  const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
+  const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&(f.statoPagamento==="pagato"||f.statoPagamento==="parziale")).reduce((s,f)=>s+f.totale,0);
   const daPagare=fatture.filter(f=>f.statoPagamento==="non_pagato").reduce((s,f)=>s+f.totale,0);
   const trend=mesePrev>0?Math.round((meseInc-mesePrev)/mesePrev*100):0;
   const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(6-i));const iso=d.toISOString().slice(0,10);const rev=fatture.filter(f=>f.data===iso&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);return{label:d.toLocaleDateString("it-IT",{weekday:"short"}),rev,isToday:iso===today};});
@@ -1737,6 +1737,7 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
   const [fattMetodo, setFattMetodo] = useState("Contanti");
   const [fattStato, setFattStato] = useState("pagato");
   const [fattTipo, setFattTipo] = useState("saldo");
+  const [fattNumero, setFattNumero] = useState("");
   const [fattAcconto, setFattAcconto] = useState("");
   const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",luogoNascita:"",provinciaNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
@@ -1816,7 +1817,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
     if(!prev)return alert("Seleziona un preventivo accettato");
     const anno=new Date().getFullYear();
     const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;
-    const numero=String(n).padStart(2,'0')+'/'+anno;
+    const autoNumero=String(n).padStart(2,'0')+'/'+anno;
+    const numero=(fattNumero&&fattNumero.trim())?fattNumero.trim():autoNumero;
     const isAcconto=fattTipo==="acconto";
     const existingAcconto=fatture.find(f=>String(f.preventivoId)===String(prev.id)&&f.statoPagamento==="parziale");
     const accontoBase=existingAcconto?(existingAcconto.marcaBollo?existingAcconto.totale-2:existingAcconto.totale):0;
@@ -2350,6 +2352,14 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
               style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
           </div>
         )}
+        {/* N. Fattura manuale */}
+        <div style={{marginBottom:14}}>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>N. Fattura (opzionale)</label>
+          <input value={fattNumero} onChange={e=>setFattNumero(e.target.value)}
+            placeholder={`Auto: ${String(fatture.filter(f=>f.numero&&f.numero.endsWith('/'+new Date().getFullYear())).length+1).padStart(2,'0')+'/'+new Date().getFullYear()}`}
+            style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",outline:"none"}}/>
+          <p style={{fontSize:11,color:T.textSub,marginTop:4}}>Lascia vuoto per numerazione automatica</p>
+        </div>
         {/* Metodo pagamento */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
           <div>
@@ -2493,7 +2503,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
   const weekDays=useMemo(()=>Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);return d;}),[weekStart]);
   const monthDays=useMemo(()=>{const y=curDate.getFullYear(),m=curDate.getMonth();const first=new Date(y,m,1);const startDow=first.getDay()===0?6:first.getDay()-1;const dim=new Date(y,m+1,0).getDate();const prev=new Date(y,m,0).getDate();const cells=[];for(let i=0;i<startDow;i++)cells.push({d:new Date(y,m-1,prev-startDow+1+i),other:true});for(let i=1;i<=dim;i++)cells.push({d:new Date(y,m,i),other:false});while(cells.length%7!==0)cells.push({d:new Date(y,m+1,cells.length-startDow-dim+1),other:true});return cells;},[curDate]);
   const nav=dir=>{const d=new Date(curDate);d.setDate(d.getDate()+dir*(calView==="week"?7:1));setCurDate(d);};
-  function openNew(data,ora){setForm({pazienteId:"",data:data.toISOString().slice(0,10),oraInizio:ora||"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});setEditId(null);setShowNewPaz(false);setNewPazForm({nome:"",cognome:"",telefono:"",email:""});setModal(true);}
+  function openNew(data,ora){const isoDay=data.toISOString().slice(0,10);if(giorniChiusi.includes(isoDay)){toast("Giorno chiuso — impossibile inserire appuntamenti","warning");return;}setForm({pazienteId:"",data:data.toISOString().slice(0,10),oraInizio:ora||"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});setEditId(null);setShowNewPaz(false);setNewPazForm({nome:"",cognome:"",telefono:"",email:""});setModal(true);}
   function openEdit(a){setForm(a);setEditId(a.id);setShowNewPaz(false);setModal(true);}
   function save(){if(!form.pazienteId||!form.data)return alert("Seleziona paziente e data");if(editId)setAppuntamenti(p=>p.map(x=>x.id===editId?{...form,id:editId,durata:Number(form.durata)}:x));else setAppuntamenti(p=>[...p,{...form,id:uid(),durata:Number(form.durata)}]);
     const _ap=pazienti.find(x=>String(x.id)===String(form.pazienteId));
@@ -3364,7 +3374,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   }
 
   const now=new Date();
-  const meseInc=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato";}).reduce((s,f)=>s+f.totale,0);
+  const meseInc=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear()&&(f.statoPagamento==="pagato"||f.statoPagamento==="parziale");}).reduce((s,f)=>s+f.totale,0);
   const annInc=fatture.filter(f=>new Date(f.data).getFullYear()===now.getFullYear()&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0);
   const daPagare=fatture.filter(f=>f.statoPagamento==="non_pagato").reduce((s,f)=>s+f.totale,0);
   const prevDaFatturare=preventivi.filter(p=>p.stato==="accettato"&&!fatture.some(f=>String(f.preventivoId)===String(p.id)));
@@ -3799,7 +3809,7 @@ function ReportView({fatture, appuntamenti, pazienti, listino, preventivi}) {
     sempre:()=>true
   };
 
-  const filtFatt=fatture.filter(f=>ranges[period](f.data)&&f.statoPagamento==="pagato");
+  const filtFatt=fatture.filter(f=>ranges[period](f.data)&&(f.statoPagamento==="pagato"||f.statoPagamento==="parziale"));
   const filtFattEmesse=fatture.filter(f=>ranges[period](f.data)&&(f.statoPagamento==="pagato"||f.statoPagamento==="parziale"));
   const filtApts=appuntamenti.filter(a=>ranges[period](a.data)&&a.stato==="completato");
   const incassoPeriodo=filtFatt.reduce((s,f)=>s+f.totale,0);
@@ -4413,13 +4423,11 @@ function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventiv
           <div style={{fontSize:12.5,color:"#fff",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.nome} {user.cognome}</div>
           <Badge label={user.ruolo} status={user.ruolo}/>
         </div>
-        <ConnectionIndicator/>
         <button onClick={onLogout} title="Esci" style={{background:"none",border:"none",cursor:"pointer",color:"rgba(255,255,255,0.3)",fontSize:16,padding:"2px 4px",borderRadius:4}}
           onMouseEnter={e=>e.currentTarget.style.color="rgba(255,255,255,0.8)"}
           onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,0.3)"}>⏏</button>
       </div>
     </div>
-    <ConnectionIndicator/>
   </aside>;
 }
 
