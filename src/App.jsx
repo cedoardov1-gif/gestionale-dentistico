@@ -210,10 +210,13 @@ function useAuth() {
     if(!u) return {ok: false, error: "Email o password non corretti"};
     localStorage.setItem("dsd_user", JSON.stringify(u));
     setUser(u);
+    logAttivita(u,"login","auth","Accesso eseguito");
     return {ok: true};
   };
 
   const logout = () => {
+    const _lu=(()=>{try{const s=localStorage.getItem("dsd_user");return s?JSON.parse(s):null;}catch(e){return null;}})();
+    logAttivita(_lu,"logout","auth","Disconnessione");
     localStorage.removeItem("dsd_user");
     setUser(null);
   };
@@ -467,6 +470,19 @@ function ConnectionIndicator(){
       <span style={{fontSize:11.5,color:c.color,fontWeight:600}}>{c.label}</span>
     </div>
   );
+}
+
+// ── Log attività ──────────────────────────────────────────────────────────
+async function logAttivita(utente, azione, categoria, dettaglio, meta={}) {
+  try {
+    const {supabase} = await import("./supabase.js");
+    await supabase.from("log_attivita").insert({
+      ts: new Date().toISOString(),
+      utente: utente?.cognome ? utente.cognome+" "+utente.nome : (utente?.email||"—"),
+      ruolo: utente?.ruolo||"—",
+      azione, categoria, dettaglio, meta,
+    });
+  } catch(e) {}
 }
 
 const BADGE = {
@@ -1363,6 +1379,19 @@ function DocumentiTab({paziente,studioInfo,impostazioni}){
 
 function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,preventivi,fatture,listino,currentUser,permessi,setPermessi}){
   const [activeTab,setActiveTab]=useState("studio");
+  const [logEntries,setLogEntries]=useState([]);
+  const [logLoading,setLogLoading]=useState(false);
+  const [logFilter,setLogFilter]=useState("tutti");
+  useEffect(()=>{
+    if(activeTab!=="log")return;
+    setLogLoading(true);
+    import("./supabase.js").then(({supabase})=>{
+      supabase.from("log_attivita").select("*").order("ts",{ascending:false}).limit(200).then(({data,error})=>{
+        if(!error&&data)setLogEntries(data);
+        setLogLoading(false);
+      });
+    }).catch(()=>setLogLoading(false));
+  },[activeTab]);
   const [saved,setSaved]=useState(false);
   function updateStudio(k,v){setImpostazioni(p=>({...p,studio:{...p.studio,[k]:v}}));}
   function updateCampo(k,v){setImpostazioni(p=>({...p,campiObbligatori:{...p.campiObbligatori,[k]:v}}));}
@@ -1395,7 +1424,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
     }catch(err){toast("Errore: "+err.message,"error");}};
     reader.readAsText(file);e.target.value="";
   }
-  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
+  const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},...(user?.ruolo==="admin"?[{id:"log",label:"📋 Log attività"}]:[]),{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
   const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
   const CAMPI_LABELS={nome:"Nome",cognome:"Cognome",telefono:"Telefono",email:"Email",dataNascita:"Data di nascita",codiceFiscale:"Codice fiscale",indirizzo:"Indirizzo"};
   const stats={pazienti:pazienti.length,appuntamenti:appuntamenti.length,preventivi:preventivi.length,fatture:fatture.length,listino:listino.length,dimensione:(new Blob([JSON.stringify({pazienti,appuntamenti,preventivi,fatture,listino})]).size/1024).toFixed(1)};
@@ -1636,7 +1665,7 @@ function stampaAnamnesi(pd, impostazioni) {
 }
 
 
-function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni}) {
+function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni, user}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -1691,9 +1720,10 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
     if(!form.nome||!form.cognome)return alert("Nome e cognome obbligatori");
     if(editId)setPazienti(p=>p.map(x=>x.id===editId?{...form,id:editId}:x));
     else setPazienti(p=>[...p,{...form,id:uid(),dataRegistrazione:todayISO(),dentiStato:{}}]);
+    logAttivita(user,editId?"modifica_paziente":"nuovo_paziente","pazienti",(editId?"Modificato: ":"Aggiunto: ")+form.cognome+" "+form.nome);
     setModal(false);
   }
-  function del(id){gConfirm("Elimina paziente","Eliminare questo paziente?","Elimina").then(ok=>{if(ok)setPazienti(p=>p.filter(x=>x.id!==id));});}
+  function del(id){gConfirm("Elimina paziente","Eliminare questo paziente?","Elimina").then(ok=>{if(ok){const _dp=pazienti.find(x=>x.id===id);setPazienti(p=>p.filter(x=>x.id!==id));logAttivita(user,"elimina_paziente","pazienti","Eliminato: "+(_dp?_dp.cognome+" "+_dp.nome:"—"));}});}
   function updateDenti(denti){setPazienti(p=>p.map(x=>x.id===detail?{...x,dentiStato:denti}:x));}
 
   // Preventivo diretto dalla scheda
@@ -2390,7 +2420,7 @@ const HOURS_FORM=Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const 
 const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const GIORNI=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
-function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listino, onNav}) {
+function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listino, onNav}, user}) {
   const [curDate, setCurDate] = useState(new Date()); const [calView, setCalView] = useState("week"); const [modal, setModal] = useState(false); const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({pazienteId:"",data:todayISO(),oraInizio:"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
@@ -2413,7 +2443,9 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
   const nav=dir=>{const d=new Date(curDate);d.setDate(d.getDate()+dir*(calView==="week"?7:1));setCurDate(d);};
   function openNew(data,ora){setForm({pazienteId:"",data:data.toISOString().slice(0,10),oraInizio:ora||"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});setEditId(null);setShowNewPaz(false);setNewPazForm({nome:"",cognome:"",telefono:"",email:""});setModal(true);}
   function openEdit(a){setForm(a);setEditId(a.id);setShowNewPaz(false);setModal(true);}
-  function save(){if(!form.pazienteId||!form.data)return alert("Seleziona paziente e data");if(editId)setAppuntamenti(p=>p.map(x=>x.id===editId?{...form,id:editId,durata:Number(form.durata)}:x));else setAppuntamenti(p=>[...p,{...form,id:uid(),durata:Number(form.durata)}]);setModal(false);}
+  function save(){if(!form.pazienteId||!form.data)return alert("Seleziona paziente e data");if(editId)setAppuntamenti(p=>p.map(x=>x.id===editId?{...form,id:editId,durata:Number(form.durata)}:x));else setAppuntamenti(p=>[...p,{...form,id:uid(),durata:Number(form.durata)}]);
+    const _ap=pazienti.find(x=>String(x.id)===String(form.pazienteId));
+    logAttivita(user,editId?"modifica_appuntamento":"nuovo_appuntamento","agenda",(editId?"Modificato":"Nuovo")+" appuntamento "+form.data+" "+form.oraInizio+(_ap?" — "+_ap.cognome+" "+_ap.nome:""));setModal(false);}
   function del(id){gConfirm("Elimina","Eliminare questo appuntamento?","Elimina").then(ok=>{if(ok)setAppuntamenti(p=>p.filter(x=>x.id!==id));});}
 
   function stampaAgendaGiorno(data, apts, paz) {
@@ -2613,7 +2645,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
 }
 
 
-function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav, initialPreventivoId, onPreventivoOpened}) {
+function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav, initialPreventivoId, onPreventivoOpened, user}) {
   const [filter, setFilter]=useState("tutti");
   const [highlightId, setHighlightId] = useState(null);
   useEffect(()=>{
@@ -2707,6 +2739,8 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
     const prev={pazienteId:Number(pazForm),data:todayISO(),voci,totalelordo,sconto:scontoNum,totale,stato:"in_attesa",note};
     if(editId) setPreventivi(p=>p.map(x=>x.id===editId?{...prev,id:editId}:x));
     else setPreventivi(p=>[...p,{...prev,id:uid()}]);
+    const _prp=pazienti.find(x=>String(x.id)===String(prev.pazienteId));
+    logAttivita(user,"nuovo_preventivo","preventivi","Preventivo "+fmtEur(prev.totale)+(_prp?" — "+_prp.cognome+" "+_prp.nome:""));
     setModal(false);
   }
 
@@ -3121,7 +3155,7 @@ function stampaFattura(fatt, pazientiList, fattureList) {
     const w = window.open("","_blank","width=900,height=750");
     if(w){w.document.write(html);w.document.close();}
   }
-function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav, initialFatturaId, onFatturaOpened}) {
+function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav, initialFatturaId, onFatturaOpened, user}) {
   const [subtab, setSubtab] = useState("fatture");
   const [highlightId, setHighlightId] = useState(null);
   useEffect(()=>{
@@ -3225,7 +3259,10 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
       setFatture(p=>p.map(x=>x.id===editId?{...fattData,id:editId,numero:x.numero}:x));
     } else {
       const newId=uid();
-      setFatture(p=>[...p,{...fattData,id:newId,numero:(form.numero&&form.numero.trim())?form.numero.trim():nextN()}]);
+      const _fn=(form.numero&&form.numero.trim())?form.numero.trim():nextN();
+      setFatture(p=>[...p,{...fattData,id:newId,numero:_fn}]);
+      const _fp=pazienti.find(x=>String(x.id)===String(form.pazienteId));
+      logAttivita(user,"nuova_fattura","fatture","Fattura N. "+_fn+" "+fmtEur(totaleFin)+(_fp?" — "+_fp.cognome+" "+_fp.nome:""));
       // Marca il preventivo come fatturato solo per saldo
       if(form.preventivoId&&!isAcconto){
         setPreventivi(p=>p.map(x=>x.id===Number(form.preventivoId)?{...x,stato:"fatturato"}:x));
@@ -3267,6 +3304,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     if(!_ok1)return;
     const _ok2=await gConfirm("Conferma finale","Sei sicuro di eliminare la fattura N. "+num+"?","Sì, elimina");
     if(!_ok2)return;
+    logAttivita(user,"elimina_fattura","fatture","Fattura N. "+num+" eliminata");
     setFatture(p=>p.filter(x=>x.id!==id));
     if(fatt?.preventivoId){
       setPreventivi(p=>p.map(x=>String(x.id)===String(fatt.preventivoId)?{...x,stato:"accettato"}:x));
@@ -3635,7 +3673,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
 
 
 
-function ListinoView({listino, setListino}) {
+function ListinoView({listino, setListino, user}) {
   const [modal,setModal]=useState(false); const [editId,setEditId]=useState(null); const [search,setSearch]=useState("");
   const [form,setForm]=useState({categoria:"Prevenzione",nome:"",prezzo:""});
   const ff=k=>v=>setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
@@ -3643,7 +3681,9 @@ function ListinoView({listino, setListino}) {
   const bycat=useMemo(()=>{const m={};filtered.forEach(l=>{if(!m[l.categoria])m[l.categoria]=[];m[l.categoria].push(l);});return m;},[filtered]);
   function openNew(){setForm({categoria:"Prevenzione",nome:"",prezzo:""});setEditId(null);setModal(true);}
   function openEdit(l){setForm(l);setEditId(l.id);setModal(true);}
-  function save(){if(!form.nome||!form.prezzo)return alert("Nome e prezzo obbligatori");const item={...form,prezzo:Number(form.prezzo)};if(editId)setListino(p=>p.map(x=>x.id===editId?{...item,id:editId}:x));else setListino(p=>[...p,{...item,id:uid()}]);setModal(false);}
+  function save(){if(!form.nome||!form.prezzo)return alert("Nome e prezzo obbligatori");const item={...form,prezzo:Number(form.prezzo)};if(editId)setListino(p=>p.map(x=>x.id===editId?{...item,id:editId}:x));else setListino(p=>[...p,{...item,id:uid()}]);
+    logAttivita(user,"nuovo_listino","listino","Voce: "+item.nome+" "+fmtEur(item.prezzo||0));
+    setModal(false);}
   function del(id){gConfirm("Elimina voce","Eliminare questa voce dal listino?","Elimina").then(ok=>{if(ok)setListino(p=>p.filter(x=>x.id!==id));});}
   return <div>
     <PageHdr title="Listino prezzi" subtitle={`${listino.length} trattamenti`} action={<Btn icon="+" onClick={openNew}>Nuovo trattamento</Btn>}/>
@@ -3688,6 +3728,58 @@ function ListinoView({listino, setListino}) {
       <FInput label="Nome trattamento" required value={form.nome} onChange={ff("nome")} placeholder="Es. Visita di controllo"/>
       <FInput label="Prezzo (€)" required type="number" step="0.01" value={form.prezzo} onChange={ff("prezzo")} placeholder="0.00"/>
     </Modal>
+
+    {activeTab==="log"&&<div style={{padding:"0 4px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>📋 Log attività</div>
+        <div style={{display:"flex",gap:8}}>
+          <select value={logFilter} onChange={e=>setLogFilter(e.target.value)}
+            style={{padding:"6px 12px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",background:"#fff"}}>
+            <option value="tutti">Tutte</option>
+            <option value="auth">Accessi</option>
+            <option value="pazienti">Pazienti</option>
+            <option value="agenda">Agenda</option>
+            <option value="preventivi">Preventivi</option>
+            <option value="fatture">Fatture</option>
+            <option value="listino">Listino</option>
+          </select>
+          <button onClick={()=>{setLogLoading(true);import("./supabase.js").then(({supabase})=>{supabase.from("log_attivita").select("*").order("ts",{ascending:false}).limit(200).then(({data})=>{if(data)setLogEntries(data);setLogLoading(false);});}).catch(()=>setLogLoading(false));}}
+            style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>🔄</button>
+        </div>
+      </div>
+      {logLoading
+        ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>Caricamento...</div>
+        :logEntries.length===0
+          ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>Nessuna attività registrata</div>
+          :<Card style={{padding:0,overflow:"hidden"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{background:T.bg}}>
+                {["Data/Ora","Utente","Azione","Dettaglio"].map(h=>(
+                  <th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,borderBottom:`1px solid ${T.border}`}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter).map((e,i)=>{
+                  const AL={login:"🔐 Login",logout:"🚪 Logout",nuovo_paziente:"👤 Nuovo paz.",modifica_paziente:"✏️ Modifica paz.",elimina_paziente:"🗑️ Elimina paz.",nuovo_appuntamento:"📅 Nuovo apt.",modifica_appuntamento:"✏️ Modifica apt.",nuovo_preventivo:"📄 Nuovo prev.",nuova_fattura:"🧾 Nuova fattura",elimina_fattura:"🗑️ Elimina fattura",nuovo_listino:"💰 Nuovo listino"};
+                  const dt=e.ts?new Date(e.ts):null;
+                  return(
+                    <tr key={i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":T.bg}}
+                      onMouseEnter={ev=>ev.currentTarget.style.background=T.brandLight}
+                      onMouseLeave={ev=>ev.currentTarget.style.background=i%2===0?"#fff":T.bg}>
+                      <td style={{padding:"9px 14px",color:T.textSub,whiteSpace:"nowrap",fontSize:12}}>
+                        {dt?dt.toLocaleDateString("it-IT")+" "+dt.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}):"—"}
+                      </td>
+                      <td style={{padding:"9px 14px",fontWeight:600,color:T.text,fontSize:12}}>{e.utente||"—"} <Badge label={e.ruolo} status={e.ruolo}/></td>
+                      <td style={{padding:"9px 14px",color:T.text,fontSize:12}}>{AL[e.azione]||e.azione||"—"}</td>
+                      <td style={{padding:"9px 14px",color:T.textSub,maxWidth:260,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}} title={e.dettaglio}>{e.dettaglio||"—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+      }
+    </div>}
   </div>;
 }
 
@@ -4394,11 +4486,11 @@ export default function App() {
       </header>
       <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
-        {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} pazienti={pazienti} setPazienti={setPazienti} listino={listino} onNav={navTo}/>}
-        {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} impostazioni={impostazioni}/>}
-        {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo} initialPreventivoId={openPreventivoId} onPreventivoOpened={()=>setOpenPreventivoId(null)}/>}
-        {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo} initialFatturaId={openFatturaId} onFatturaOpened={()=>setOpenFatturaId(null)}/>}
-        {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino}/>}
+        {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} user={user} pazienti={pazienti} setPazienti={setPazienti} user={user} listino={listino} onNav={navTo}/>}
+        {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} user={user} impostazioni={impostazioni}/>}
+        {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo} initialPreventivoId={openPreventivoId} onPreventivoOpened={()=>setOpenPreventivoId(null)} user={user}/>}
+        {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo} initialFatturaId={openFatturaId} onFatturaOpened={()=>setOpenFatturaId(null)} user={user}/>}
+        {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino} user={user}/>}
         {view==="comunicazioni"&&canView("comunicazioni")&&<ComunicazioniView pazienti={pazienti} appuntamenti={appuntamenti}/>}
         {view==="report"&&canView("report")&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino} preventivi={preventivi}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
