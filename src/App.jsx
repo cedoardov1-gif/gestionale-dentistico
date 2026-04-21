@@ -1623,6 +1623,58 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
         <button onClick={salva} style={{padding:"11px 28px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Salva impostazioni</button>
         {saved&&<span style={{fontSize:13,color:T.success,fontWeight:600}}>✓ Salvato</span>}
       </div>}
+
+    {activeTab==="log"&&<div style={{padding:"0 4px"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
+        <div style={{fontSize:15,fontWeight:700,color:T.text}}>📋 Log attività</div>
+        <div style={{display:"flex",gap:8}}>
+          <select value={logFilter} onChange={e=>setLogFilter(e.target.value)}
+            style={{padding:"6px 12px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",background:"#fff"}}>
+            <option value="tutti">Tutte</option>
+            <option value="auth">Accessi</option>
+            <option value="pazienti">Pazienti</option>
+            <option value="agenda">Agenda</option>
+            <option value="preventivi">Preventivi</option>
+            <option value="fatture">Fatture</option>
+            <option value="listino">Listino</option>
+          </select>
+          <button onClick={()=>{setLogLoading(true);import("./supabase.js").then(({supabase})=>{supabase.from("log_attivita").select("*").order("ts",{ascending:false}).limit(200).then(({data})=>{if(data)setLogEntries(data);setLogLoading(false);});}).catch(()=>setLogLoading(false));}}
+            style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>🔄 Aggiorna</button>
+        </div>
+      </div>
+      {logLoading
+        ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>⏳ Caricamento...</div>
+        :logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter).length===0
+          ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>Nessuna attività registrata</div>
+          :<Card style={{padding:0,overflow:"hidden"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+              <thead><tr style={{background:T.bg}}>
+                {["Data/Ora","Utente","Azione","Dettaglio"].map(h=>(
+                  <th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,borderBottom:`1px solid ${T.border}`}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter).map((e,i)=>{
+                  const AL={login:"🔐 Login",logout:"🚪 Logout",nuovo_paziente:"👤 Nuovo paz.",modifica_paziente:"✏️ Modifica paz.",elimina_paziente:"🗑️ Elimina paz.",nuovo_appuntamento:"📅 Nuovo apt.",modifica_appuntamento:"✏️ Modifica apt.",nuovo_preventivo:"📄 Nuovo prev.",nuova_fattura:"🧾 Nuova fattura",elimina_fattura:"🗑️ Elimina fattura",nuovo_listino:"💰 Nuovo listino"};
+                  const dt=e.ts?new Date(e.ts):null;
+                  return(
+                    <tr key={i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":T.bg}}
+                      onMouseEnter={ev=>ev.currentTarget.style.background=T.brandLight}
+                      onMouseLeave={ev=>ev.currentTarget.style.background=i%2===0?"#fff":T.bg}>
+                      <td style={{padding:"9px 14px",color:T.textSub,whiteSpace:"nowrap",fontSize:12}}>
+                        {dt?dt.toLocaleDateString("it-IT")+" "+dt.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}):"—"}
+                      </td>
+                      <td style={{padding:"9px 14px",fontWeight:600,color:T.text,fontSize:12}}>{e.utente||"—"} <Badge label={e.ruolo} status={e.ruolo}/></td>
+                      <td style={{padding:"9px 14px",color:T.text,fontSize:12}}>{AL[e.azione]||e.azione||"—"}</td>
+                      <td style={{padding:"9px 14px",color:T.textSub,maxWidth:260,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}} title={e.dettaglio}>{e.dettaglio||"—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+      }
+    </div>}
     </div>
   );
 }
@@ -3728,58 +3780,6 @@ function ListinoView({listino, setListino, user}) {
       <FInput label="Nome trattamento" required value={form.nome} onChange={ff("nome")} placeholder="Es. Visita di controllo"/>
       <FInput label="Prezzo (€)" required type="number" step="0.01" value={form.prezzo} onChange={ff("prezzo")} placeholder="0.00"/>
     </Modal>
-
-    {activeTab==="log"&&<div style={{padding:"0 4px"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:10}}>
-        <div style={{fontSize:15,fontWeight:700,color:T.text}}>📋 Log attività</div>
-        <div style={{display:"flex",gap:8}}>
-          <select value={logFilter} onChange={e=>setLogFilter(e.target.value)}
-            style={{padding:"6px 12px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",background:"#fff"}}>
-            <option value="tutti">Tutte</option>
-            <option value="auth">Accessi</option>
-            <option value="pazienti">Pazienti</option>
-            <option value="agenda">Agenda</option>
-            <option value="preventivi">Preventivi</option>
-            <option value="fatture">Fatture</option>
-            <option value="listino">Listino</option>
-          </select>
-          <button onClick={()=>{setLogLoading(true);import("./supabase.js").then(({supabase})=>{supabase.from("log_attivita").select("*").order("ts",{ascending:false}).limit(200).then(({data})=>{if(data)setLogEntries(data);setLogLoading(false);});}).catch(()=>setLogLoading(false));}}
-            style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>🔄</button>
-        </div>
-      </div>
-      {logLoading
-        ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>Caricamento...</div>
-        :logEntries.length===0
-          ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>Nessuna attività registrata</div>
-          :<Card style={{padding:0,overflow:"hidden"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead><tr style={{background:T.bg}}>
-                {["Data/Ora","Utente","Azione","Dettaglio"].map(h=>(
-                  <th key={h} style={{padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,borderBottom:`1px solid ${T.border}`}}>{h}</th>
-                ))}
-              </tr></thead>
-              <tbody>
-                {logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter).map((e,i)=>{
-                  const AL={login:"🔐 Login",logout:"🚪 Logout",nuovo_paziente:"👤 Nuovo paz.",modifica_paziente:"✏️ Modifica paz.",elimina_paziente:"🗑️ Elimina paz.",nuovo_appuntamento:"📅 Nuovo apt.",modifica_appuntamento:"✏️ Modifica apt.",nuovo_preventivo:"📄 Nuovo prev.",nuova_fattura:"🧾 Nuova fattura",elimina_fattura:"🗑️ Elimina fattura",nuovo_listino:"💰 Nuovo listino"};
-                  const dt=e.ts?new Date(e.ts):null;
-                  return(
-                    <tr key={i} style={{borderBottom:`1px solid ${T.border}`,background:i%2===0?"#fff":T.bg}}
-                      onMouseEnter={ev=>ev.currentTarget.style.background=T.brandLight}
-                      onMouseLeave={ev=>ev.currentTarget.style.background=i%2===0?"#fff":T.bg}>
-                      <td style={{padding:"9px 14px",color:T.textSub,whiteSpace:"nowrap",fontSize:12}}>
-                        {dt?dt.toLocaleDateString("it-IT")+" "+dt.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}):"—"}
-                      </td>
-                      <td style={{padding:"9px 14px",fontWeight:600,color:T.text,fontSize:12}}>{e.utente||"—"} <Badge label={e.ruolo} status={e.ruolo}/></td>
-                      <td style={{padding:"9px 14px",color:T.text,fontSize:12}}>{AL[e.azione]||e.azione||"—"}</td>
-                      <td style={{padding:"9px 14px",color:T.textSub,maxWidth:260,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontSize:12}} title={e.dettaglio}>{e.dettaglio||"—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </Card>
-      }
-    </div>}
   </div>;
 }
 
