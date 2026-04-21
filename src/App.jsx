@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 
 const T = {
   bg:"#F8F9FA", surface:"#FFFFFF", border:"#E5E7EB", borderHover:"#D1D5DB",
@@ -954,8 +954,8 @@ const TEMPLATES_DOCUMENTI=[
 ];
 
 function FirmaCanvas({onSalva,onAnnulla}){
-  const canvasRef=React.useRef(null);
-  const drawing=React.useRef(false);
+  const canvasRef=useRef(null);
+  const drawing=useRef(false);
   function getPos(e,c){const r=c.getBoundingClientRect();const sx=c.width/r.width,sy=c.height/r.height;if(e.touches)return{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy};return{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};}
   function start(e){e.preventDefault();const c=canvasRef.current;if(!c)return;drawing.current=true;const ctx=c.getContext("2d");const p=getPos(e,c);ctx.beginPath();ctx.moveTo(p.x,p.y);}
   function move(e){e.preventDefault();if(!drawing.current)return;const c=canvasRef.current;if(!c)return;const ctx=c.getContext("2d");const p=getPos(e,c);ctx.lineWidth=2.5;ctx.lineCap="round";ctx.strokeStyle="#1F2937";ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y);}
@@ -2245,7 +2245,10 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
             <div style={{fontSize:11,fontWeight:600,color:isToday?T.brand:T.textSub,textTransform:"uppercase",letterSpacing:0.5}}>{GIORNI[i]}</div>
             <div style={{width:30,height:30,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",margin:"4px auto 0",fontSize:15,fontWeight:700,color:isToday?"#fff":T.text}}>{dt.getDate()}</div>
             {cnt>0&&<div style={{fontSize:10,color:T.brand,fontWeight:600,marginTop:2}}>{cnt}</div>}
-            {isClosed&&<div style={{fontSize:9,color:"#EF4444",fontWeight:700,marginTop:1}}>🔴</div>}
+            <button onClick={e=>{e.stopPropagation();toggleGiornoChiuso(iso);}}
+              style={{marginTop:3,padding:"2px 6px",borderRadius:8,border:`1px solid ${isClosed?"#EF4444":T.border}`,background:isClosed?"#FEF2F2":"transparent",color:isClosed?"#EF4444":T.textMuted,cursor:"pointer",fontFamily:"inherit",fontSize:9,fontWeight:600,display:"block",margin:"3px auto 0"}}>
+              {isClosed?"🔴 Chiuso":"Chiudi"}
+            </button>
           </div>;})}
         </div>
         <div style={{maxHeight:560,overflowY:"auto"}}>
@@ -2497,6 +2500,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
                         {!hasFattura&&r.stato!=="accettato"&&
                           <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
                         }
+                        {r.stato==="accettato"&&<Btn size="xs" variant="ghost" title="Piano rate" onClick={()=>openRateModal(r.id)}>📅 {r.pianoRate?"Rate ("+r.pianoRate.length+")":"Rate"}</Btn>}
                         {/* Elimina — solo se rifiutato e non fatturato */}
                         {!hasFattura&&r.stato==="rifiutato"&&
                           <button onClick={()=>tryDelete(r)}
@@ -2876,7 +2880,16 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const totale=imponibile+(marcaBollo?2:0);
   const importoDisplay=tipoFatt==="acconto"?(Number(accontoValore)||0):totale;
   const residuoAcconto=tipoFatt==="acconto"&&accontoValore?Math.max(0,totale-(Number(accontoValore)||0)):0;
-  function save(){
+  function nextNC(){const a=new Date().getFullYear();const n=fatture.filter(f=>f.tipoFattura==="nota_credito"&&(f.numero||"").startsWith("NC-")).length+1;return "NC-"+String(n).padStart(2,"0")+"/"+a;}
+  function openNC(f){setNcFattId(f.id);setNcVoci((f.voci||[]).filter(v=>v.nome!=="Marca da bollo").map(v=>({...v})));setNcNote("");setNcModal(true);}
+  function saveNC(){
+    const orig=fatture.find(f=>String(f.id)===String(ncFattId));
+    if(!orig||!ncVoci.length)return alert("Seleziona almeno una voce.");
+    const tot=ncVoci.reduce((s,v)=>s+(v.prezzo||0)*(v.qty||1),0);
+    setFatture(f=>[...f,{id:uid(),numero:nextNC(),pazienteId:orig.pazienteId,preventivoId:orig.preventivoId,fatturaOrigineId:orig.id,data:todayISO(),voci:ncVoci,totale:-tot,totalelordo:-tot,sconto:0,statoPagamento:"pagato",metodoPagamento:orig.metodoPagamento,tipoFattura:"nota_credito",marcaBollo:false,note:ncNote}]);
+    setNcModal(false);setNcVoci([]);setNcNote("");setNcFattId(null);
+  }
+    function save(){
     if(!form.pazienteId)return alert("Seleziona paziente");
     if(!form.preventivoId)return alert("Non puoi emettere una fattura senza un preventivo accettato.\nVai nei Preventivi, crea e accetta un preventivo, poi torna qui.");
     if(!form.voci.length)return alert("Aggiungi almeno una voce");
@@ -3047,7 +3060,9 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                   <div style={{display:"flex",gap:4}}>
-                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti);}}>🖨️ Stampa</Btn>
+                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti,fatture);}}>🖨️ Stampa</Btn>
+                    {r.tipoFattura!=="nota_credito"&&<Btn size="xs" variant="ghost" title="Nota di credito" onClick={e=>{e.stopPropagation();openNC(r);}}>↩️ NC</Btn>}
+                    {r.tipoFattura==="nota_credito"&&<Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaNoteCredito(r,pazienti,fatture);}}>🖨️ NC</Btn>}
                     <Btn size="xs" variant="ghost" onClick={()=>del(r.id)}>🗑️</Btn>
                   </div>
                 </td>
