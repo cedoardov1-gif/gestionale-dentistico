@@ -94,95 +94,94 @@ const PERMESSI_DEFAULT = {
   assistente: {dashboard:true,agenda:true,pazienti:true,preventivi:false,fatture:false,listino:false,report:false,impostazioni:false},
 };
 
+function toSupabaseRow(table, r) {
+  const n=(x)=>(x===""||x===undefined)?null:x;
+  if(table==="pazienti") return {id:r.id,nome:n(r.nome),cognome:n(r.cognome),telefono:n(r.telefono),email:n(r.email),indirizzo:n(r.indirizzo),note:n(r.note),allergie:n(r.allergie),farmaci:n(r.farmaci),data_nascita:n(r.dataNascita),data_registrazione:n(r.dataRegistrazione),codice_fiscale:n(r.codiceFiscale),denti_stato:r.dentiStato||{},anamnesi:r.anamnesi||{},luogo_nascita:n(r.luogoNascita),provincia_nascita:n(r.provinciaNascita)};
+  if(table==="appuntamenti") return {id:r.id,paziente_id:n(r.pazienteId),data:n(r.data),ora_inizio:n(r.oraInizio),durata:r.durata||60,tipo:n(r.tipo),stato:n(r.stato),note:n(r.note),operatore:n(r.operatore)};
+  if(table==="preventivi") return {id:r.id,paziente_id:n(r.pazienteId),data:n(r.data),voci:r.voci||[],totale:r.totale||0,stato:n(r.stato),nota:n(r.nota),sconto:r.sconto||0,piano_rate:r.pianoRate||null};
+  if(table==="fatture") return {id:r.id,paziente_id:n(r.pazienteId),preventivo_id:n(r.preventivoId),fattura_origine_id:n(r.fatturaOrigineId),data:n(r.data),numero:n(r.numero),voci:r.voci||[],totale:r.totale||0,totalelordo:r.totalelordo||0,sconto:r.sconto||0,stato_pagamento:n(r.statoPagamento),metodo_pagamento:n(r.metodoPagamento),tipo_fattura:n(r.tipoFattura)||"saldo",marca_bollo:r.marcaBollo||false,note:n(r.note)};
+  if(table==="listino") return {id:r.id,nome:n(r.nome),categoria:n(r.categoria),prezzo:r.prezzo||0};
+  return {id:r.id};
+}
+
+function fromSupabaseRow(r) {
+  const m={...r};
+  if(r.data_nascita!==undefined){m.dataNascita=r.data_nascita;delete m.data_nascita;}
+  if(r.data_registrazione!==undefined){m.dataRegistrazione=r.data_registrazione;delete m.data_registrazione;}
+  if(r.paziente_id!==undefined){m.pazienteId=Number(r.paziente_id);delete m.paziente_id;}
+  if(r.preventivo_id!==undefined){m.preventivoId=Number(r.preventivo_id);delete m.preventivo_id;}
+  if(r.fattura_origine_id!==undefined){m.fatturaOrigineId=r.fattura_origine_id;delete m.fattura_origine_id;}
+  if(r.codice_fiscale!==undefined){m.codiceFiscale=r.codice_fiscale;delete m.codice_fiscale;}
+  if(r.stato_pagamento!==undefined){m.statoPagamento=r.stato_pagamento;delete m.stato_pagamento;}
+  if(r.metodo_pagamento!==undefined){m.metodoPagamento=r.metodo_pagamento;delete m.metodo_pagamento;}
+  if(r.ora_inizio!==undefined){m.oraInizio=r.ora_inizio;delete m.ora_inizio;}
+  if(r.denti_stato!==undefined){m.dentiStato=r.denti_stato||{};delete m.denti_stato;}
+  if(r.tipo_fattura!==undefined){m.tipoFattura=r.tipo_fattura;delete m.tipo_fattura;}
+  if(r.marca_bollo!==undefined){m.marcaBollo=r.marca_bollo;delete m.marca_bollo;}
+  if(r.luogo_nascita!==undefined){m.luogoNascita=r.luogo_nascita;delete m.luogo_nascita;}
+  if(r.provincia_nascita!==undefined){m.provinciaNascita=r.provincia_nascita;delete m.provincia_nascita;}
+  if(r.piano_rate!==undefined){m.pianoRate=r.piano_rate;delete m.piano_rate;}
+  if(r.voci&&typeof r.voci==="string"){try{m.voci=JSON.parse(r.voci);}catch(e){m.voci=[];}}
+  if(r.anamnesi&&typeof r.anamnesi==="string"){try{m.anamnesi=JSON.parse(r.anamnesi);}catch(e){m.anamnesi={};}}
+  return m;
+}
+
 function useStore(key, init) {
-  const [val, setVal] = useState(()=>{
-    // Leggi subito da localStorage come fallback
-    try { const s=localStorage.getItem("dsd_"+key); if(s) return JSON.parse(s); } catch(e) {}
-    return init;
-  });
+  const tableMap={pazienti:"pazienti",appuntamenti:"appuntamenti",preventivi:"preventivi",fatture:"fatture",listino:"listino"};
+  const table=tableMap[key];
+  const [val,setVal]=useState(()=>{try{const s=localStorage.getItem("dsd_"+key);if(s)return JSON.parse(s);}catch(e){}return init;});
 
-  const tableMap = {pazienti:"pazienti",appuntamenti:"appuntamenti",preventivi:"preventivi",fatture:"fatture",listino:"listino"};
-  const table = tableMap[key];
-
-  // Carica da Supabase all'avvio
-  useEffect(() => {
-    if (!table) return;
-    import("./supabase.js").then(({supabase}) => {
-      supabase.from(table).select("*").order("id").then(({data, error}) => {
-        if (error) { console.warn("Supabase read error:", error.message); return; }
-        if (data && data.length > 0) {
-          const mapped = data.map(row => {
-            const r = {...row};
-            if (r.data_nascita !== undefined) { r.dataNascita = r.data_nascita; delete r.data_nascita; }
-            if (r.data_registrazione !== undefined) { r.dataRegistrazione = r.data_registrazione; delete r.data_registrazione; }
-            if (r.paziente_id !== undefined) { r.pazienteId = Number(r.paziente_id); delete r.paziente_id; }
-            if (r.preventivo_id !== undefined) { r.preventivoId = Number(r.preventivo_id); delete r.preventivo_id; }
-            if (r.codice_fiscale !== undefined) { r.codiceFiscale = r.codice_fiscale; delete r.codice_fiscale; }
-            if (r.stato_pagamento !== undefined) { r.statoPagamento = r.stato_pagamento; delete r.stato_pagamento; }
-            if (r.metodo_pagamento !== undefined) { r.metodoPagamento = r.metodo_pagamento; delete r.metodo_pagamento; }
-            if (r.ora_inizio !== undefined) { r.oraInizio = r.ora_inizio; delete r.ora_inizio; }
-            if (r.gruppo_sanguigno !== undefined) { r.gruppoSanguigno = r.gruppo_sanguigno; delete r.gruppo_sanguigno; }
-            if (r.medico_base !== undefined) { r.medicoBase = r.medico_base; delete r.medico_base; }
-            if (r.denti_stato !== undefined) { r.dentiStato = r.denti_stato || {}; delete r.denti_stato; }
-            if (r.voci && typeof r.voci === "string") { try { r.voci = JSON.parse(r.voci); } catch(e) { r.voci = []; } }
-            return r;
-          });
-          setVal(mapped);
-          // Aggiorna anche localStorage con i dati freschi
-          try { localStorage.setItem("dsd_"+key, JSON.stringify(mapped)); } catch(e) {}
-        }
+  useEffect(()=>{
+    if(!table)return;
+    import("./supabase.js").then(({supabase})=>{
+      supabase.from(table).select("*").order("id").then(({data,error})=>{
+        if(error){console.warn("Supabase read:",error.message);return;}
+        if(data&&data.length>0){const mapped=data.map(fromSupabaseRow);setVal(mapped);try{localStorage.setItem("dsd_"+key,JSON.stringify(mapped));}catch(e){}}
       });
-    }).catch(err => console.warn("Supabase import error:", err));
-  }, [table]);
+    }).catch(e=>console.warn("Supabase import:",e));
+  },[table]);
 
-  const save = useCallback(async (v) => {
-    const next = typeof v === "function" ? v(val) : v;
+  useEffect(()=>{
+    if(!table)return;
+    let ch;
+    import("./supabase.js").then(({supabase})=>{
+      ch=supabase.channel("rt_"+table)
+        .on("postgres_changes",{event:"*",schema:"public",table},payload=>{
+          setVal(prev=>{
+            let next=[...prev];
+            const row=payload.new?fromSupabaseRow(payload.new):null;
+            if(payload.eventType==="INSERT"){if(!next.find(x=>String(x.id)===String(row.id)))next=[...next,row];}
+            else if(payload.eventType==="UPDATE"){next=next.map(x=>String(x.id)===String(row.id)?row:x);}
+            else if(payload.eventType==="DELETE"){next=next.filter(x=>String(x.id)!==String(payload.old.id));}
+            try{localStorage.setItem("dsd_"+key,JSON.stringify(next));}catch(e){}
+            return next;
+          });
+        }).subscribe();
+    }).catch(e=>console.warn("Realtime:",e));
+    return()=>{if(ch)import("./supabase.js").then(({supabase})=>supabase.removeChannel(ch));};
+  },[table]);
+
+  const save=useCallback(async(v)=>{
+    const next=typeof v==="function"?v(val):v;
     setVal(next);
-    // Salva SEMPRE in localStorage (funziona anche offline)
-    try { localStorage.setItem("dsd_"+key, JSON.stringify(next)); } catch(e) {}
-    if (!table) return;
-
-    // Poi prova a salvare su Supabase con retry
-    const nullIfEmpty = (x) => (x === "" || x === undefined) ? null : x;
-    async function doSave(attempt=1) {
-      try {
-        const {supabase} = await import("./supabase.js");
-        const {error: delErr} = await supabase.from(table).delete().neq("id", 0);
-        if (delErr) throw delErr;
-        if (next.length > 0) {
-          const rows = next.map(({id, dataNascita, dataRegistrazione, pazienteId, preventivoId, codiceFiscale, statoPagamento, metodoPagamento, oraInizio, gruppoSanguigno, medicoBase, dentiStato, created_at, ...rest}) => ({
-            ...rest,
-            ...(dataNascita !== undefined && {data_nascita: nullIfEmpty(dataNascita)}),
-            ...(dataRegistrazione !== undefined && {data_registrazione: nullIfEmpty(dataRegistrazione)}),
-            ...(pazienteId !== undefined && {paziente_id: nullIfEmpty(pazienteId)}),
-            ...(preventivoId !== undefined && {preventivo_id: nullIfEmpty(preventivoId)}),
-            ...(codiceFiscale !== undefined && {codice_fiscale: nullIfEmpty(codiceFiscale)}),
-            ...(statoPagamento !== undefined && {stato_pagamento: nullIfEmpty(statoPagamento)}),
-            ...(metodoPagamento !== undefined && {metodo_pagamento: nullIfEmpty(metodoPagamento)}),
-            ...(oraInizio !== undefined && {ora_inizio: nullIfEmpty(oraInizio)}),
-            ...(gruppoSanguigno !== undefined && {gruppo_sanguigno: nullIfEmpty(gruppoSanguigno)}),
-            ...(medicoBase !== undefined && {medico_base: nullIfEmpty(medicoBase)}),
-            ...(dentiStato !== undefined && {denti_stato: dentiStato}),
-          }));
-          const {error: insErr} = await supabase.from(table).insert(rows);
-          if (insErr) throw insErr;
-        }
-        console.log("✓ Salvato su Supabase:", table, next.length, "righe");
-      } catch(err) {
-        console.warn(`Supabase save error (tentativo ${attempt}):`, err?.message||err);
-        if (attempt < 3) {
-          // Retry dopo 2 secondi
-          await new Promise(r => setTimeout(r, 2000));
-          await doSave(attempt + 1);
-        } else {
-          console.error("Supabase non raggiungibile. Dati salvati localmente, verranno sincronizzati alla prossima apertura.");
-        }
+    try{localStorage.setItem("dsd_"+key,JSON.stringify(next));}catch(e){}
+    if(!table)return;
+    import("./supabase.js").then(async({supabase})=>{
+      const nextIds=new Set(next.map(x=>String(x.id)));
+      const toUpsert=next.map(r=>toSupabaseRow(table,r));
+      const toDelete=val.filter(x=>!nextIds.has(String(x.id))).map(x=>x.id);
+      try{
+        if(toUpsert.length>0){const{error}=await supabase.from(table).upsert(toUpsert,{onConflict:"id"});if(error)throw error;}
+        if(toDelete.length>0){const{error}=await supabase.from(table).delete().in("id",toDelete);if(error)throw error;}
+        console.log("✓ Supabase sync:",table);
+      }catch(err){
+        console.warn("✗ Supabase error:",err?.message||err);
+        setTimeout(async()=>{try{const{supabase:sb}=await import("./supabase.js");if(toUpsert.length>0)await sb.from(table).upsert(toUpsert,{onConflict:"id"});if(toDelete.length>0)await sb.from(table).delete().in("id",toDelete);console.log("✓ Supabase retry ok:",table);}catch(e2){console.error("✗ Supabase failed:",e2?.message||e2);}},3000);
       }
-    }
-    doSave();
-  }, [table, val, key]);
+    }).catch(e=>console.warn("Supabase:",e));
+  },[table,val,key]);
 
-  return [val, save];
+  return [val,save];
 }
 
 
@@ -954,14 +953,45 @@ const TEMPLATES_DOCUMENTI=[
      ],firmaLabel:"Il/La sottoscritto/a",paziente:paz})},
 ];
 
+function FirmaCanvas({onSalva,onAnnulla}){
+  const canvasRef=React.useRef(null);
+  const drawing=React.useRef(false);
+  function getPos(e,c){const r=c.getBoundingClientRect();const sx=c.width/r.width,sy=c.height/r.height;if(e.touches)return{x:(e.touches[0].clientX-r.left)*sx,y:(e.touches[0].clientY-r.top)*sy};return{x:(e.clientX-r.left)*sx,y:(e.clientY-r.top)*sy};}
+  function start(e){e.preventDefault();const c=canvasRef.current;if(!c)return;drawing.current=true;const ctx=c.getContext("2d");const p=getPos(e,c);ctx.beginPath();ctx.moveTo(p.x,p.y);}
+  function move(e){e.preventDefault();if(!drawing.current)return;const c=canvasRef.current;if(!c)return;const ctx=c.getContext("2d");const p=getPos(e,c);ctx.lineWidth=2.5;ctx.lineCap="round";ctx.strokeStyle="#1F2937";ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y);}
+  function stop(e){e.preventDefault();drawing.current=false;}
+  function pulisci(){const c=canvasRef.current;if(c)c.getContext("2d").clearRect(0,0,c.width,c.height);}
+  function salva(){const c=canvasRef.current;if(!c)return;const px=c.getContext("2d").getImageData(0,0,c.width,c.height).data;if(!Array.from(px).some((v,i)=>i%4===3&&v>0)){alert("Disegna prima la firma.");return;}onSalva(c.toDataURL("image/png"));}
+  return(<div style={{display:"flex",flexDirection:"column",gap:12}}>
+    <div style={{fontSize:13,color:"#374151",textAlign:"center",fontStyle:"italic"}}>Firma con il dito o con la penna nell&apos;area sottostante</div>
+    <div style={{position:"relative",border:"2px solid #E5E7EB",borderRadius:8,background:"#FAFAFA",touchAction:"none"}}>
+      <canvas ref={canvasRef} width={600} height={200} style={{width:"100%",height:160,display:"block",borderRadius:6,cursor:"crosshair"}}
+        onMouseDown={start} onMouseMove={move} onMouseUp={stop} onMouseLeave={stop}
+        onTouchStart={start} onTouchMove={move} onTouchEnd={stop}/>
+      <div style={{position:"absolute",bottom:8,left:"50%",transform:"translateX(-50%)",width:"60%",height:1,background:"#D1D5DB",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",bottom:2,width:"100%",textAlign:"center",fontSize:10,color:"#9CA3AF",pointerEvents:"none"}}>Firma qui</div>
+    </div>
+    <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+      <button onClick={pulisci} style={{padding:"8px 16px",border:"1px solid #E5E7EB",borderRadius:6,background:"#fff",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>🗑️ Pulisci</button>
+      <button onClick={onAnnulla} style={{padding:"8px 16px",border:"1px solid #E5E7EB",borderRadius:6,background:"#fff",cursor:"pointer",fontSize:13,fontFamily:"inherit"}}>Annulla</button>
+      <button onClick={salva} style={{padding:"8px 16px",border:"none",borderRadius:6,background:"#5BBFB5",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"inherit"}}>✅ Salva firma</button>
+    </div>
+  </div>);
+}
+
+
 function DocumentiTab({paziente,studioInfo,impostazioni}){
   const studio=studioInfo||{};
   const [showSelector,setShowSelector]=useState(false);
+  const [firmaModal,setFirmaModal]=useState(false);
+  const [firmaDocId,setFirmaDocId]=useState(null);
   const [documentiEmessi,setDocumentiEmessi]=useState([]);
   const [preview,setPreview]=useState(null);
   const oggi=new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"});
   const byCategoria=TEMPLATES_DOCUMENTI.reduce((acc,t)=>{if(!acc[t.categoria])acc[t.categoria]=[];acc[t.categoria].push(t);return acc;},{});
 
+  function apriModalFirma(id){setFirmaDocId(id);setFirmaModal(true);}
+  function salvaFirma(img){setDocumentiEmessi(d=>d.map(doc=>doc.id===firmaDocId?{...doc,firma:img,firmataIl:new Date().toLocaleDateString("it-IT")}:doc));setFirmaModal(false);setFirmaDocId(null);}
   function generaEStampa(template){setPreview({...template.genera(paziente),template});}
   function salvaDoc(template){
     setDocumentiEmessi(d=>[...d,{id:Date.now(),templateId:template.id,label:template.label,data:new Date().toISOString().slice(0,10)}]);
@@ -999,6 +1029,7 @@ function DocumentiTab({paziente,studioInfo,impostazioni}){
         <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8}}>
           <span style={{fontSize:20}}>📄</span>
           <div style={{flex:1}}><div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{d.label}</div><div style={{fontSize:12,color:T.textSub,marginTop:2}}>Generato il {fmtDate(d.data)}</div></div>
+          <button onClick={()=>apriModalFirma(d.id)} style={{padding:"6px 12px",borderRadius:T.r,border:`1px solid ${d.firma?"#059669":"#E5E7EB"}`,backgroundColor:d.firma?"#ECFDF5":"#F9FAFB",color:d.firma?"#059669":"#6B7280",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginRight:4}}>{d.firma?"✅ Firmato":"✍️ Firma"}</button>
           <button onClick={()=>{const t=TEMPLATES_DOCUMENTI.find(x=>x.id===d.templateId);if(t)generaEStampa(t);}} style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,backgroundColor:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🖨️ Visualizza</button>
           <button onClick={()=>setDocumentiEmessi(ds=>ds.filter(x=>x.id!==d.id))} style={{padding:"6px 12px",borderRadius:T.r,border:"1px solid #FECACA",backgroundColor:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
         </div>
@@ -1073,6 +1104,23 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
     const csv=[headers,...rows].map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
     const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
     const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`pazienti_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url);
+  }
+  function importaDati(e){
+    const file=e.target.files?.[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{try{
+      const data=JSON.parse(ev.target.result);
+      if(!data.pazienti)return alert("File non valido.");
+      if(!confirm("Ripristino backup del "+new Date(data.esportato).toLocaleDateString("it-IT")+".
+Sostituirà tutti i dati. Continuare?"))return;
+      if(data.pazienti)setPazienti(data.pazienti);
+      if(data.appuntamenti)setAppuntamenti(data.appuntamenti);
+      if(data.preventivi)setPreventivi(data.preventivi);
+      if(data.fatture)setFatture(data.fatture);
+      if(data.listino)setListino(data.listino);
+      alert("✓ Backup ripristinato!");
+    }catch(err){alert("Errore: "+err.message);}};
+    reader.readAsText(file);e.target.value="";
   }
   const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
   const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
@@ -1258,6 +1306,15 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
               <button onClick={esportaCSV} style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:"#059669",color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",flexShrink:0,marginLeft:16}}>Scarica CSV</button>
             </div>
           </div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 18px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+            <div><div style={{fontSize:14,fontWeight:600,color:T.text}}>Ripristina da backup JSON</div><div style={{fontSize:12,color:T.textSub,marginTop:3}}>Carica un file .json esportato in precedenza</div></div>
+            <button onClick={()=>document.getElementById("backupRestoreInput").click()} style={{padding:"9px 18px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",color:T.text,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"}}>📂 Ripristina</button>
+            <input id="backupRestoreInput" type="file" accept=".json" style={{display:"none"}} onChange={importaDati}/>
+          </div>
+          <div style={{padding:"14px 18px",background:"#F0FDF4",borderRadius:T.r,border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:24}}>🔄</span>
+            <div><div style={{fontSize:13,fontWeight:700,color:"#065F46"}}>Sincronizzazione in tempo reale attiva</div><div style={{fontSize:12,color:"#047857",marginTop:3}}>Dati sincronizzati automaticamente su tutti i dispositivi.</div></div>
+          </div>
         </Card>
       </div>}
       {(activeTab==="studio"||activeTab==="pazienti"||activeTab==="anamnesi")&&<div style={{marginTop:20,display:"flex",alignItems:"center",gap:12}}>
@@ -1348,6 +1405,15 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
 
   function openNew(){setForm({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});setEditId(null);setModal(true);}
   function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||"",luogoNascita:p.luogoNascita||"",provinciaNascita:p.provinciaNascita||""});setEditId(p.id);setModal(true);}
+  function nextNC(){const a=new Date().getFullYear();const n=fatture.filter(f=>f.tipoFattura==="nota_credito"&&(f.numero||"").startsWith("NC-")).length+1;return "NC-"+String(n).padStart(2,"0")+"/"+a;}
+  function openNC(f){setNcFattId(f.id);setNcVoci((f.voci||[]).filter(v=>v.nome!=="Marca da bollo").map(v=>({...v})));setNcNote("");setNcModal(true);}
+  function saveNC(){
+    const orig=fatture.find(f=>String(f.id)===String(ncFattId));
+    if(!orig||!ncVoci.length)return alert("Seleziona almeno una voce.");
+    const tot=ncVoci.reduce((s,v)=>s+(v.prezzo||0)*(v.qty||1),0);
+    setFatture(f=>[...f,{id:uid(),numero:nextNC(),pazienteId:orig.pazienteId,preventivoId:orig.preventivoId,fatturaOrigineId:orig.id,data:todayISO(),voci:ncVoci,totale:-tot,totalelordo:-tot,sconto:0,statoPagamento:"pagato",metodoPagamento:orig.metodoPagamento,tipoFattura:"nota_credito",marcaBollo:false,note:ncNote}]);
+    setNcModal(false);setNcVoci([]);setNcNote("");setNcFattId(null);
+  }
   function save(){
     if(!form.nome||!form.cognome)return alert("Nome e cognome obbligatori");
     if(editId)setPazienti(p=>p.map(x=>x.id===editId?{...form,id:editId}:x));
@@ -2548,10 +2614,80 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
           </span>}
         </div>}
       </div>
+    {rateModal&&<Modal open={rateModal} onClose={()=>setRateModal(false)} title="Piano di pagamento rateale"
+      subtitle={`Preventivo: ${fmtEur(preventivi.find(p=>String(p.id)===String(ratePrevId))?.totale||0)}`}
+      width={460}
+      footer={<><Btn variant="secondary" onClick={()=>setRateModal(false)}>Annulla</Btn><Btn onClick={saveRate}>💾 Salva piano</Btn></>}>
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <Grid2>
+          <div>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>Numero di rate</label>
+            <select value={nRate} onChange={e=>setNRate(Number(e.target.value))} style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit"}}>
+              {[2,3,4,5,6,8,10,12].map(n=><option key={n} value={n}>{n} rate</option>)}
+            </select>
+          </div>
+          <FInput label="Prima rata il" type="date" value={primaRataData} onChange={e=>setPrimaRataData(e.target.value)}/>
+        </Grid2>
+        {(()=>{
+          const p=preventivi.find(x=>String(x.id)===String(ratePrevId));
+          if(!p)return null;
+          const imp=parseFloat((p.totale/nRate).toFixed(2));
+          return <div style={{background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden"}}>
+            <div style={{padding:"8px 14px",background:T.brandLight,fontSize:12,fontWeight:700,color:T.brand}}>{nRate} rate da {fmtEur(imp)}</div>
+            {Array.from({length:nRate},(_,i)=>{
+              const d=new Date(primaRataData+"T00:00");d.setMonth(d.getMonth()+i);
+              const im=i<nRate-1?imp:parseFloat((p.totale-imp*(nRate-1)).toFixed(2));
+              return <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:i<nRate-1?`1px solid ${T.border}`:"none"}}>
+                <div style={{fontSize:13}}><b>Rata {i+1}</b> — {d.toLocaleDateString("it-IT")} <span style={{fontSize:11,color:i===nRate-1?"#1D4ED8":"#D97706",fontWeight:600,marginLeft:6,padding:"1px 6px",background:i===nRate-1?"#EFF6FF":"#FFFBEB",borderRadius:8}}>{i===nRate-1?"Saldo":"Acconto"}</span></div>
+                <b style={{fontSize:13}}>{fmtEur(im)}</b>
+              </div>;
+            })}
+          </div>;
+        })()}
+      </div>
+    </Modal>}
     </Modal>
   </div>;
 }
 
+
+
+function stampaNoteCredito(nc,pazientiList,fattureList){
+  if(!nc)return;
+  const paz=(pazientiList||[]).find(x=>String(x.id)===String(nc.pazienteId));
+  const orig=(fattureList||[]).find(f=>String(f.id)===String(nc.fatturaOrigineId));
+  let studio={};try{const s=localStorage.getItem("dsd_impostazioni");if(s)studio=JSON.parse(s).studio||{};}catch(e){}
+  const voci=(nc.voci||[]).filter(v=>v.nome!=="Marca da bollo");
+  const tot=voci.reduce((s,v)=>s+(v.prezzo||0)*(v.qty||1),0);
+  const html="<!DOCTYPE html><html><head><meta charset='utf-8'/><title>NC "+nc.numero+"</title>"
+    +"<style>body{font-family:Arial,sans-serif;font-size:10pt;margin:0;padding:12mm 16mm;color:#111}"
+    +"table{width:100%;border-collapse:collapse;margin:14px 0}"
+    +"th{background:#FEF2F2;color:#DC2626;padding:8px 10px;text-align:left;font-size:10pt;border-bottom:2px solid #FCA5A5}"
+    +"td{padding:8px 10px;border-bottom:1px solid #FEE2E2;font-size:10pt}"
+    +"</style></head><body>"
+    +"<div style='display:flex;justify-content:space-between;margin-bottom:20px'>"
+    +"<div><div style='font-size:13pt;font-weight:700'>"+(studio.nome||"Studio Dentistico Sardo")+"</div>"
+    +"<div style='font-size:9pt;color:#6B7280'>"+(studio.indirizzo||"")+"</div></div>"
+    +"<div style='background:#FEF2F2;color:#DC2626;padding:6px 14px;border-radius:6px;font-weight:700;font-size:13pt;border:2px solid #FCA5A5'>NOTA DI CREDITO</div></div>"
+    +"<div style='display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px'>"
+    +"<div style='padding:10px 14px;background:#FFF7F7;border-radius:6px;border:1px solid #FEE2E2'>"
+    +"<div style='font-size:9pt;color:#6B7280'>INTESTATA A</div>"
+    +"<div style='font-weight:700;font-size:12pt'>"+(paz?paz.cognome+" "+paz.nome:"—")+"</div>"
+    +(paz?.codiceFiscale?"<div style='font-size:9pt'>CF: "+paz.codiceFiscale+"</div>":"")+"</div>"
+    +"<div style='padding:10px 14px;background:#FFF7F7;border-radius:6px;border:1px solid #FEE2E2'>"
+    +"<div style='display:flex;gap:16px'>"
+    +"<div><div style='font-size:9pt;color:#6B7280'>N. NOTA DI CREDITO</div><div style='font-weight:700'>"+nc.numero+"</div></div>"
+    +"<div><div style='font-size:9pt;color:#6B7280'>DATA</div><div style='font-weight:700'>"+(nc.data?new Date(nc.data+"T00:00").toLocaleDateString("it-IT"):"—")+"</div></div>"
+    +(orig?"<div><div style='font-size:9pt;color:#6B7280'>STORNA</div><div style='font-weight:700'>"+orig.numero+"</div></div>":"")
+    +"</div></div></div>"
+    +"<table><thead><tr><th>Descrizione</th><th style='text-align:center'>Q.tà</th><th style='text-align:right'>Prezzo</th><th style='text-align:right'>Totale</th></tr></thead><tbody>"
+    +voci.map(v=>"<tr><td>"+v.nome+"</td><td style='text-align:center'>"+(v.qty||1)+"</td><td style='text-align:right'>€ "+(v.prezzo||0).toFixed(2)+"</td><td style='text-align:right'>€ "+((v.prezzo||0)*(v.qty||1)).toFixed(2)+"</td></tr>").join("")
+    +"</tbody><tfoot><tr style='font-weight:700;color:#DC2626'><td colspan='3'>TOTALE NOTA DI CREDITO</td><td style='text-align:right'>−€ "+tot.toFixed(2)+"</td></tr></tfoot></table>"
+    +"<div style='margin-top:16px;font-size:9pt;color:#6B7280'>Esente IVA ai sensi dell'art. 10, DPR 633/1972.</div>"
+    +"<script>window.onload=function(){window.print();}<\/script></body></html>";
+  const w=window.open("","_blank","width=900,height=700");
+  if(w){w.document.write(html);w.document.close();}
+}
 
 
 function stampaFattura(fatt, pazientiList) {
@@ -2681,6 +2817,10 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
   const [editId, setEditId]=useState(null);
   const [form, setForm]=useState({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:""});
   const [addVoce, setAddVoce]=useState({nome:"",prezzo:"",qty:1});
+  const [ncModal,setNcModal]=useState(false);
+  const [ncFattId,setNcFattId]=useState(null);
+  const [ncVoci,setNcVoci]=useState([]);
+  const [ncNote,setNcNote]=useState("");
   const [scontoAttivo, setScontoAttivo]=useState(false);
   const [scontoValore, setScontoValore]=useState("");
   const [marcaBollo, setMarcaBollo]=useState(false);
@@ -2694,7 +2834,9 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
 
   const filtered=useMemo(()=>{
     let res=fatture;
-    if(filter!=="tutti")res=res.filter(f=>f.statoPagamento===filter);
+    if(filter==="note_credito")res=res.filter(f=>f.tipoFattura==="nota_credito");
+    else if(filter!=="tutti")res=res.filter(f=>f.statoPagamento===filter&&f.tipoFattura!=="nota_credito");
+    else res=res.filter(f=>f.tipoFattura!=="nota_credito");
     if(search){const q=search.toLowerCase();res=res.filter(f=>{const paz=pazienti.find(x=>x.id===f.pazienteId);return paz&&`${paz.nome} ${paz.cognome}`.toLowerCase().includes(q)||f.numero?.includes(q);});}
     res=[...res].sort((a,b)=>{
       let va,vb;
@@ -2812,7 +2954,12 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     mese:iso=>{const d=new Date(iso);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();},
     anno:iso=>new Date(iso).getFullYear()===now.getFullYear(),
   };
-  const bancaFatture=useMemo(()=>fatture.filter(f=>bancaRanges[bancaPeriod](f.data)&&(f.statoPagamento==="pagato"||f.statoPagamento==="parziale")).sort((a,b)=>a.data.localeCompare(b.data)||a.numero?.localeCompare(b.numero||"")),[fatture,bancaPeriod]);
+  const prevDaSaldare=preventivi.filter(p=>p.stato==="accettato"&&fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale")&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato"));
+  const oggi=todayISO();
+  const fra7=(()=>{const d=new Date();d.setDate(d.getDate()+7);return d.toISOString().slice(0,10);})();
+  const rateScadute=useMemo(()=>preventivi.filter(p=>p.pianoRate).flatMap(p=>p.pianoRate.filter(r=>r.stato==="da_pagare"&&r.scadenza<=oggi).map(r=>({...r,preventivo:p,paziente:pazienti.find(x=>String(x.id)===String(p.pazienteId))}))), [preventivi,pazienti,oggi]);
+  const rateInScadenza=useMemo(()=>preventivi.filter(p=>p.pianoRate).flatMap(p=>p.pianoRate.filter(r=>r.stato==="da_pagare"&&r.scadenza>oggi&&r.scadenza<=fra7).map(r=>({...r,preventivo:p,paziente:pazienti.find(x=>String(x.id)===String(p.pazienteId))}))), [preventivi,pazienti,oggi,fra7]);
+    const bancaFatture=useMemo(()=>fatture.filter(f=>bancaRanges[bancaPeriod](f.data)&&(f.statoPagamento==="pagato"||f.statoPagamento==="parziale")).sort((a,b)=>a.data.localeCompare(b.data)||a.numero?.localeCompare(b.numero||"")),[fatture,bancaPeriod]);
   const bancaTotale=bancaFatture.reduce((s,f)=>s+f.totale,0);
 
   // Group banca by day
@@ -2822,7 +2969,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     return Object.entries(m).sort((a,b)=>a[0].localeCompare(b[0]));
   },[bancaFatture]);
 
-  const ttabs=[{id:"tutti",label:"Tutte",count:fatture.length},{id:"pagato",label:"Pagate",count:fatture.filter(f=>f.statoPagamento==="pagato").length},{id:"non_pagato",label:"Da pagare",count:fatture.filter(f=>f.statoPagamento==="non_pagato").length},{id:"parziale",label:"Parziale",count:fatture.filter(f=>f.statoPagamento==="parziale").length}];
+  const ttabs=[{id:"tutti",label:"Tutte",count:fatture.length},{id:"pagato",label:"Pagate",count:fatture.filter(f=>f.statoPagamento==="pagato").length},{id:"non_pagato",label:"Da pagare",count:fatture.filter(f=>f.statoPagamento==="non_pagato").length},{id:"parziale",label:"Parziale",count:fatture.filter(f=>f.statoPagamento==="parziale").length},{id:"note_credito",label:"Note di credito",count:fatture.filter(f=>f.tipoFattura==="nota_credito").length}];
 
   return <div>
     <PageHdr title="Fatturazione" subtitle={`${fatture.length} fatture totali`} action={<Btn icon="+" onClick={openNew}>Nuova fattura</Btn>}/>
@@ -2843,7 +2990,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
 
     {/* Sub-tabs Fatture / Banca */}
     <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20}}>
-      {[{id:"fatture",label:"📋 Registro fatture"},{id:"banca",label:"🏦 Prima nota / Banca"}].map(t=>(
+      {[{id:"fatture",label:"📋 Registro fatture"},{id:"scadenzario",label:"📅 Scadenzario"},{id:"banca",label:"🏦 Prima nota / Banca"}].map(t=>(
         <button key={t.id} onClick={()=>setSubtab(t.id)}
           style={{padding:"10px 22px",fontSize:13.5,fontWeight:subtab===t.id?700:400,border:"none",background:"none",cursor:"pointer",color:subtab===t.id?T.brand:T.textSub,borderBottom:subtab===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit"}}>
           {t.label}
@@ -2913,6 +3060,31 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     </Card>}
 
     {/* PRIMA NOTA / BANCA TAB */}
+    {subtab==="scadenzario"&&<div style={{display:"flex",flexDirection:"column",gap:16}}>
+      {(rateScadute.length===0&&rateInScadenza.length===0)
+        ?<Card><div style={{textAlign:"center",padding:"40px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:8}}>✅</div><div>Nessuna rata in scadenza</div></div></Card>
+        :<>
+          {rateScadute.length>0&&<Card>
+            <h3 style={{fontSize:14,fontWeight:700,color:"#DC2626",margin:"0 0 12px"}}>⚠️ Rate scadute ({rateScadute.length})</h3>
+            {rateScadute.map((r,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#FEF2F2",borderRadius:T.r,border:"1px solid #FCA5A5",marginBottom:8}}>
+                <div><div style={{fontWeight:700,fontSize:13}}>{r.paziente?r.paziente.cognome+" "+r.paziente.nome:"—"}</div><div style={{fontSize:12,color:T.textSub}}>Scad. {new Date(r.scadenza+"T00:00").toLocaleDateString("it-IT")} — {r.tipo==="saldo"?"Saldo":"Acconto"}</div></div>
+                <div style={{textAlign:"right"}}><div style={{fontWeight:700,fontSize:15,color:"#DC2626"}}>{fmtEur(r.importo)}</div></div>
+              </div>
+            ))}
+          </Card>}
+          {rateInScadenza.length>0&&<Card>
+            <h3 style={{fontSize:14,fontWeight:700,color:"#D97706",margin:"0 0 12px"}}>🔔 In scadenza — 7 giorni ({rateInScadenza.length})</h3>
+            {rateInScadenza.map((r,i)=>(
+              <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 14px",background:"#FFFBEB",borderRadius:T.r,border:"1px solid #FDE68A",marginBottom:8}}>
+                <div><div style={{fontWeight:700,fontSize:13}}>{r.paziente?r.paziente.cognome+" "+r.paziente.nome:"—"}</div><div style={{fontSize:12,color:T.textSub}}>Scad. {new Date(r.scadenza+"T00:00").toLocaleDateString("it-IT")} — {r.tipo==="saldo"?"Saldo":"Acconto"}</div></div>
+                <span style={{fontWeight:700,fontSize:15,color:"#D97706"}}>{fmtEur(r.importo)}</span>
+              </div>
+            ))}
+          </Card>}
+        </>}
+    </div>}
+
     {subtab==="banca"&&<div>
       {/* Periodo */}
       <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18,flexWrap:"wrap"}}>
@@ -3098,6 +3270,27 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
           {scontoNum>0&&totalelordo>0&&<span style={{fontSize:12,color:T.success,fontWeight:600}}>({Math.round(scontoNum/totalelordo*100)}% di sconto)</span>}
         </div>}
       </div>
+    {ncModal&&<Modal open={ncModal} onClose={()=>setNcModal(false)} title="Emetti nota di credito"
+      subtitle={`Storna fattura N. ${fatture.find(f=>String(f.id)===String(ncFattId))?.numero||""}`}
+      width={520}
+      footer={<><Btn variant="secondary" onClick={()=>setNcModal(false)}>Annulla</Btn><Btn onClick={saveNC}>↩️ Emetti NC</Btn></>}>
+      <div style={{marginBottom:10,fontSize:13,color:T.textSub}}>Modifica quantità/prezzi per storno parziale. Rimuovi le voci da non stornare.</div>
+      <div style={{display:"flex",flexDirection:"column",gap:6,marginBottom:12}}>
+        {ncVoci.map((v,i)=>(
+          <div key={i} style={{display:"grid",gridTemplateColumns:"1fr 60px 90px 32px",gap:6,alignItems:"center",padding:"8px 10px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+            <span style={{fontSize:13}}>{v.nome}</span>
+            <input type="number" value={v.qty||1} min={1} onChange={e=>setNcVoci(vv=>vv.map((x,j)=>j===i?{...x,qty:Number(e.target.value)}:x))} style={{padding:"4px 6px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,textAlign:"center"}}/>
+            <input type="number" value={v.prezzo||0} step="0.01" onChange={e=>setNcVoci(vv=>vv.map((x,j)=>j===i?{...x,prezzo:Number(e.target.value)}:x))} style={{padding:"4px 6px",fontSize:13,border:`1px solid ${T.border}`,borderRadius:T.r,textAlign:"right"}}/>
+            <button onClick={()=>setNcVoci(vv=>vv.filter((_,j)=>j!==i))} style={{background:"none",border:"none",cursor:"pointer",color:T.danger,fontSize:16}}>🗑️</button>
+          </div>
+        ))}
+      </div>
+      <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:`1px solid ${T.border}`,marginBottom:10}}>
+        <span style={{fontSize:13,fontWeight:700}}>Totale storno</span>
+        <span style={{fontSize:15,fontWeight:700,color:"#DC2626"}}>−{fmtEur(ncVoci.reduce((s,v)=>s+(v.prezzo||0)*(v.qty||1),0))}</span>
+      </div>
+      <FTextarea label="Motivo" value={ncNote} onChange={e=>setNcNote(e.target.value)} rows={2}/>
+    </Modal>}
     </Modal>
   </div>;
 }
@@ -3179,6 +3372,13 @@ function ReportView({fatture, appuntamenti, pazienti, listino, preventivi}) {
   const filtFatt=fatture.filter(f=>ranges[period](f.data)&&f.statoPagamento==="pagato");
   const filtFattEmesse=fatture.filter(f=>ranges[period](f.data)&&(f.statoPagamento==="pagato"||f.statoPagamento==="parziale"));
   const filtApts=appuntamenti.filter(a=>ranges[period](a.data)&&a.stato==="completato");
+  const incassoPeriodo=filtFatt.reduce((s,f)=>s+f.totale,0);
+  const prevRangeMap={mese:(iso)=>{const d=new Date(iso),n=new Date(now);n.setMonth(n.getMonth()-1);return d.getFullYear()===n.getFullYear()&&d.getMonth()===n.getMonth();},settimana:(iso)=>{const d=new Date(iso),s=new Date(now);s.setDate(now.getDate()-now.getDay()-6);const e=new Date(s);e.setDate(s.getDate()+6);return d>=s&&d<=e;},anno:(iso)=>new Date(iso).getFullYear()===new Date(now).getFullYear()-1};
+  const incassoPrev=prevRangeMap[period]?fatture.filter(f=>prevRangeMap[period](f.data)&&f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0):0;
+  const incassoDelta=incassoPeriodo-incassoPrev;
+  const byCategoria=useMemo(()=>{const cat={};filtFatt.forEach(f=>(f.voci||[]).forEach(v=>{if(v.nome==="Marca da bollo")return;const item=listino.find(l=>l.nome===v.nome);const c=item?.categoria||"Altro";if(!cat[c])cat[c]={label:c,valore:0,count:0};cat[c].valore+=(v.prezzo||0)*(v.qty||1);cat[c].count+=(v.qty||1);}));return Object.values(cat).sort((a,b)=>b.valore-a.valore);},[filtFatt,listino]);
+  const totCat=byCategoria.reduce((s,c)=>s+c.valore,0)||1;
+  const pazNuovi=useMemo(()=>{const ids=new Set((filtApts||[]).map(a=>a.pazienteId));return [...ids].filter(id=>{const first=appuntamenti.filter(a=>String(a.pazienteId)===String(id)).sort((a,b)=>a.data.localeCompare(b.data))[0];return first&&ranges[period](first.data);}).length;},[filtApts,appuntamenti,ranges,period]);
   const totale=filtFatt.reduce((s,f)=>s+(f.totale||0),0);
   const mediaFatt=filtFatt.length?totale/filtFatt.length:0;
 
@@ -3288,6 +3488,61 @@ function ReportView({fatture, appuntamenti, pazienti, listino, preventivi}) {
     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18,marginBottom:18}}>
 
       {/* Grafico MENSILE — settimane */}
+            {/* Confronto e pazienti */}
+      {incassoPrev>0&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:14}}>
+        <Card>
+          <div style={{fontSize:12,color:T.textSub,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Incasso vs periodo precedente</div>
+          <div style={{display:"flex",alignItems:"baseline",gap:10}}>
+            <span style={{fontSize:22,fontWeight:700,color:T.text}}>{fmtEur(incassoPeriodo)}</span>
+            <span style={{fontSize:13,fontWeight:700,color:incassoDelta>=0?"#059669":"#DC2626"}}>{incassoDelta>=0?"▲":"▼"} {fmtEur(Math.abs(incassoDelta))}</span>
+          </div>
+          <div style={{fontSize:12,color:T.textSub,marginTop:4}}>Periodo prec.: {fmtEur(incassoPrev)}</div>
+        </Card>
+        <Card>
+          <div style={{fontSize:12,color:T.textSub,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Pazienti del periodo</div>
+          <div style={{display:"flex",gap:20,alignItems:"center"}}>
+            <div><div style={{fontSize:22,fontWeight:700,color:T.brand}}>{pazNuovi}</div><div style={{fontSize:11,color:T.textSub}}>Nuovi</div></div>
+            <div style={{width:1,height:40,background:T.border}}/>
+            <div><div style={{fontSize:22,fontWeight:700,color:T.text}}>{filtApts?.length||0}</div><div style={{fontSize:11,color:T.textSub}}>Appuntamenti</div></div>
+          </div>
+        </Card>
+      </div>}
+
+      {/* Grafico a torta per categoria */}
+      {byCategoria.length>0&&<Card style={{marginBottom:14}}>
+        <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:16}}>📊 Incasso per categoria</div>
+        <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:24,alignItems:"center"}}>
+          <div style={{display:"flex",justifyContent:"center"}}>
+            {(()=>{
+              const C=["#5BBFB5","#3B82F6","#F59E0B","#EF4444","#8B5CF6","#10B981","#F97316","#06B6D4","#EC4899","#84CC16"];
+              let st=0;const r=90,cx=100,cy=100;
+              return <svg viewBox="0 0 200 200" width={180} height={180}>
+                {byCategoria.map((c,i)=>{
+                  const a=(c.valore/totCat)*2*Math.PI;
+                  const x1=cx+r*Math.sin(st),y1=cy-r*Math.cos(st);
+                  const x2=cx+r*Math.sin(st+a),y2=cy-r*Math.cos(st+a);
+                  const lg=a>Math.PI?1:0;
+                  const path=`M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${lg} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+                  st+=a;
+                  return <path key={i} d={path} fill={C[i%C.length]} stroke="#fff" strokeWidth={1.5}/>;
+                })}
+              </svg>;
+            })()}
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {byCategoria.map((c,i)=>{
+              const C=["#5BBFB5","#3B82F6","#F59E0B","#EF4444","#8B5CF6","#10B981","#F97316","#06B6D4","#EC4899","#84CC16"];
+              return <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:12,height:12,borderRadius:"50%",background:C[i%C.length],flexShrink:0}}/>
+                <div style={{flex:1,fontSize:13,color:T.text}}>{c.label}</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.text}}>{fmtEur(c.valore)}</div>
+                <div style={{fontSize:11,color:T.textSub,minWidth:36,textAlign:"right"}}>{Math.round(c.valore/totCat*100)}%</div>
+              </div>;
+            })}
+          </div>
+        </div>
+      </Card>}
+
       <Card>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16,flexWrap:"wrap",gap:8}}>
           <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:0}}>Incassi mensili</h3>
