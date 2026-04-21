@@ -2404,6 +2404,10 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
   const [search, setSearch]=useState("");
   const [sortCol, setSortCol]=useState("data");
   const [sortAsc, setSortAsc]=useState(false);
+  const [rateModal,setRateModal]=useState(false);
+  const [ratePrevId,setRatePrevId]=useState(null);
+  const [nRate,setNRate]=useState(3);
+  const [primaRataData,setPrimaRataData]=useState(()=>new Date().toISOString().slice(0,10));
   const [modal, setModal]=useState(false);
   const [editId, setEditId]=useState(null);
   const [pazForm, setPazForm]=useState("");
@@ -2484,6 +2488,24 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
     setModal(false);
   }
 
+  function openRateModal(prevId){
+    setRatePrevId(prevId);
+    setNRate(3);
+    setPrimaRataData(new Date().toISOString().slice(0,10));
+    setRateModal(true);
+  }
+  function saveRate(){
+    const p=preventivi.find(x=>String(x.id)===String(ratePrevId));
+    if(!p)return;
+    const imp=parseFloat((p.totale/nRate).toFixed(2));
+    const rate=Array.from({length:nRate},(_,i)=>{
+      const d=new Date(primaRataData+"T00:00");
+      d.setMonth(d.getMonth()+i);
+      return {id:uid(),scadenza:d.toISOString().slice(0,10),importo:i<nRate-1?imp:parseFloat((p.totale-imp*(nRate-1)).toFixed(2)),stato:"da_pagare",tipo:i===nRate-1?"saldo":"acconto"};
+    });
+    setPreventivi(pp=>pp.map(x=>String(x.id)===String(ratePrevId)?{...x,pianoRate:rate}:x));
+    setRateModal(false);
+  }
   function cambia(id,stato){setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));}
 
   function StatoBadge({p}){
