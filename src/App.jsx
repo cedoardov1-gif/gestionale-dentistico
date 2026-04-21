@@ -73,7 +73,7 @@ const INIT_FATTURE = [
 ];
 
 const UTENTI_DEFAULT = [
-  {id:1,nome:"Lucrezia Gemma",cognome:"Porcedda",email:"lgporcedda@studio.it",ruolo:"admin",password:"admin123",attivo:true},
+  {id:1,nome:"Lucrezia Gemma",cognome:"Porcedda",email:"info@studiodentisticosardo.it",ruolo:"admin",password:"Favorio40!",attivo:true},
   {id:2,nome:"Maria",cognome:"Conti",email:"mconti@studio.it",ruolo:"assistente",password:"assist123",attivo:true},
 ];
 
