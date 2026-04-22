@@ -503,12 +503,17 @@ function Pagination({ page, setPage, totalPages, total, perPage, setPerPage, sta
           style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:page===1?"#F3F4F6":"#fff",color:page===1?T.textMuted:T.text,cursor:page===1?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>«</button>
         <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
           style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:page===1?"#F3F4F6":"#fff",color:page===1?T.textMuted:T.text,cursor:page===1?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>‹</button>
-        {Array.from({length:totalPages},(_,i)=>i+1).filter(n=>n===1||n===totalPages||Math.abs(n-page)<=1).reduce((acc,n,idx,arr)=>{if(idx>0&&n-arr[idx-1]>1)acc.push("…");acc.push(n);return acc;},[]).map((n,i)=>
-          typeof n==="string"
-            ? <span key={i} style={{padding:"4px 6px",fontSize:13,color:T.textMuted}}>…</span>
-            : <button key={n} onClick={()=>setPage(n)}
-                style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${n===page?T.brand:T.border}`,background:n===page?T.brand:"#fff",color:n===page?"#fff":T.text,cursor:"pointer",fontSize:13,fontWeight:n===page?700:400,fontFamily:"inherit",minWidth:32}}>{n}</button>
-        )}
+        {(()=>{
+          const nums=Array.from({length:totalPages},(_,i)=>i+1).filter(n=>n===1||n===totalPages||Math.abs(n-page)<=1);
+          const withEllipsis=[];
+          nums.forEach((n,idx)=>{if(idx>0&&n-nums[idx-1]>1)withEllipsis.push("e");withEllipsis.push(n);});
+          return withEllipsis.map((n,i)=>
+            n==="e"
+              ? <span key={"e"+i} style={{padding:"4px 6px",fontSize:13,color:T.textMuted}}>...</span>
+              : <button key={n} onClick={()=>setPage(n)}
+                  style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${n===page?T.brand:T.border}`,background:n===page?T.brand:"#fff",color:n===page?"#fff":T.text,cursor:"pointer",fontSize:13,fontWeight:n===page?700:400,fontFamily:"inherit",minWidth:32}}>{n}</button>
+          );
+        })()}
         <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}
           style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:page===totalPages?"#F3F4F6":"#fff",color:page===totalPages?T.textMuted:T.text,cursor:page===totalPages?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>›</button>
         <button onClick={()=>setPage(totalPages)} disabled={page===totalPages}
