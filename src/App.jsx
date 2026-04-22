@@ -634,7 +634,7 @@ function PageHdr({title, subtitle, action}) {
   </div>;
 }
 
-function StatCard({icon, label, value, sub, color=T.brand, trend}) {
+function StatCard({icon, label, value, sub, color=T.brand, trend, isMobile=false}) {
   return <Card p={20}>
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
       <div style={{width:40,height:40,borderRadius:10,background:color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{icon}</div>
@@ -778,7 +778,7 @@ function LoginPage({onLogin}) {
   </div>;
 }
 
-function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
+function DashView({pazienti, appuntamenti, preventivi, fatture, onNav, isMobile=false}) {
   const today=todayISO(), now=new Date();
   const todayApts=appuntamenti.filter(a=>a.data===today).sort((a,b)=>a.oraInizio.localeCompare(b.oraInizio));
   const mese=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
@@ -4525,7 +4525,7 @@ export default function App() {
         </div>
       </header>
       <main style={{flex:1,padding:isMobile?"12px 10px 80px":"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
-        {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
+        {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo} isMobile={isMobile}/>}
         {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} user={user} pazienti={pazienti} setPazienti={setPazienti} user={user} listino={listino} onNav={navTo}/>}
         {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} user={user} impostazioni={impostazioni}/>}
         {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo} initialPreventivoId={openPreventivoId} onPreventivoOpened={()=>setOpenPreventivoId(null)} user={user}/>}
