@@ -486,6 +486,28 @@ async function logAttivita(utente, azione, categoria, dettaglio, meta={}) {
   } catch(e) {}
 }
 
+// ── Mobile CSS globale ────────────────────────────────────────────────────
+function MobileStyles(){
+  return(
+    <style>{`
+      *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html { -webkit-text-size-adjust: 100%; }
+      html, body { margin:0; padding:0; overflow-x:hidden; width:100%; }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      @media (max-width: 768px) {
+        h1, h2, h3 { font-size: revert; }
+        input, select, textarea { font-size: 16px !important; }
+        button { min-height: 36px; }
+        table { font-size: 12px; }
+        th, td { padding: 6px 8px !important; }
+      }
+      @media (max-width: 390px) {
+        table { font-size: 11px; }
+      }
+    `}</style>
+  );
+}
+
 const BADGE = {
   admin:      {bg:"#EDE9FE",color:"#6D28D9",dot:"#7C3AED"},
   assistente: {bg:"#DBEAFE",color:"#1D4ED8",dot:"#2563EB"},
@@ -591,22 +613,24 @@ function Grid2({children, gap=14}) { return <div style={{display:"grid",gridTemp
 
 function Modal({open, onClose, title, subtitle, children, width=500, footer}) {
   if (!open) return null;
-  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:500,display:"flex",alignItems:"center",justifyContent:"center",padding:16,backdropFilter:"blur(2px)"}}>
-    <div style={{background:T.surface,borderRadius:T.rXl,width:"100%",maxWidth:width,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",maxHeight:"94vh",display:"flex",flexDirection:"column"}}>
-      <div style={{padding:"20px 24px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexShrink:0}}>
+  const _mob=typeof window!=="undefined"&&window.innerWidth<768;
+  return <div onClick={e=>e.target===e.currentTarget&&onClose()} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.4)",zIndex:500,display:"flex",alignItems:_mob?"flex-end":"center",justifyContent:"center",padding:_mob?0:16,backdropFilter:"blur(2px)"}}>
+    <div style={{background:T.surface,borderRadius:_mob?"16px 16px 0 0":T.rXl,width:"100%",maxWidth:_mob?"100%":width,boxShadow:"0 20px 60px rgba(0,0,0,0.2)",maxHeight:_mob?"92vh":"94vh",display:"flex",flexDirection:"column"}}>
+      <div style={{padding:_mob?"14px 16px":"20px 24px",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"flex-start",justifyContent:"space-between",flexShrink:0}}>
         <div><h2 style={{fontSize:17,fontWeight:700,color:T.text,margin:0}}>{title}</h2>{subtitle&&<p style={{fontSize:13,color:T.textSub,margin:"4px 0 0"}}>{subtitle}</p>}</div>
         <button onClick={onClose} style={{background:"none",border:"none",cursor:"pointer",color:T.textMuted,fontSize:20,lineHeight:1,padding:"2px 6px",borderRadius:6}}>✕</button>
       </div>
-      <div style={{padding:"20px 24px",overflowY:"auto",flex:1}}>{children}</div>
-      {footer&&<div style={{padding:"16px 24px",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"flex-end",gap:8,flexShrink:0}}>{footer}</div>}
+      <div style={{padding:_mob?"14px 16px":"20px 24px",overflowY:"auto",flex:1}}>{children}</div>
+      {footer&&<div style={{padding:_mob?"12px 16px":"16px 24px",borderTop:`1px solid ${T.border}`,display:"flex",justifyContent:"flex-end",gap:8,flexShrink:0}}>{footer}</div>}
     </div>
   </div>;
 }
 
 function PageHdr({title, subtitle, action}) {
-  return <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
-    <div><h1 style={{fontSize:22,fontWeight:700,color:T.text,margin:0}}>{title}</h1>{subtitle&&<p style={{fontSize:14,color:T.textSub,margin:"4px 0 0"}}>{subtitle}</p>}</div>
-    {action&&<div style={{flexShrink:0}}>{action}</div>}
+  const _mob=typeof window!=="undefined"&&window.innerWidth<768;
+  return <div style={{display:"flex",justifyContent:"space-between",alignItems:_mob?"center":"flex-start",marginBottom:_mob?14:24,gap:8,flexWrap:"wrap"}}>
+    <div style={{minWidth:0,flex:1}}><h1 style={{fontSize:_mob?15:22,fontWeight:700,color:T.text,margin:0,lineHeight:1.3}}>{title}</h1>{subtitle&&<p style={{fontSize:_mob?11:14,color:T.textSub,margin:"4px 0 0"}}>{subtitle}</p>}</div>
+    {action&&<div style={{flexShrink:0,fontSize:_mob?"12px":"inherit"}}>{action}</div>}
   </div>;
 }
 
@@ -4470,7 +4494,12 @@ export default function App() {
   if (!user) return <LoginPage onLogin={login}/>;
 
   function navTo(v,pazId){setView(v);if(pazId!==undefined)setOpenPazienteId(pazId);setSidebarOpen(false);}
-  const isMobile = typeof window!=="undefined"&&window.innerWidth<768;
+  const [isMobile, setIsMobile] = useState(typeof window!=="undefined"&&window.innerWidth<768);
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(window.innerWidth<768);
+    window.addEventListener("resize",onResize);
+    return()=>window.removeEventListener("resize",onResize);
+  },[]);
   const canView = (section) => {
     if(!user) return false;
     const ruolo = user.ruolo||"assistente";
@@ -4479,18 +4508,18 @@ export default function App() {
   };
   const titles={dashboard:"Dashboard",agenda:"Agenda",pazienti:"Pazienti",preventivi:"Preventivi",fatture:"Fatturazione",listino:"Listino prezzi",report:"Report",utenti:"Utenti"};
 
-  return <ToastProvider><div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+  return <ToastProvider><MobileStyles/><div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
     {sidebarOpen&&isMobile&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:90}}/>}
     <div style={{transform:isMobile?(sidebarOpen?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform 0.25s ease",position:isMobile?"fixed":"relative",zIndex:isMobile?100:1}}>
       <Sidebar view={view} onNav={v=>{setView(v);setSidebarOpen(false);}} onLogout={logout} user={user} canView={canView} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onOpenPaziente={id=>{setOpenPazienteId(id);}} onOpenFattura={id=>{setOpenFatturaId(id);}} onOpenPreventivo={id=>{setOpenPreventivoId(id);}}/>
     </div>
     <div style={{flex:1,display:"flex",flexDirection:"column",marginLeft:isMobile?0:0,minWidth:0,overflow:"hidden"}}>
-      <header style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 24px",height:56,display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:50,flexShrink:0}}>
-        {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.textSub,padding:4}}>☰</button>}
-        <div style={{flex:1}}><span style={{fontSize:16,fontWeight:700,color:T.text}}>{titles[view]}</span></div>
-        <div style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
-          <Av name={`${user.nome} ${user.cognome}`} size={24} fs={9}/>
-          <span style={{fontSize:13,fontWeight:500,color:T.text}}>{user.nome}</span>
+      <header style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 24px",height:isMobile?48:56,display:"flex",alignItems:"center",gap:isMobile?8:12,position:"sticky",top:0,zIndex:50,flexShrink:0,padding:isMobile?"0 12px":"0 20px"}}>
+        {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:T.textSub,padding:"4px 6px",lineHeight:1}}>☰</button>}
+        <div style={{flex:1,minWidth:0}}><span style={{fontSize:isMobile?14:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{titles[view]}</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:6,padding:isMobile?"4px 8px":"6px 12px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,flexShrink:0}}>
+          <Av name={`${user.nome} ${user.cognome}`} size={isMobile?20:24} fs={9}/>
+          <span style={{fontSize:isMobile?11:13,fontWeight:500,color:T.text}}>{user.nome}</span>
           <Badge label={user.ruolo} status={user.ruolo}/>
         </div>
       </header>
@@ -4506,11 +4535,11 @@ export default function App() {
         {view==="utenti"&&<UtentiView currentUser={user}/>}
         {view==="impostazioni"&&canView("impostazioni")&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user} permessi={permessi} setPermessi={setPermessi}/>}
       </main>
-      {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 8px",display:"flex",justifyContent:"space-around",position:"sticky",bottom:0,zIndex:50}}>
+      {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 max(8px,env(safe-area-inset-bottom))",display:"flex",justifyContent:"space-around",position:"sticky",bottom:0,zIndex:50}}>
         {[{id:"dashboard",icon:"⊞"},{id:"agenda",icon:"📅"},{id:"pazienti",icon:"👤"},{id:"preventivi",icon:"📄"},{id:"fatture",icon:"🧾"}].map(v=>(
           <div key={v.id} onClick={()=>setView(v.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"4px 10px"}}>
             <span style={{fontSize:20}}>{v.icon}</span>
-            <span style={{fontSize:9.5,color:view===v.id?T.brand:T.textSub,fontWeight:view===v.id?700:400}}>{titles[v.id]}</span>
+            <span style={{fontSize:10,color:view===v.id?T.brand:T.textSub,fontWeight:view===v.id?700:400}}>{titles[v.id]}</span>
           </div>
         ))}
       </nav>}
