@@ -4473,6 +4473,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [openPazienteId, setOpenPazienteId] = useState(null);
   const [openFatturaId, setOpenFatturaId] = useState(null);
+  const [openPreventivoId, setOpenPreventivoId] = useState(null);
   const [pazienti, setPazienti] = useStore("pazienti", INIT_PAZIENTI);
   const [appuntamenti, setAppuntamenti] = useStore("appuntamenti", INIT_APPUNTAMENTI);
   const [preventivi, setPreventivi] = useStore("preventivi", INIT_PREVENTIVI);
