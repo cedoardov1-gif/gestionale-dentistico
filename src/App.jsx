@@ -473,6 +473,51 @@ function ConnectionIndicator(){
   );
 }
 
+// ── Paginazione ──────────────────────────────────────────────────────────
+function usePagination(data, defaultPerPage=25) {
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(defaultPerPage);
+  const totalPages = Math.max(1, Math.ceil(data.length / perPage));
+  const safePage = Math.min(page, totalPages);
+  const start = (safePage - 1) * perPage;
+  const paged = data.slice(start, start + perPage);
+  useEffect(() => { setPage(1); }, [data.length, perPage]);
+  return { paged, page: safePage, setPage, perPage, setPerPage, totalPages, total: data.length, start };
+}
+
+function Pagination({ page, setPage, totalPages, total, perPage, setPerPage, start }) {
+  if (total === 0) return null;
+  const end = Math.min(start + perPage, total);
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderTop:`1px solid ${T.border}`,flexWrap:"wrap",gap:8,background:"#FAFBFC"}}>
+      <div style={{display:"flex",alignItems:"center",gap:6}}>
+        <span style={{fontSize:12,color:T.textSub}}>Righe per pagina:</span>
+        <select value={perPage} onChange={e=>{setPerPage(Number(e.target.value));}}
+          style={{padding:"3px 8px",fontSize:12,border:`1px solid ${T.border}`,borderRadius:6,fontFamily:"inherit",background:"#fff",color:T.text,cursor:"pointer"}}>
+          {[10,25,50].map(n=><option key={n} value={n}>{n}</option>)}
+        </select>
+        <span style={{fontSize:12,color:T.textMuted,marginLeft:4}}>{start+1}–{end} di {total}</span>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:4}}>
+        <button onClick={()=>setPage(1)} disabled={page===1}
+          style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:page===1?"#F3F4F6":"#fff",color:page===1?T.textMuted:T.text,cursor:page===1?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>«</button>
+        <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
+          style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:page===1?"#F3F4F6":"#fff",color:page===1?T.textMuted:T.text,cursor:page===1?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>‹</button>
+        {Array.from({length:totalPages},(_,i)=>i+1).filter(n=>n===1||n===totalPages||Math.abs(n-page)<=1).reduce((acc,n,idx,arr)=>{if(idx>0&&n-arr[idx-1]>1)acc.push("…");acc.push(n);return acc;},[]).map((n,i)=>
+          typeof n==="string"
+            ? <span key={i} style={{padding:"4px 6px",fontSize:13,color:T.textMuted}}>…</span>
+            : <button key={n} onClick={()=>setPage(n)}
+                style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${n===page?T.brand:T.border}`,background:n===page?T.brand:"#fff",color:n===page?"#fff":T.text,cursor:"pointer",fontSize:13,fontWeight:n===page?700:400,fontFamily:"inherit",minWidth:32}}>{n}</button>
+        )}
+        <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}
+          style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:page===totalPages?"#F3F4F6":"#fff",color:page===totalPages?T.textMuted:T.text,cursor:page===totalPages?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>›</button>
+        <button onClick={()=>setPage(totalPages)} disabled={page===totalPages}
+          style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:page===totalPages?"#F3F4F6":"#fff",color:page===totalPages?T.textMuted:T.text,cursor:page===totalPages?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>»</button>
+      </div>
+    </div>
+  );
+}
+
 // ── Log attività ──────────────────────────────────────────────────────────
 async function logAttivita(utente, azione, categoria, dettaglio, meta={}) {
   try {
@@ -1403,6 +1448,8 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
   const [logEntries,setLogEntries]=useState([]);
   const [logLoading,setLogLoading]=useState(false);
   const [logFilter,setLogFilter]=useState("tutti");
+  const logFiltered = logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter);
+  const logPag = usePagination(logFiltered, 25);
   useEffect(()=>{
     if(activeTab!=="log")return;
     setLogLoading(true);
@@ -1665,7 +1712,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
       </div>
       {logLoading
         ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>⏳ Caricamento...</div>
-        :logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter).length===0
+        :logFiltered.length===0
           ?<div style={{textAlign:"center",padding:40,color:T.textSub}}>Nessuna attività registrata</div>
           :<Card style={{padding:0,overflow:"hidden"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
@@ -1675,7 +1722,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
                 ))}
               </tr></thead>
               <tbody>
-                {logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter).map((e,i)=>{
+                {logPag.paged.map((e,i)=>{
                   const AL={login:"🔐 Login",logout:"🚪 Logout",nuovo_paziente:"👤 Nuovo paz.",modifica_paziente:"✏️ Modifica paz.",elimina_paziente:"🗑️ Elimina paz.",nuovo_appuntamento:"📅 Nuovo apt.",modifica_appuntamento:"✏️ Modifica apt.",nuovo_preventivo:"📄 Nuovo prev.",nuova_fattura:"🧾 Nuova fattura",elimina_fattura:"🗑️ Elimina fattura",nuovo_listino:"💰 Nuovo listino"};
                   const dt=e.ts?new Date(e.ts):null;
                   return(
@@ -1693,6 +1740,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
                 })}
               </tbody>
             </table>
+            <Pagination {...logPag}/>
           </Card>
       }
     </div>}
@@ -1778,6 +1826,8 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
     });
     return res.sort((a,b)=>sortAZ?a.cognome.localeCompare(b.cognome):b.cognome.localeCompare(a.cognome));
   },[pazienti,search,sortAZ]);
+
+  const pazPag = usePagination(filtered, 25);
 
   function openNew(){setForm({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});setEditId(null);setModal(true);}
   function openEdit(p){setForm({...p,allergie:p.allergie||"",farmaci:p.farmaci||"",luogoNascita:p.luogoNascita||"",provinciaNascita:p.provinciaNascita||""});setEditId(p.id);setModal(true);}
@@ -2475,10 +2525,11 @@ function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pre
             {label:"Nato il",render:r=><span style={{color:T.textSub}}>{fmtDate(r.dataNascita)}</span>,nowrap:true},
             {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn></div>,nowrap:true},
           ]}
-          data={filtered}
+          data={pazPag.paged}
           onRowClick={r=>{setDetail(r.id);setTab("overview");}}
           emptyText="Nessun paziente trovato" emptyIcon="👥"
         />
+        <Pagination {...pazPag}/>
       </Card>
 
       <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica paziente":"Nuovo paziente"} width={540}
@@ -2782,6 +2833,8 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
     return res;
   },[preventivi,filter,search,pazienti,sortCol,sortAsc]);
 
+  const prevPag = usePagination(filtered, 25);
+
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
 
   function openNew(){setPazForm("");setVoci([]);setNote("");setScontoAttivo(false);setScontoValore("");setEditId(null);setModal(true);}
@@ -2886,7 +2939,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r,i)=>{
+                {prevPag.paged.map((r,i)=>{
                   const hasFattura=prevConFattura.has(r.id);
                   return <tr key={r.id} style={{borderBottom:`1px solid ${T.border}`}}
                     onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
@@ -2942,6 +2995,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
               </tbody>
             </table>
           </div>
+          <Pagination {...prevPag}/>
       }
     </Card>
 
@@ -3289,6 +3343,8 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
     return res;
   },[fatture,filter,search,pazienti,sortCol,sortAsc]);
 
+  const fattPag = usePagination(filtered, 25);
+
   function getPaz(id){const p=pazienti.find(x=>x.id===Number(id));return p?`${p.cognome} ${p.nome}`:"—";}
   function nextN(){const anno=new Date().getFullYear();const n=fatture.filter(f=>f.numero&&f.numero.endsWith('/'+anno)).length+1;return String(n).padStart(2,'0')+'/'+anno;}
   function openNew(){setForm({pazienteId:"",preventivoId:"",data:todayISO(),voci:[],metodoPagamento:"Contanti",statoPagamento:"non_pagato",note:"",tipoFattura:"saldo",accontoValore:""});setScontoAttivo(false);setScontoValore("");setMarcaBollo(false);setTipoFatt("saldo");setEditId(null);setModal(true);}
@@ -3474,7 +3530,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r,i)=>(
+            {fattPag.paged.map((r,i)=>(
               <tr key={r.id} style={{borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -3512,6 +3568,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
             ))}
           </tbody>
         </table>
+        <Pagination {...fattPag}/>
       </div>}
     </Card>}
 
