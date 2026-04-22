@@ -490,34 +490,22 @@ async function logAttivita(utente, azione, categoria, dettaglio, meta={}) {
 function MobileStyles(){
   return(
     <style>{`
-      *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-      html { -webkit-text-size-adjust: 100%; }
-      html, body { margin:0; padding:0; overflow-x:hidden; width:100%; }
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      *, *::before, *::after { box-sizing: border-box !important; -webkit-tap-highlight-color: transparent; }
+      html { -webkit-text-size-adjust: 100%; overflow-x: hidden; }
+      html, body { margin:0; padding:0; overflow-x:hidden !important; width:100%; max-width:100vw; }
+      body { padding-top: env(safe-area-inset-top); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      #root { overflow-x:hidden !important; }
       @media (max-width: 768px) {
-        h1, h2, h3 { font-size: revert; }
         input, select, textarea { font-size: 16px !important; }
-        button { min-height: 36px; }
-        table { font-size: 12px; }
-        th, td { padding: 6px 8px !important; }
-      }
-      @media (max-width: 390px) {
-        table { font-size: 11px; }
+        button { min-height: 44px; }
+        table { font-size: 12px; width: 100%; table-layout: fixed; }
+        th, td { padding: 6px 8px !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        * { min-width: 0; }
       }
     `}</style>
   );
 }
 
-const BADGE = {
-  admin:      {bg:"#EDE9FE",color:"#6D28D9",dot:"#7C3AED"},
-  assistente: {bg:"#DBEAFE",color:"#1D4ED8",dot:"#2563EB"},
-  in_attesa:  {bg:"#FEF9C3",color:"#854D0E",dot:"#CA8A04"},
-  accettato:  {bg:"#DCFCE7",color:"#166534",dot:"#16A34A"},
-  rifiutato:  {bg:"#FEE2E2",color:"#991B1B",dot:"#DC2626"},
-  pagato:     {bg:"#DCFCE7",color:"#166534",dot:"#16A34A"},
-  parziale:   {bg:"#FEF3C7",color:"#92400E",dot:"#D97706"},
-  non_pagato: {bg:"#FEE2E2",color:"#991B1B",dot:"#DC2626"},
-};
 function Badge({label, status}) {
   const s = BADGE[status||label] || {bg:"#F3F4F6",color:"#6B7280",dot:"#9CA3AF"};
   return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:s.bg,color:s.color,whiteSpace:"nowrap"}}><span style={{width:5,height:5,borderRadius:"50%",background:s.dot}}/>{label}</span>;
@@ -820,7 +808,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav, isMobile=
       {kpis.map((k,i)=>(
         <div key={i} onClick={()=>onNav(k.nav)}
           style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rLg,padding:isMobile?10:20,boxShadow:T.shadow,
-            cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden"}}
+            width:"100%",minWidth:0,overflow:"hidden",cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden"}}
           onMouseEnter={e=>{e.currentTarget.style.boxShadow=T.shadowMd;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.borderColor=k.color+"66";}}
           onMouseLeave={e=>{e.currentTarget.style.boxShadow=T.shadow;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.borderColor=T.border;}}>
           <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:k.color,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}/>
@@ -836,7 +824,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav, isMobile=
       ))}
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"3fr 2fr",gap:isMobile?12:18,marginBottom:isMobile?12:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"3fr 2fr",gap:isMobile?12:18,marginBottom:isMobile?12:18,overflow:"hidden"}}>
       {/* Agenda oggi */}
       <Card>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -888,7 +876,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav, isMobile=
       </div>
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?12:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?12:18,overflow:"hidden"}}>
       <Card style={{cursor:"pointer"}} onClick={()=>onNav("fatture")}
         onMouseEnter={e=>e.currentTarget.style.boxShadow=T.shadowMd}
         onMouseLeave={e=>e.currentTarget.style.boxShadow=T.shadow}>
@@ -4510,13 +4498,13 @@ export default function App() {
   };
   const titles={dashboard:"Dashboard",agenda:"Agenda",pazienti:"Pazienti",preventivi:"Preventivi",fatture:"Fatturazione",listino:"Listino prezzi",report:"Report",utenti:"Utenti"};
 
-  return <ToastProvider><MobileStyles/><div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"}}>
+  return <ToastProvider><MobileStyles/><div style={{display:"flex",minHeight:"100vh",background:T.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",overflowX:"hidden",maxWidth:"100vw"}}>
     {sidebarOpen&&isMobile&&<div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:90}}/>}
-    <div style={{transform:isMobile?(sidebarOpen?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform 0.25s ease",position:isMobile?"fixed":"relative",zIndex:isMobile?100:1}}>
+    <div style={{transform:isMobile?(sidebarOpen?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform 0.25s ease",position:isMobile?"fixed":"relative",zIndex:isMobile?100:1,height:isMobile?"100vh":"auto"}}>
       <Sidebar view={view} onNav={v=>{setView(v);setSidebarOpen(false);}} onLogout={logout} user={user} canView={canView} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onOpenPaziente={id=>{setOpenPazienteId(id);}} onOpenFattura={id=>{setOpenFatturaId(id);}} onOpenPreventivo={id=>{setOpenPreventivoId(id);}}/>
     </div>
     <div style={{flex:1,display:"flex",flexDirection:"column",marginLeft:isMobile?0:0,minWidth:0,overflow:"hidden"}}>
-      <header style={{background:T.surface,borderBottom:`1px solid ${T.border}`,padding:"0 24px",height:isMobile?48:56,display:"flex",alignItems:"center",gap:isMobile?8:12,position:"sticky",top:0,zIndex:50,flexShrink:0,padding:isMobile?"0 12px":"0 20px"}}>
+      <header style={{background:T.surface,borderBottom:`1px solid ${T.border}`,height:56,display:isMobile?"none":"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:50,flexShrink:0,padding:"0 20px"}}>
         {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:T.textSub,padding:"4px 6px",lineHeight:1}}>☰</button>}
         <div style={{flex:1,minWidth:0}}><span style={{fontSize:isMobile?14:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{titles[view]}</span></div>
         <div style={{display:"flex",alignItems:"center",gap:6,padding:isMobile?"4px 8px":"6px 12px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,flexShrink:0}}>
@@ -4525,7 +4513,7 @@ export default function App() {
           {!isMobile&&<Badge label={user.ruolo} status={user.ruolo}/>}
         </div>
       </header>
-      <main style={{flex:1,padding:isMobile?"12px 10px 80px":"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
+      <main style={{flex:1,padding:isMobile?"12px 14px 90px":"24px",overflowY:"auto",width:"100%",maxWidth:"100%",overflowX:"hidden",boxSizing:"border-box"}}>
         {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo} isMobile={isMobile}/>}
         {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} user={user} pazienti={pazienti} setPazienti={setPazienti} user={user} listino={listino} onNav={navTo}/>}
         {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} user={user} impostazioni={impostazioni}/>}
