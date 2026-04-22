@@ -873,7 +873,8 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav, isMobile=
       {kpis.map((k,i)=>(
         <div key={i} onClick={()=>onNav(k.nav)}
           style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rLg,padding:isMobile?10:20,boxShadow:T.shadow,
-            cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden"}}
+            cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden",
+            gridColumn:(isMobile&&kpis.length%2!==0&&i===kpis.length-1)?"span 2":"auto"}}
           onMouseEnter={e=>{e.currentTarget.style.boxShadow=T.shadowMd;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.borderColor=k.color+"66";}}
           onMouseLeave={e=>{e.currentTarget.style.boxShadow=T.shadow;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.borderColor=T.border;}}>
           <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:k.color,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}/>
@@ -2792,7 +2793,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, listi
 }
 
 
-function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav, initialPreventivoId, onPreventivoOpened, user}) {
+function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, onNav, initialPreventivoId, onPreventivoOpened, user, isMobile=false}) {
   const [filter, setFilter]=useState("tutti");
   const [highlightId, setHighlightId] = useState(null);
   useEffect(()=>{
@@ -2938,7 +2939,46 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
 
       {filtered.length===0
         ? <div style={{textAlign:"center",padding:"50px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:10}}>📄</div><div style={{fontSize:14,color:T.textSub}}>Nessun preventivo</div></div>
-        : <React.Fragment><div style={{overflowX:"auto"}}>
+        : isMobile
+          ? <div style={{padding:"8px 0"}}>
+              {prevPag.paged.map((r,i)=>{
+                const hasFattura=prevConFattura.has(r.id);
+                return <div key={r.id} style={{margin:"0 12px 10px",background:"#fff",borderRadius:T.rLg,border:`1px solid ${T.border}`,boxShadow:T.shadow,overflow:"hidden"}}>
+                  <div style={{padding:"12px 14px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <Av name={getPaz(r.pazienteId)} size={28} fs={10}/>
+                      <span onClick={e=>{e.stopPropagation();if(onNav)onNav("pazienti",r.pazienteId);}} style={{fontWeight:700,fontSize:14,color:T.brand,cursor:"pointer"}}>{getPaz(r.pazienteId)}</span>
+                    </div>
+                    <StatoBadge p={r}/>
+                  </div>
+                  <div style={{padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div>
+                      <div style={{fontSize:11,color:T.textMuted,marginBottom:3}}>{fmtDate(r.data)}</div>
+                      <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+                        {r.voci.slice(0,2).map((v,vi)=><span key={vi} style={{fontSize:11,background:T.brandLight,color:T.brandDark,padding:"2px 7px",borderRadius:20}}>{v.nome}</span>)}
+                        {r.voci.length>2&&<span style={{fontSize:11,color:T.textMuted}}>+{r.voci.length-2}</span>}
+                      </div>
+                    </div>
+                    <b style={{fontSize:17,color:T.text,flexShrink:0,marginLeft:8}}>{fmtEur(r.totale)}</b>
+                  </div>
+                  <div style={{padding:"8px 14px",borderTop:`1px solid ${T.border}`,background:T.bg,display:"flex",gap:6,flexWrap:"wrap"}}>
+                    {!hasFattura&&r.stato==="in_attesa"&&<>
+                      <Btn size="xs" variant="success" onClick={()=>cambia(r.id,"accettato")}>✓ Accetta</Btn>
+                      <Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗ Rifiuta</Btn>
+                    </>}
+                    {!hasFattura&&r.stato==="accettato"&&<Btn size="xs" variant="secondary" onClick={()=>cambia(r.id,"in_attesa")}>← Riapri</Btn>}
+                    {!hasFattura&&r.stato!=="accettato"&&<Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️ Modifica</Btn>}
+                    {r.stato==="accettato"&&<Btn size="xs" variant="ghost" onClick={()=>openRateModal(r.id)}>📅 Rate</Btn>}
+                    {!hasFattura&&r.stato==="rifiutato"&&<Btn size="xs" variant="danger" onClick={()=>tryDelete(r)}>🗑️ Elimina</Btn>}
+                    {hasFattura&&(prevConAcconto.has(r.id)
+                      ? <span style={{fontSize:11.5,color:"#D97706",padding:"3px 10px",background:"#FFFBEB",borderRadius:6,fontWeight:600}}>💰 Acconto</span>
+                      : <span style={{fontSize:11.5,color:"#1D4ED8",padding:"3px 10px",background:"#EFF6FF",borderRadius:6,fontWeight:600}}>🔒 Fatturato</span>)}
+                  </div>
+                </div>;
+              })}
+              <div style={{margin:"0 12px"}}><Pagination {...prevPag}/></div>
+            </div>
+          : <React.Fragment><div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
                 <tr>
@@ -2973,28 +3013,23 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}><StatoBadge p={r}/></td>
                     <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
                       <div style={{display:"flex",gap:5,alignItems:"center"}}>
-                        {/* Accetta/Rifiuta solo se in_attesa e non fatturato */}
                         {!hasFattura&&r.stato==="in_attesa"&&<>
                           <Btn size="xs" variant="success" onClick={()=>cambia(r.id,"accettato")}>✓ Accetta</Btn>
                           <Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗ Rifiuta</Btn>
                         </>}
-                        {/* Riapri se accettato e non fatturato */}
                         {!hasFattura&&r.stato==="accettato"&&
                           <Btn size="xs" variant="secondary" onClick={()=>cambia(r.id,"in_attesa")}>← Riapri</Btn>
                         }
-                        {/* Modifica */}
                         {!hasFattura&&r.stato!=="accettato"&&
                           <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
                         }
                         {r.stato==="accettato"&&<Btn size="xs" variant="ghost" title="Piano rate" onClick={()=>openRateModal(r.id)}>📅 {r.pianoRate?"Rate ("+r.pianoRate.length+")":"Rate"}</Btn>}
-                        {/* Elimina — solo se rifiutato e non fatturato */}
                         {!hasFattura&&r.stato==="rifiutato"&&
                           <button onClick={()=>tryDelete(r)}
                             style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
                             🗑️ Elimina
                           </button>
                         }
-                        {/* Bloccato se fatturato */}
                         {hasFattura&&(
                             prevConAcconto.has(r.id)
                             ? <span style={{fontSize:11.5,color:"#D97706",padding:"4px 10px",background:"#FFFBEB",borderRadius:6,fontWeight:600}}>💰 Acconto</span>
@@ -3306,7 +3341,7 @@ function stampaFattura(fatt, pazientiList, fattureList) {
     const w = window.open("","_blank","width=900,height=750");
     if(w){w.document.write(html);w.document.close();}
   }
-function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav, initialFatturaId, onFatturaOpened, user}) {
+function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPreventivi, onNav, initialFatturaId, onFatturaOpened, user, isMobile=false}) {
   const [subtab, setSubtab] = useState("fatture");
   const [highlightId, setHighlightId] = useState(null);
   useEffect(()=>{
@@ -3530,7 +3565,40 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
         <Tabs tabs={ttabs} active={filter} onChange={setFilter}/>
         <SBar value={search} onChange={setSearch} placeholder="Cerca per paziente o numero..."/>
       </div>
-      {filtered.length===0?<div style={{textAlign:"center",padding:"50px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:10}}>🧾</div><div style={{fontSize:14,color:T.textSub}}>Nessuna fattura</div></div>:<div style={{overflowX:"auto"}}>
+      {filtered.length===0
+        ? <div style={{textAlign:"center",padding:"50px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:10}}>🧾</div><div style={{fontSize:14,color:T.textSub}}>Nessuna fattura</div></div>
+        : isMobile
+          ? <div style={{padding:"8px 0"}}>
+              {fattPag.paged.map((r,i)=>{
+                const statoColor=r.statoPagamento==="pagato"?"#059669":r.statoPagamento==="parziale"?"#D97706":"#DC2626";
+                const statoBg=r.statoPagamento==="pagato"?"#ECFDF5":r.statoPagamento==="parziale"?"#FFFBEB":"#FEF2F2";
+                const statoLabel=r.statoPagamento==="pagato"?"✓ Pagato":r.statoPagamento==="parziale"?"💰 Acconto":"⏳ Da pagare";
+                return <div key={r.id} style={{margin:"0 12px 10px",background:"#fff",borderRadius:T.rLg,border:`1px solid ${T.border}`,boxShadow:T.shadow,overflow:"hidden"}}>
+                  <div style={{padding:"12px 14px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <Av name={getPaz(r.pazienteId)} size={28} fs={10}/>
+                      <span onClick={e=>{e.stopPropagation();if(onNav)onNav("pazienti",r.pazienteId);}} style={{fontWeight:700,fontSize:14,color:T.brand,cursor:"pointer"}}>{getPaz(r.pazienteId)}</span>
+                    </div>
+                    <span style={{fontSize:12,fontWeight:600,padding:"3px 10px",borderRadius:20,border:`1px solid ${statoColor}`,color:statoColor,background:statoBg}}>{statoLabel}</span>
+                  </div>
+                  <div style={{padding:"10px 14px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:600,color:T.text}}>N° {r.numero}</div>
+                      <div style={{fontSize:11,color:T.textMuted,marginTop:2}}>{fmtDate(r.data)} · {r.metodoPagamento}</div>
+                    </div>
+                    <b style={{fontSize:18,color:T.text}}>{fmtEur(r.totale)}</b>
+                  </div>
+                  <div style={{padding:"8px 14px",borderTop:`1px solid ${T.border}`,background:T.bg,display:"flex",gap:6}}>
+                    <Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaFattura(r,pazienti,fatture);}}>🖨️ Stampa</Btn>
+                    {r.tipoFattura!=="nota_credito"&&<Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();openNC(r);}}>↩️ NC</Btn>}
+                    {r.tipoFattura==="nota_credito"&&<Btn size="xs" variant="ghost" onClick={e=>{e.stopPropagation();stampaNoteCredito(r,pazienti,fatture);}}>🖨️ NC</Btn>}
+                    <Btn size="xs" variant="danger" onClick={()=>del(r.id)}>🗑️</Btn>
+                  </div>
+                </div>;
+              })}
+              <div style={{margin:"0 12px"}}><Pagination {...fattPag}/></div>
+            </div>
+          : <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse"}}>
           <thead>
             <tr style={{borderBottom:`1px solid ${T.border}`,background:T.bg}}>
@@ -4595,8 +4663,8 @@ export default function App() {
         {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo} isMobile={isMobile}/>}
         {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} user={user} pazienti={pazienti} setPazienti={setPazienti} user={user} listino={listino} onNav={navTo}/>}
         {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} user={user} impostazioni={impostazioni}/>}
-        {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo} initialPreventivoId={openPreventivoId} onPreventivoOpened={()=>setOpenPreventivoId(null)} user={user}/>}
-        {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo} initialFatturaId={openFatturaId} onFatturaOpened={()=>setOpenFatturaId(null)} user={user}/>}
+        {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} listino={listino} fatture={fatture} onNav={navTo} initialPreventivoId={openPreventivoId} onPreventivoOpened={()=>setOpenPreventivoId(null)} user={user} isMobile={isMobile}/>}
+        {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo} initialFatturaId={openFatturaId} onFatturaOpened={()=>setOpenFatturaId(null)} user={user} isMobile={isMobile}/>}
         {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino} user={user}/>}
         {view==="comunicazioni"&&canView("comunicazioni")&&<ComunicazioniView pazienti={pazienti} appuntamenti={appuntamenti}/>}
         {view==="report"&&canView("report")&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino} preventivi={preventivi}/>}
