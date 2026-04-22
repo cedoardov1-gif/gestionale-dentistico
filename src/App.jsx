@@ -485,39 +485,46 @@ function usePagination(data, defaultPerPage=25) {
   return { paged, page: safePage, setPage, perPage, setPerPage, totalPages, total: data.length, start };
 }
 
+function PaginationPageButtons({page, setPage, totalPages}) {
+  const nums = Array.from({length:totalPages}, (_,i)=>i+1).filter(n=>n===1||n===totalPages||Math.abs(n-page)<=1);
+  const items = [];
+  nums.forEach(function(n,idx) {
+    if(idx>0 && n-nums[idx-1]>1) items.push("e"+idx);
+    items.push(n);
+  });
+  return items.map(function(n,i) {
+    if(typeof n==="string") return <span key={n} style={{padding:"4px 6px",fontSize:13,color:T.textMuted}}>...</span>;
+    var isCur = n===page;
+    return <button key={n} onClick={function(){setPage(n);}}
+      style={{padding:"4px 10px",borderRadius:6,border:"1px solid "+(isCur?T.brand:T.border),background:isCur?T.brand:"#fff",color:isCur?"#fff":T.text,cursor:"pointer",fontSize:13,fontWeight:isCur?700:400,fontFamily:"inherit",minWidth:32}}>{n}</button>;
+  });
+}
 function Pagination({ page, setPage, totalPages, total, perPage, setPerPage, start }) {
   if (total === 0) return null;
-  const end = Math.min(start + perPage, total);
+  var end = Math.min(start + perPage, total);
+  var atFirst = page===1;
+  var atLast = page===totalPages;
+  var btnBase = {borderRadius:6,border:"1px solid "+T.border,fontSize:13,fontFamily:"inherit",cursor:"pointer"};
   return (
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderTop:`1px solid ${T.border}`,flexWrap:"wrap",gap:8,background:"#FAFBFC"}}>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",borderTop:"1px solid "+T.border,flexWrap:"wrap",gap:8,background:"#FAFBFC"}}>
       <div style={{display:"flex",alignItems:"center",gap:6}}>
         <span style={{fontSize:12,color:T.textSub}}>Righe per pagina:</span>
-        <select value={perPage} onChange={e=>{setPerPage(Number(e.target.value));}}
-          style={{padding:"3px 8px",fontSize:12,border:`1px solid ${T.border}`,borderRadius:6,fontFamily:"inherit",background:"#fff",color:T.text,cursor:"pointer"}}>
-          {[10,25,50].map(n=><option key={n} value={n}>{n}</option>)}
+        <select value={perPage} onChange={function(e){setPerPage(Number(e.target.value));}}
+          style={{padding:"3px 8px",fontSize:12,border:"1px solid "+T.border,borderRadius:6,fontFamily:"inherit",background:"#fff",color:T.text,cursor:"pointer"}}>
+          {[10,25,50].map(function(n){return <option key={n} value={n}>{n}</option>;})}
         </select>
         <span style={{fontSize:12,color:T.textMuted,marginLeft:4}}>{start+1}–{end} di {total}</span>
       </div>
       <div style={{display:"flex",alignItems:"center",gap:4}}>
-        <button onClick={()=>setPage(1)} disabled={page===1}
-          style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:page===1?"#F3F4F6":"#fff",color:page===1?T.textMuted:T.text,cursor:page===1?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>«</button>
-        <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1}
-          style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:page===1?"#F3F4F6":"#fff",color:page===1?T.textMuted:T.text,cursor:page===1?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>‹</button>
-        {(()=>{
-          const nums=Array.from({length:totalPages},(_,i)=>i+1).filter(n=>n===1||n===totalPages||Math.abs(n-page)<=1);
-          const withEllipsis=[];
-          nums.forEach((n,idx)=>{if(idx>0&&n-nums[idx-1]>1)withEllipsis.push("e");withEllipsis.push(n);});
-          return withEllipsis.map((n,i)=>
-            n==="e"
-              ? <span key={"e"+i} style={{padding:"4px 6px",fontSize:13,color:T.textMuted}}>...</span>
-              : <button key={n} onClick={()=>setPage(n)}
-                  style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${n===page?T.brand:T.border}`,background:n===page?T.brand:"#fff",color:n===page?"#fff":T.text,cursor:"pointer",fontSize:13,fontWeight:n===page?700:400,fontFamily:"inherit",minWidth:32}}>{n}</button>
-          );
-        })()}
-        <button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page===totalPages}
-          style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${T.border}`,background:page===totalPages?"#F3F4F6":"#fff",color:page===totalPages?T.textMuted:T.text,cursor:page===totalPages?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>›</button>
-        <button onClick={()=>setPage(totalPages)} disabled={page===totalPages}
-          style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${T.border}`,background:page===totalPages?"#F3F4F6":"#fff",color:page===totalPages?T.textMuted:T.text,cursor:page===totalPages?"default":"pointer",fontSize:13,fontFamily:"inherit"}}>»</button>
+        <button onClick={function(){setPage(1);}} disabled={atFirst}
+          style={{...btnBase,padding:"4px 8px",background:atFirst?"#F3F4F6":"#fff",color:atFirst?T.textMuted:T.text}}>«</button>
+        <button onClick={function(){setPage(function(p){return Math.max(1,p-1);});}} disabled={atFirst}
+          style={{...btnBase,padding:"4px 10px",background:atFirst?"#F3F4F6":"#fff",color:atFirst?T.textMuted:T.text}}>‹</button>
+        <PaginationPageButtons page={page} setPage={setPage} totalPages={totalPages}/>
+        <button onClick={function(){setPage(function(p){return Math.min(totalPages,p+1);});}} disabled={atLast}
+          style={{...btnBase,padding:"4px 10px",background:atLast?"#F3F4F6":"#fff",color:atLast?T.textMuted:T.text}}>›</button>
+        <button onClick={function(){setPage(totalPages);}} disabled={atLast}
+          style={{...btnBase,padding:"4px 8px",background:atLast?"#F3F4F6":"#fff",color:atLast?T.textMuted:T.text}}>»</button>
       </div>
     </div>
   );
