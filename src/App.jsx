@@ -4459,6 +4459,12 @@ function Sidebar({view, onNav, onLogout, user, pazienti, appuntamenti, preventiv
 
 export default function App() {
   const {user, login, logout, authLoading} = useAuth();
+  const [isMobile, setIsMobile] = useState(typeof window!=="undefined"&&window.innerWidth<768);
+  useEffect(()=>{
+    const onResize=()=>setIsMobile(window.innerWidth<768);
+    window.addEventListener("resize",onResize);
+    return()=>window.removeEventListener("resize",onResize);
+  },[]);
   const [confirmFn,confirmModal]=useConfirm();
   const toast=useToast();
   React.useEffect(()=>{_cr.fn=confirmFn;},[confirmFn]);
@@ -4494,12 +4500,7 @@ export default function App() {
   if (!user) return <LoginPage onLogin={login}/>;
 
   function navTo(v,pazId){setView(v);if(pazId!==undefined)setOpenPazienteId(pazId);setSidebarOpen(false);}
-  const [isMobile, setIsMobile] = useState(typeof window!=="undefined"&&window.innerWidth<768);
-  useEffect(()=>{
-    const onResize=()=>setIsMobile(window.innerWidth<768);
-    window.addEventListener("resize",onResize);
-    return()=>window.removeEventListener("resize",onResize);
-  },[]);
+
   const canView = (section) => {
     if(!user) return false;
     const ruolo = user.ruolo||"assistente";
