@@ -504,6 +504,16 @@ function MobileStyles(){
   );
 }
 
+const BADGE = {
+  admin:      {bg:"#EDE9FE",color:"#6D28D9",dot:"#7C3AED"},
+  assistente: {bg:"#DBEAFE",color:"#1D4ED8",dot:"#2563EB"},
+  in_attesa:  {bg:"#FEF9C3",color:"#854D0E",dot:"#CA8A04"},
+  accettato:  {bg:"#DCFCE7",color:"#166534",dot:"#16A34A"},
+  rifiutato:  {bg:"#FEE2E2",color:"#991B1B",dot:"#DC2626"},
+  pagato:     {bg:"#DCFCE7",color:"#166534",dot:"#16A34A"},
+  parziale:   {bg:"#FEF3C7",color:"#92400E",dot:"#D97706"},
+  non_pagato: {bg:"#FEE2E2",color:"#991B1B",dot:"#DC2626"},
+};
 function Badge({label, status}) {
   const s = BADGE[status||label] || {bg:"#F3F4F6",color:"#6B7280",dot:"#9CA3AF"};
   return <span style={{display:"inline-flex",alignItems:"center",gap:5,padding:"3px 9px",borderRadius:20,fontSize:11.5,fontWeight:600,background:s.bg,color:s.color,whiteSpace:"nowrap"}}><span style={{width:5,height:5,borderRadius:"50%",background:s.dot}}/>{label}</span>;
