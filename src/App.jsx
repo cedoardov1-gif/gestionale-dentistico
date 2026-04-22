@@ -641,7 +641,7 @@ function StatCard({icon, label, value, sub, color=T.brand, trend}) {
       {trend!==undefined&&<span style={{fontSize:11.5,fontWeight:600,color:trend>=0?T.success:T.danger,background:trend>=0?T.successBg:T.dangerBg,padding:"2px 8px",borderRadius:20}}>{trend>=0?"↑":"↓"}{Math.abs(trend)}%</span>}
     </div>
     <div style={{marginTop:14}}>
-      <div style={{fontSize:26,fontWeight:700,color:T.text,lineHeight:1}}>{value}</div>
+      <div style={{fontSize:isMobile?18:26,fontWeight:700,color:T.text,lineHeight:1}}>{value}</div>
       <div style={{fontSize:13,fontWeight:600,color:T.text,marginTop:5}}>{label}</div>
       {sub&&<div style={{fontSize:12,color:T.textMuted,marginTop:2}}>{sub}</div>}
     </div>
@@ -812,20 +812,20 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
     {icon:"📄",label:"Preventivi aperti",value:preventivi.filter(p=>p.stato==="in_attesa").length,color:T.warning,nav:"preventivi"},
   ];
 
-  return <div>
+  return <div style={{overflowX:"hidden"}}>
     <PageHdr title={`Buongiorno, Dr.ssa Porcedda`} subtitle={new Date().toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long",year:"numeric"})} action={<Btn icon="+" onClick={()=>onNav("agenda")}>Nuovo appuntamento</Btn>}/>
 
     {/* KPI widgets — tutti cliccabili */}
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(170px,1fr))",gap:14,marginBottom:22}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(auto-fit,minmax(170px,1fr))",gap:isMobile?10:14,marginBottom:isMobile?14:22}}>
       {kpis.map((k,i)=>(
         <div key={i} onClick={()=>onNav(k.nav)}
-          style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rLg,padding:20,boxShadow:T.shadow,
+          style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:T.rLg,padding:isMobile?10:20,boxShadow:T.shadow,
             cursor:"pointer",transition:"all 0.15s",position:"relative",overflow:"hidden"}}
           onMouseEnter={e=>{e.currentTarget.style.boxShadow=T.shadowMd;e.currentTarget.style.transform="translateY(-2px)";e.currentTarget.style.borderColor=k.color+"66";}}
           onMouseLeave={e=>{e.currentTarget.style.boxShadow=T.shadow;e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.borderColor=T.border;}}>
           <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:k.color,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}/>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
-            <div style={{width:40,height:40,borderRadius:10,background:k.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{k.icon}</div>
+            <div style={{width:40,height:40,borderRadius:10,background:k.color+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:isMobile?14:18}}>{k.icon}</div>
             {k.trend!==undefined&&<span style={{fontSize:11.5,fontWeight:600,color:k.trend>=0?T.success:T.danger,background:k.trend>=0?T.successBg:T.dangerBg,padding:"2px 8px",borderRadius:20}}>{k.trend>=0?"↑":"↓"}{Math.abs(k.trend)}%</span>}
           </div>
           <div style={{fontSize:26,fontWeight:700,color:T.text,lineHeight:1}}>{k.value}</div>
@@ -836,7 +836,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
       ))}
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"3fr 2fr",gap:18,marginBottom:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"3fr 2fr",gap:isMobile?12:18,marginBottom:isMobile?12:18}}>
       {/* Agenda oggi */}
       <Card>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
@@ -888,7 +888,7 @@ function DashView({pazienti, appuntamenti, preventivi, fatture, onNav}) {
       </div>
     </div>
 
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:18}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:isMobile?12:18}}>
       <Card style={{cursor:"pointer"}} onClick={()=>onNav("fatture")}
         onMouseEnter={e=>e.currentTarget.style.boxShadow=T.shadowMd}
         onMouseLeave={e=>e.currentTarget.style.boxShadow=T.shadow}>
@@ -4519,12 +4519,12 @@ export default function App() {
         {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:T.textSub,padding:"4px 6px",lineHeight:1}}>☰</button>}
         <div style={{flex:1,minWidth:0}}><span style={{fontSize:isMobile?14:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{titles[view]}</span></div>
         <div style={{display:"flex",alignItems:"center",gap:6,padding:isMobile?"4px 8px":"6px 12px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,flexShrink:0}}>
-          <Av name={`${user.nome} ${user.cognome}`} size={isMobile?20:24} fs={9}/>
-          <span style={{fontSize:isMobile?11:13,fontWeight:500,color:T.text}}>{user.nome}</span>
-          <Badge label={user.ruolo} status={user.ruolo}/>
+          <Av name={`${user.nome} ${user.cognome}`} size={isMobile?22:24} fs={9}/>
+          {!isMobile&&<span style={{fontSize:13,fontWeight:500,color:T.text}}>{user.nome}</span>}
+          {!isMobile&&<Badge label={user.ruolo} status={user.ruolo}/>}
         </div>
       </header>
-      <main style={{flex:1,padding:"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
+      <main style={{flex:1,padding:isMobile?"12px 10px 80px":"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo}/>}
         {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} user={user} pazienti={pazienti} setPazienti={setPazienti} user={user} listino={listino} onNav={navTo}/>}
         {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} user={user} impostazioni={impostazioni}/>}
@@ -4536,9 +4536,9 @@ export default function App() {
         {view==="utenti"&&<UtentiView currentUser={user}/>}
         {view==="impostazioni"&&canView("impostazioni")&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user} permessi={permessi} setPermessi={setPermessi}/>}
       </main>
-      {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 max(8px,env(safe-area-inset-bottom))",display:"flex",justifyContent:"space-around",position:"sticky",bottom:0,zIndex:50}}>
+      {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 max(8px,env(safe-area-inset-bottom))",display:"flex",justifyContent:"space-around",position:"fixed",bottom:0,left:0,right:0,zIndex:50}}>
         {[{id:"dashboard",icon:"⊞"},{id:"agenda",icon:"📅"},{id:"pazienti",icon:"👤"},{id:"preventivi",icon:"📄"},{id:"fatture",icon:"🧾"}].map(v=>(
-          <div key={v.id} onClick={()=>setView(v.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"4px 10px"}}>
+          <div key={v.id} onClick={()=>navTo(v.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"8px 12px",minWidth:48}}>
             <span style={{fontSize:20}}>{v.icon}</span>
             <span style={{fontSize:10,color:view===v.id?T.brand:T.textSub,fontWeight:view===v.id?700:400}}>{titles[v.id]}</span>
           </div>
