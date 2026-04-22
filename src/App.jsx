@@ -2938,7 +2938,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
 
       {filtered.length===0
         ? <div style={{textAlign:"center",padding:"50px 20px",color:T.textMuted}}><div style={{fontSize:40,marginBottom:10}}>📄</div><div style={{fontSize:14,color:T.textSub}}>Nessun preventivo</div></div>
-        : <div style={{overflowX:"auto"}}>
+        : <React.Fragment><div style={{overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
                 <tr>
@@ -3008,6 +3008,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
             </table>
           </div>
           <Pagination {...prevPag}/>
+        </React.Fragment>
       }
     </Card>
 
@@ -3542,7 +3543,10 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
             </tr>
           </thead>
           <tbody>
-            {fattPag.paged.map((r,i)=>(
+            {fattPag.paged.map((r,i)=>{
+              const _prev=r.tipoFattura==="acconto"&&r.preventivoId?preventivi.find(p=>String(p.id)===String(r.preventivoId)):null;
+              const _residuo=_prev?Math.max(0,_prev.totale-r.totale):0;
+              return (
               <tr key={r.id} style={{borderBottom:`1px solid ${T.border}`,transition:"background 0.1s"}}
                 onMouseEnter={e=>e.currentTarget.style.background="#F9FAFB"}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -3561,11 +3565,7 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                       background:r.statoPagamento==="pagato"?"#ECFDF5":r.statoPagamento==="parziale"?"#FFFBEB":"#FEF2F2"}}>
                       {r.statoPagamento==="pagato"?"✓ Pagato":r.statoPagamento==="parziale"?"💰 Acconto":"⏳ Da pagare"}
                     </span>
-                    {r.tipoFattura==="acconto"&&r.preventivoId&&(()=>{
-                      const prev=preventivi.find(p=>String(p.id)===String(r.preventivoId));
-                      const residuo=prev?Math.max(0,prev.totale-r.totale):0;
-                      return residuo>0?<div style={{fontSize:11,color:"#92400E",marginTop:3,fontWeight:600,whiteSpace:"nowrap"}}>⚠️ Residuo {fmtEur(residuo)}</div>:null;
-                    })()}
+                    {_residuo>0&&<div style={{fontSize:11,color:"#92400E",marginTop:3,fontWeight:600,whiteSpace:"nowrap"}}>⚠️ Residuo {fmtEur(_residuo)}</div>}
                   </div>
                 </td>
                 <td style={{padding:"12px 16px",whiteSpace:"nowrap"}}>
@@ -3577,7 +3577,8 @@ function FatturazioneView({fatture, setFatture, pazienti, preventivi, setPrevent
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
         <Pagination {...fattPag}/>
