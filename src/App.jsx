@@ -2945,6 +2945,7 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
                       <Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗ Rifiuta</Btn>
                     </>}
                     {!hasFattura&&r.stato==="accettato"&&<Btn size="xs" variant="secondary" onClick={()=>cambia(r.id,"in_attesa")}>← Riapri</Btn>}
+                    {!hasFattura&&r.stato!=="accettato"&&<Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️ Modifica</Btn>}
                     {!hasFattura&&r.stato==="rifiutato"&&<Btn size="xs" variant="danger" onClick={()=>tryDelete(r)}>🗑️ Elimina</Btn>}
                     {hasFattura&&(prevConAcconto.has(r.id)
                       ? <span style={{fontSize:11.5,color:"#D97706",padding:"3px 10px",background:"#FFFBEB",borderRadius:6,fontWeight:600}}>💰 Acconto</span>
