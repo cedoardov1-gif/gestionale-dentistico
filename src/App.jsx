@@ -2958,29 +2958,47 @@ function _AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazi
         </div>
         {HOURS.map(hour=>{
           const iso=toLocalISO(curDate);
-          const apts=getApts(iso).filter(a=>a.oraInizio&&a.oraInizio.split(":")[0]===hour.split(":")[0]);
+          // Show appointments whose start hour matches this row
+          const apts=getApts(iso).filter(a=>{
+            if(!a.oraInizio)return false;
+            const [h]=a.oraInizio.split(":").map(Number);
+            return h===parseInt(hour);
+          });
           const isToday=iso===todayISO();
-          return <div key={hour} style={{display:"flex",borderBottom:`1px solid ${T.border}`,minHeight:50}}>
-            <div style={{width:60,padding:"14px 8px",fontSize:12,color:T.textSub,borderRight:`1px solid ${T.border}`,flexShrink:0,textAlign:"right",fontWeight:500}}>{hour}</div>
-            <div style={{flex:1,padding:4,background:isToday&&hour===new Date().getHours()+":00"?"#FAFFFE":"transparent"}}
+          const ROW_H=56; // px per ora — must match minHeight below
+          return <div key={hour} style={{display:"flex",borderBottom:`1px solid ${T.border}`,minHeight:ROW_H,position:"relative"}}>
+            <div style={{width:60,padding:"6px 8px 0",fontSize:12,color:T.textSub,borderRight:`1px solid ${T.border}`,flexShrink:0,textAlign:"right",fontWeight:500}}>{hour}</div>
+            {/* Click on empty area to create new appointment */}
+            <div style={{flex:1,position:"relative",background:isToday&&hour===String(new Date().getHours()).padStart(2,"0")+":00"?"#FAFFFE":"transparent"}}
               onClick={()=>apts.length===0&&openNew(curDate,hour)}>
               {apts.map(a=>{
                 const bs=BADGE[a.stato]||{};
                 const dur=a.durata||60;
-                const slotH=Math.round(dur/60*50);const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?25:0;
+                const [,mm]=a.oraInizio.split(":").map(Number);
+                // top: minutes within the hour → fraction of ROW_H
+                const topPx=Math.round((mm/60)*ROW_H);
+                // height: duration in minutes → fraction of ROW_H (1h = ROW_H px)
+                const heightPx=Math.max(22,Math.round((dur/60)*ROW_H)-2);
+                const p=pazienteMap?.get(String(a.pazienteId));
+                const nomePaz=p?`${p.cognome} ${p.nome}`:"—";
                 return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}}
-                  style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,
-                    borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",marginTop:topOffset,
-                    display:"flex",alignItems:"flex-start",gap:10}}>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.oraInizio} — {(()=>{const p=pazienteMap?.get(String(a.pazienteId));return p?`${p.cognome} ${p.nome}`:"—";})()}</div>
-                    <div style={{fontSize:12,color:bs.color||T.brandDark,opacity:0.85}}>{a.tipo||""}{a.durata?" ("+a.durata+"min)":""}{a.operatore?" · "+a.operatore:""}</div>
-                    {a.note&&<div style={{fontSize:11.5,color:T.textSub,marginTop:2,fontStyle:"italic"}}>{a.note}</div>}
+                  style={{
+                    position:"absolute",left:4,right:4,
+                    top:topPx,height:heightPx,
+                    background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,
+                    borderRadius:6,padding:"3px 8px",cursor:"pointer",
+                    overflow:"hidden",boxSizing:"border-box",zIndex:2,
+                    display:"flex",flexDirection:"column",justifyContent:"flex-start"
+                  }}>
+                  <div style={{fontSize:12,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"1.3"}}>
+                    {a.oraInizio} — {nomePaz}
                   </div>
-                  <span style={{fontSize:10.5,padding:"2px 7px",borderRadius:20,background:bs.bg,color:bs.color,fontWeight:600,flexShrink:0,border:`1px solid ${bs.dot||T.brand}44`}}>{a.stato}</span>
+                  {heightPx>30&&<div style={{fontSize:11,color:bs.color||T.brandDark,opacity:0.8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"1.3"}}>
+                    {a.tipo||""}{a.durata?" ("+a.durata+"')":""}
+                  </div>}
                 </div>;
               })}
-              {apts.length===0&&<div style={{height:"100%",minHeight:42,cursor:"pointer"}}
+              {apts.length===0&&<div style={{height:"100%",minHeight:ROW_H,cursor:"pointer"}}
                 onMouseEnter={e=>e.currentTarget.style.background=T.brandLight}
                 onMouseLeave={e=>e.currentTarget.style.background="transparent"}/>}
             </div>
@@ -3004,19 +3022,47 @@ function _AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazi
           </div>;})}
         </div>
         <div style={{maxHeight:560,overflowY:"auto"}}>
-          {HOURS.map(hour=><div key={hour} style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",minHeight:46,borderBottom:`1px solid ${T.border}`}}>
-            <div style={{padding:"4px 8px",textAlign:"right",fontSize:11,color:T.textMuted,paddingTop:6,borderRight:`1px solid ${T.border}`,background:T.bg}}>{hour}</div>
-            {weekDays.map((dt,i)=>{const iso=toLocalISO(dt);const isToday=iso===todayISO();const apts=getApts(iso).filter(a=>a.oraInizio&&a.oraInizio.split(":")[0]===hour.split(":")[0]);
-              return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)} style={{borderLeft:`1px solid ${T.border}`,padding:3,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:46,position:"relative",overflow:"visible"}}
-                onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
-                onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
-                {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=Math.round(dur/60*44);const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?22:0;const multiSlot=dur>30&&startsAtHalf||dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginTop:topOffset,marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
-                  <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{const p=pazienteMap?.get(String(a.pazienteId));return p?`${p.cognome} ${p.nome}`:"—";})()}</div>
-                  <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}{a.durata?" ("+a.durata+"min)":""}</div>
-                </div>;})}
-              </div>;
-            })}
-          </div>)}
+          {HOURS.map(hour=>{
+            const ROW_H=44; // px per ora nella vista settimana
+            return <div key={hour} style={{display:"grid",gridTemplateColumns:"64px repeat(7,1fr)",minHeight:ROW_H,borderBottom:`1px solid ${T.border}`}}>
+              <div style={{padding:"4px 8px",textAlign:"right",fontSize:11,color:T.textMuted,paddingTop:6,borderRight:`1px solid ${T.border}`,background:T.bg}}>{hour}</div>
+              {weekDays.map((dt,i)=>{
+                const iso=toLocalISO(dt);
+                const isToday=iso===todayISO();
+                // Only appointments whose start hour matches this row
+                const apts=getApts(iso).filter(a=>{
+                  if(!a.oraInizio)return false;
+                  const [h]=a.oraInizio.split(":").map(Number);
+                  return h===parseInt(hour);
+                });
+                return <div key={i} onClick={()=>apts.length===0&&openNew(dt,hour)}
+                  style={{borderLeft:`1px solid ${T.border}`,background:isToday?"#FAFFFE":"transparent",cursor:apts.length===0?"pointer":"default",minHeight:ROW_H,position:"relative",overflow:"visible"}}
+                  onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
+                  onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
+                  {apts.map(a=>{
+                    const bs=BADGE[a.stato]||{};
+                    const dur=a.durata||60;
+                    const [,mm]=a.oraInizio.split(":").map(Number);
+                    const topPx=Math.round((mm/60)*ROW_H);
+                    const heightPx=Math.max(18,Math.round((dur/60)*ROW_H)-2);
+                    const p=pazienteMap?.get(String(a.pazienteId));
+                    const nomePaz=p?`${p.cognome} ${p.nome}`:"—";
+                    return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}}
+                      style={{
+                        position:"absolute",left:2,right:2,
+                        top:topPx,height:heightPx,
+                        background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,
+                        borderRadius:5,padding:"2px 5px",cursor:"pointer",
+                        overflow:"hidden",boxSizing:"border-box",zIndex:2
+                      }}>
+                      <div style={{fontSize:10.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"1.3"}}>{nomePaz}</div>
+                      {heightPx>26&&<div style={{fontSize:9.5,color:bs.color||T.brandDark,opacity:0.8,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",lineHeight:"1.3"}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}</div>}
+                    </div>;
+                  })}
+                </div>;
+              })}
+            </div>;
+          })}
         </div>
       </div>
     </div>}
