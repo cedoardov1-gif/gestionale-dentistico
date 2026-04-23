@@ -597,9 +597,28 @@ function MobileStyles(){
       #root { overflow-x:hidden !important; }
       @media (max-width: 768px) {
         input, select, textarea { font-size: 16px !important; }
-        button { min-height: 44px; }
         table { font-size: 12px; width: 100%; }
         th, td { padding: 6px 8px !important; }
+        /* Scrollable tab bars */
+        .tab-bar {
+          display: flex !important;
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch !important;
+          scrollbar-width: none !important;
+          -ms-overflow-style: none !important;
+          gap: 0 !important;
+          padding-bottom: 0 !important;
+        }
+        .tab-bar::-webkit-scrollbar { display: none !important; }
+        .tab-bar button {
+          flex-shrink: 0 !important;
+          padding: 10px 14px !important;
+          font-size: 13px !important;
+          min-height: unset !important;
+          white-space: nowrap !important;
+        }
+        /* Only apply min-height to primary action buttons, not all buttons */
+        button.btn-primary-action { min-height: 44px; }
       }
     `}</style>
   );
@@ -1659,8 +1678,8 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,setPazienti,app
   return(
     <div style={{maxWidth:860}}>
       <PageHdr title="Impostazioni" subtitle="Configurazione dello studio e del gestionale"/>
-      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:24}}>
-        {tabs.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{padding:"10px 20px",fontSize:13.5,fontWeight:activeTab===t.id?700:400,border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",color:activeTab===t.id?T.brand:T.textSub,borderBottom:activeTab===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s"}}>{t.label}</button>)}
+      <div className="tab-bar" style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:24,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
+        {tabs.map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} style={{flexShrink:0,padding:"10px 16px",fontSize:13,fontWeight:activeTab===t.id?700:400,border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",color:activeTab===t.id?T.brand:T.textSub,borderBottom:activeTab===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s",whiteSpace:"nowrap",minHeight:"unset"}}>{t.label}</button>)}
       </div>
       {activeTab==="studio"&&<Card>
         <h3 style={{fontSize:16,fontWeight:700,color:T.text,margin:"0 0 20px"}}>Dati dello studio</h3>
@@ -1959,7 +1978,7 @@ function stampaAnamnesi(pd, impostazioni) {
 }
 
 
-function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni, user, pazienteMap}) {
+function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni, user, pazienteMap, isMobile=false}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -2108,30 +2127,30 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
       {/* Card principale */}
       <div style={{background:T.surface,borderRadius:T.rLg,border:`1px solid ${T.border}`,boxShadow:T.shadow,overflow:"hidden"}}>
         {/* Header */}
-        <div style={{padding:"22px 28px 0"}}>
-          <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:18,flexWrap:"wrap"}}>
-            <Av name={`${pd.nome} ${pd.cognome}`} size={54} fs={18}/>
-            <div style={{flex:1,minWidth:180}}>
-              <div style={{fontSize:11.5,color:T.textMuted,marginBottom:2}}>ID {String(pd.id).padStart(6,"0")}</div>
-              <h1 style={{fontSize:24,fontWeight:700,color:T.text,margin:0}}>{pd.cognome} {pd.nome}</h1>
-              <div style={{display:"flex",gap:14,marginTop:6,flexWrap:"wrap"}}>
-                {pd.telefono&&<span style={{fontSize:13,color:T.textSub}}>📞 {pd.telefono}</span>}
+        <div style={{padding:isMobile?"16px 16px 0":"22px 28px 0"}}>
+          <div style={{display:"flex",alignItems:"flex-start",gap:12,marginBottom:14,flexWrap:"wrap"}}>
+            <Av name={`${pd.nome} ${pd.cognome}`} size={isMobile?44:54} fs={isMobile?15:18}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:11,color:T.textMuted,marginBottom:1}}>ID {String(pd.id).padStart(6,"0")}</div>
+              <h1 style={{fontSize:isMobile?18:24,fontWeight:700,color:T.text,margin:"0 0 4px"}}>{pd.cognome} {pd.nome}</h1>
+              <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                {pd.telefono&&<a href={`tel:${pd.telefono}`} style={{fontSize:13,color:T.brand,textDecoration:"none",fontWeight:600}}>📞 {pd.telefono}</a>}
                 {pd.email&&<span style={{fontSize:13,color:T.textSub}}>✉️ {pd.email}</span>}
               </div>
             </div>
-            {/* Quick stats */}
-            <div style={{display:"flex",gap:20,flexWrap:"wrap"}}>
-              {[
-                {l:"Età",v:pd.dataNascita?Math.floor((new Date()-new Date(pd.dataNascita))/(365.25*24*60*60*1000))+" anni":"—"},
-                {l:"Ultima visita",v:fmtDateShort(ultimaVisita)},
-                {l:"Prossima",v:prossimaVisita?fmtDateShort(prossimaVisita.data):"Non fissata",accent:!!prossimaVisita},
-                {l:"Fatturato",v:fmtEur(pFatt.filter(f=>f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0)),accent:true},
-              ].map((k,i)=><div key={i} style={{minWidth:80}}>
-                <div style={{fontSize:11,color:T.textMuted,marginBottom:2}}>{k.l}</div>
-                <div style={{fontSize:13.5,fontWeight:700,color:k.accent?T.brand:T.text}}>{k.v}</div>
-              </div>)}
-            </div>
-            <Btn variant="secondary" size="sm" icon="✏️" onClick={()=>openEdit(pd)}>Modifica</Btn>
+            <Btn variant="secondary" size="sm" icon="✏️" onClick={()=>openEdit(pd)}>{isMobile?"":"Modifica"}</Btn>
+          </div>
+          {/* Quick stats — 2x2 grid on mobile */}
+          <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,auto)",gap:isMobile?8:20,marginBottom:14}}>
+            {[
+              {l:"Età",v:pd.dataNascita?Math.floor((new Date()-new Date(pd.dataNascita))/(365.25*24*60*60*1000))+" anni":"—"},
+              {l:"Ultima visita",v:fmtDateShort(ultimaVisita)},
+              {l:"Prossima",v:prossimaVisita?fmtDateShort(prossimaVisita.data):"Non fissata",accent:!!prossimaVisita},
+              {l:"Fatturato",v:fmtEur(pFatt.filter(f=>f.statoPagamento==="pagato").reduce((s,f)=>s+f.totale,0)),accent:true},
+            ].map((k,i)=><div key={i} style={{background:T.bg,borderRadius:T.r,padding:isMobile?"8px 10px":"4px 0"}}>
+              <div style={{fontSize:10,color:T.textMuted,marginBottom:2}}>{k.l}</div>
+              <div style={{fontSize:isMobile?13:13.5,fontWeight:700,color:k.accent?T.brand:T.text}}>{k.v}</div>
+            </div>)}
           </div>
 
           {/* Allergie warning */}
@@ -2141,12 +2160,12 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
           </div>}
 
           {/* Tabs */}
-          <div style={{display:"flex",gap:0,overflowX:"auto"}}>
+          <div className="tab-bar" style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
             {[{id:"overview",label:"Overview"},{id:"appuntamenti",label:"📅 Appuntamenti",count:pApts.length},{id:"dentale",label:"🦷 Dentale"},{id:"preventivi",label:"Preventivi",count:pPrev.length},{id:"fatture",label:"Fatture",count:pFatt.length},{id:"clinica",label:"Dati Clinici"},{id:"documenti",label:"📄 Documenti"}].map(t=>(
               <button key={t.id} onClick={()=>setTab(t.id)}
-                style={{padding:"11px 18px",fontSize:13.5,fontWeight:tab===t.id?600:400,border:"none",background:"none",cursor:"pointer",
+                style={{flexShrink:0,padding:"11px 14px",fontSize:13,fontWeight:tab===t.id?600:400,border:"none",background:"none",cursor:"pointer",
                   color:tab===t.id?T.brand:T.textSub,borderBottom:tab===t.id?`2px solid ${T.brand}`:"2px solid transparent",
-                  marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap"}}>
+                  marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:"unset"}}>
                 {t.label}
                 {t.count>0&&<span style={{marginLeft:5,fontSize:11,background:tab===t.id?T.brandLight:"#F3F4F6",color:tab===t.id?T.brandDark:T.textSub,padding:"1px 6px",borderRadius:10}}>{t.count}</span>}
               </button>
@@ -2156,7 +2175,7 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
         <div style={{height:1,background:T.border}}/>
 
         {/* Content */}
-        <div style={{padding:"22px 28px"}}>
+        <div style={{padding:isMobile?"14px 16px":"22px 28px"}}>
 
           {/* OVERVIEW */}
           {tab==="overview"&&<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:20}}>
@@ -2683,25 +2702,48 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
     <div>
       <PageHdr title="Pazienti" subtitle={`${pazienti.length} pazienti registrati`} action={<Btn icon="+" onClick={openNew}>Nuovo paziente</Btn>}/>
       <Card p={0}>
-        <div style={{padding:"12px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:10,alignItems:"center"}}>
+        <div style={{padding:"12px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",gap:10,alignItems:"center"}}>
           <SBar value={search} onChange={setSearch} placeholder="Cerca per nome, telefono, CF..."/>
-          <button onClick={()=>setSortAZ(!sortAZ)}
+          {!isMobile&&<button onClick={()=>setSortAZ(!sortAZ)}
             style={{padding:"8px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",fontSize:12.5,fontWeight:600,color:T.textSub,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>
             {sortAZ?"A → Z ↓":"Z → A ↑"}
-          </button>
+          </button>}
         </div>
-        <Tbl
-          columns={[
-            {label:"Paziente",render:r=><div style={{display:"flex",alignItems:"center",gap:12}}><Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/><div><div style={{fontWeight:600,fontSize:14}}>{r.cognome} {r.nome}</div><div style={{fontSize:12,color:T.textSub}}>{r.codiceFiscale||"CF non inserito"}</div></div></div>},
-            {label:"Telefono",render:r=><span style={{color:T.textSub}}>{r.telefono||"—"}</span>,nowrap:true},
-            {label:"Email",render:r=><span style={{color:T.textSub,fontSize:12.5}}>{r.email||"—"}</span>},
-            {label:"Nato il",render:r=><span style={{color:T.textSub}}>{fmtDate(r.dataNascita)}</span>,nowrap:true},
-            {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn></div>,nowrap:true},
-          ]}
-          data={pazPag.paged}
-          onRowClick={r=>{setDetail(r.id);setTab("overview");}}
-          emptyText="Nessun paziente trovato" emptyIcon="👥"
-        />
+        {isMobile
+          ? <div style={{display:"flex",flexDirection:"column",gap:0}}>
+              {pazPag.paged.map((r,i)=>(
+                <div key={r.id} onClick={()=>{setDetail(r.id);setTab("overview");}}
+                  style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",
+                    borderBottom:`1px solid ${T.border}`,cursor:"pointer",
+                    background:"#fff",active:{background:T.bg}}}>
+                  <Av name={`${r.nome} ${r.cognome}`} size={40} fs={13}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontWeight:600,fontSize:14,color:T.text}}>{r.cognome} {r.nome}</div>
+                    <div style={{fontSize:12,color:T.textSub,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                      {r.telefono||r.codiceFiscale||r.email||"—"}
+                    </div>
+                  </div>
+                  <span style={{color:T.textMuted,fontSize:18}}>›</span>
+                </div>
+              ))}
+              {pazPag.paged.length===0&&<div style={{textAlign:"center",padding:40,color:T.textMuted}}>
+                <div style={{fontSize:32,marginBottom:10}}>👥</div>
+                <div style={{fontSize:14,fontWeight:600}}>Nessun paziente trovato</div>
+              </div>}
+            </div>
+          : <Tbl
+              columns={[
+                {label:"Paziente",render:r=><div style={{display:"flex",alignItems:"center",gap:12}}><Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/><div><div style={{fontWeight:600,fontSize:14}}>{r.cognome} {r.nome}</div><div style={{fontSize:12,color:T.textSub}}>{r.codiceFiscale||"CF non inserito"}</div></div></div>},
+                {label:"Telefono",render:r=><span style={{color:T.textSub}}>{r.telefono||"—"}</span>,nowrap:true},
+                {label:"Email",render:r=><span style={{color:T.textSub,fontSize:12.5}}>{r.email||"—"}</span>},
+                {label:"Nato il",render:r=><span style={{color:T.textSub}}>{fmtDate(r.dataNascita)}</span>,nowrap:true},
+                {label:"",render:r=><div style={{display:"flex",gap:4}} onClick={e=>e.stopPropagation()}><Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn></div>,nowrap:true},
+              ]}
+              data={pazPag.paged}
+              onRowClick={r=>{setDetail(r.id);setTab("overview");}}
+              emptyText="Nessun paziente trovato" emptyIcon="👥"
+            />
+        }
         <Pagination {...pazPag}/>
       </Card>
 
@@ -4776,20 +4818,31 @@ export default function App() {
     <div style={{transform:isMobile?(sidebarOpen?"translateX(0)":"translateX(-100%)"):"translateX(0)",transition:"transform 0.25s ease",position:isMobile?"fixed":"relative",zIndex:isMobile?100:1}}>
       <Sidebar view={view} onNav={v=>{setView(v);setSidebarOpen(false);}} onLogout={logout} user={user} canView={canView} pazienti={pazienti} pazienteMap={pazienteMap} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onOpenPaziente={id=>{setOpenPazienteId(id);}} onOpenFattura={id=>{setOpenFatturaId(id);}} onOpenPreventivo={id=>{setOpenPreventivoId(id);}}/>
     </div>
-    <div style={{flex:1,display:"flex",flexDirection:"column",marginLeft:isMobile?0:0,minWidth:0,overflow:"hidden"}}>
-      <header style={{background:T.surface,borderBottom:`1px solid ${T.border}`,height:isMobile?48:56,display:"flex",alignItems:"center",gap:isMobile?8:12,position:"sticky",top:0,zIndex:50,flexShrink:0,padding:isMobile?"0 12px":"0 20px"}}>
-        {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:T.textSub,padding:"4px 6px",lineHeight:1}}>☰</button>}
-        <div style={{flex:1,minWidth:0}}><span style={{fontSize:isMobile?14:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{titles[view]}</span></div>
+    <div style={{flex:1,display:"flex",flexDirection:"column",minWidth:0,overflow:"hidden"}}>
+      <header style={{
+        background:T.surface,
+        borderBottom:`1px solid ${T.border}`,
+        height:isMobile?"calc(52px + env(safe-area-inset-top))":"56px",
+        paddingTop:isMobile?"env(safe-area-inset-top)":"0",
+        display:"flex",alignItems:"center",
+        gap:isMobile?8:12,
+        position:"sticky",top:0,zIndex:50,flexShrink:0,
+        padding:isMobile?"env(safe-area-inset-top) 12px 0":"0 20px",
+        paddingLeft:isMobile?12:"20px",
+        paddingRight:isMobile?12:"20px",
+      }}>
+        {isMobile&&<button onClick={()=>setSidebarOpen(true)} style={{background:"none",border:"none",fontSize:24,cursor:"pointer",color:T.text,padding:"8px",lineHeight:1,flexShrink:0,minWidth:44,minHeight:44,display:"flex",alignItems:"center",justifyContent:"center"}}>☰</button>}
+        <div style={{flex:1,minWidth:0}}><span style={{fontSize:isMobile?15:16,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",display:"block"}}>{titles[view]}</span></div>
         <div style={{display:"flex",alignItems:"center",gap:6,padding:isMobile?"4px 8px":"6px 12px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,flexShrink:0}}>
-          <Av name={`${user.nome} ${user.cognome}`} size={isMobile?22:24} fs={9}/>
+          <Av name={`${user.nome} ${user.cognome}`} size={isMobile?24:24} fs={9}/>
           {!isMobile&&<span style={{fontSize:13,fontWeight:500,color:T.text}}>{user.nome}</span>}
           {!isMobile&&<Badge label={user.ruolo} status={user.ruolo}/>}
         </div>
       </header>
-      <main style={{flex:1,padding:isMobile?"12px 10px 80px":"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
+      <main style={{flex:1,padding:isMobile?"12px 10px":"24px",paddingBottom:isMobile?"calc(72px + env(safe-area-inset-bottom))":"24px",overflowY:"auto",maxWidth:1200,width:"100%"}}>
         {view==="dashboard"&&canView("dashboard")&&<DashView pazienti={pazienti} pazienteMap={pazienteMap} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} onNav={navTo} isMobile={isMobile}/>}
         {view==="agenda"&&canView("agenda")&&<AgendaView appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} user={user} pazienti={pazienti} setPazienti={setPazienti} user={user} listino={listino} onNav={navTo} pazienteMap={pazienteMap}/>}
-        {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} user={user} impostazioni={impostazioni} pazienteMap={pazienteMap}/>}
+        {view==="pazienti"&&canView("pazienti")&&<PazientiView pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} onNav={navTo} initialDetail={openPazienteId} onDetailOpened={()=>setOpenPazienteId(null)} user={user} impostazioni={impostazioni} pazienteMap={pazienteMap} isMobile={isMobile}/>}
         {view==="preventivi"&&canView("preventivi")&&<PreventiviView preventivi={preventivi} setPreventivi={setPreventivi} pazienti={pazienti} pazienteMap={pazienteMap} listino={listino} fatture={fatture} onNav={navTo} initialPreventivoId={openPreventivoId} onPreventivoOpened={()=>setOpenPreventivoId(null)} user={user} isMobile={isMobile}/>}
         {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} pazienteMap={pazienteMap} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo} initialFatturaId={openFatturaId} onFatturaOpened={()=>setOpenFatturaId(null)} user={user} isMobile={isMobile}/>}
         {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino} user={user}/>}
@@ -4798,11 +4851,20 @@ export default function App() {
         {view==="utenti"&&<UtentiView currentUser={user}/>}
         {view==="impostazioni"&&canView("impostazioni")&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} setListino={setListino} currentUser={user} permessi={permessi} setPermessi={setPermessi}/>}
       </main>
-      {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 max(8px,env(safe-area-inset-bottom))",display:"flex",justifyContent:"space-around",position:"fixed",bottom:0,left:0,right:0,zIndex:50}}>
-        {[{id:"dashboard",icon:"⊞"},{id:"agenda",icon:"📅"},{id:"pazienti",icon:"👤"},{id:"preventivi",icon:"📄"},{id:"fatture",icon:"🧾"}].map(v=>(
-          <div key={v.id} onClick={()=>navTo(v.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"8px 12px",minWidth:48}}>
-            <span style={{fontSize:20}}>{v.icon}</span>
-            <span style={{fontSize:10,color:view===v.id?T.brand:T.textSub,fontWeight:view===v.id?700:400}}>{titles[v.id]}</span>
+      {isMobile&&<nav style={{
+        background:T.surface,
+        borderTop:`1px solid ${T.border}`,
+        paddingBottom:"max(12px, env(safe-area-inset-bottom))",
+        paddingTop:6,
+        display:"flex",justifyContent:"space-around",
+        position:"fixed",bottom:0,left:0,right:0,zIndex:50,
+      }}>
+        {[{id:"dashboard",icon:"⊞",label:"Home"},{id:"agenda",icon:"📅",label:"Agenda"},{id:"pazienti",icon:"👤",label:"Pazienti"},{id:"preventivi",icon:"📄",label:"Preventivi"},{id:"fatture",icon:"🧾",label:"Fatture"}].map(v=>(
+          <div key={v.id} onClick={()=>navTo(v.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,cursor:"pointer",padding:"6px 10px",minWidth:52,flex:1}}>
+            <div style={{width:36,height:36,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",background:view===v.id?T.brandLight:"transparent",transition:"background 0.15s"}}>
+              <span style={{fontSize:20}}>{v.icon}</span>
+            </div>
+            <span style={{fontSize:10,color:view===v.id?T.brand:T.textSub,fontWeight:view===v.id?700:400,lineHeight:1}}>{v.label}</span>
           </div>
         ))}
       </nav>}
