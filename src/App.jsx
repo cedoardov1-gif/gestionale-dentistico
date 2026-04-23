@@ -2802,10 +2802,6 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
   const [search, setSearch]=useState("");
   const [sortCol, setSortCol]=useState("data");
   const [sortAsc, setSortAsc]=useState(false);
-  const [rateModal,setRateModal]=useState(false);
-  const [ratePrevId,setRatePrevId]=useState(null);
-  const [nRate,setNRate]=useState(3);
-  const [primaRataData,setPrimaRataData]=useState(()=>new Date().toISOString().slice(0,10));
   const [modal, setModal]=useState(false);
   const [editId, setEditId]=useState(null);
   const [pazForm, setPazForm]=useState("");
@@ -2894,24 +2890,6 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
     setModal(false);
   }
 
-  function openRateModal(prevId){
-    setRatePrevId(prevId);
-    setNRate(3);
-    setPrimaRataData(new Date().toISOString().slice(0,10));
-    setRateModal(true);
-  }
-  function saveRate(){
-    const p=preventivi.find(x=>String(x.id)===String(ratePrevId));
-    if(!p)return;
-    const imp=parseFloat((p.totale/nRate).toFixed(2));
-    const rate=Array.from({length:nRate},(_,i)=>{
-      const d=new Date(primaRataData+"T00:00");
-      d.setMonth(d.getMonth()+i);
-      return {id:uid(),scadenza:d.toISOString().slice(0,10),importo:i<nRate-1?imp:parseFloat((p.totale-imp*(nRate-1)).toFixed(2)),stato:"da_pagare",tipo:i===nRate-1?"saldo":"acconto"};
-    });
-    setPreventivi(pp=>pp.map(x=>String(x.id)===String(ratePrevId)?{...x,pianoRate:rate}:x));
-    setRateModal(false);
-  }
   function cambia(id,stato){setPreventivi(p=>p.map(x=>x.id===id?{...x,stato}:x));}
 
   function StatoBadge({p}){
@@ -2967,8 +2945,6 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
                       <Btn size="xs" variant="danger" onClick={()=>cambia(r.id,"rifiutato")}>✗ Rifiuta</Btn>
                     </>}
                     {!hasFattura&&r.stato==="accettato"&&<Btn size="xs" variant="secondary" onClick={()=>cambia(r.id,"in_attesa")}>← Riapri</Btn>}
-                    {!hasFattura&&r.stato!=="accettato"&&<Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️ Modifica</Btn>}
-                    {r.stato==="accettato"&&<Btn size="xs" variant="ghost" onClick={()=>openRateModal(r.id)}>📅 Rate</Btn>}
                     {!hasFattura&&r.stato==="rifiutato"&&<Btn size="xs" variant="danger" onClick={()=>tryDelete(r)}>🗑️ Elimina</Btn>}
                     {hasFattura&&(prevConAcconto.has(r.id)
                       ? <span style={{fontSize:11.5,color:"#D97706",padding:"3px 10px",background:"#FFFBEB",borderRadius:6,fontWeight:600}}>💰 Acconto</span>
@@ -3023,7 +2999,6 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
                         {!hasFattura&&r.stato!=="accettato"&&
                           <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️</Btn>
                         }
-                        {r.stato==="accettato"&&<Btn size="xs" variant="ghost" title="Piano rate" onClick={()=>openRateModal(r.id)}>📅 {r.pianoRate?"Rate ("+r.pianoRate.length+")":"Rate"}</Btn>}
                         {!hasFattura&&r.stato==="rifiutato"&&
                           <button onClick={()=>tryDelete(r)}
                             style={{padding:"4px 10px",borderRadius:6,border:"1px solid #FECACA",background:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
@@ -3142,38 +3117,6 @@ function PreventiviView({preventivi, setPreventivi, pazienti, listino, fatture, 
           </span>}
         </div>}
       </div>
-    {rateModal&&<Modal open={rateModal} onClose={()=>setRateModal(false)} title="Piano di pagamento rateale"
-      subtitle={`Preventivo: ${fmtEur(preventivi.find(p=>String(p.id)===String(ratePrevId))?.totale||0)}`}
-      width={460}
-      footer={<><Btn variant="secondary" onClick={()=>setRateModal(false)}>Annulla</Btn><Btn onClick={saveRate}>💾 Salva piano</Btn></>}>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <Grid2>
-          <div>
-            <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.5}}>Numero di rate</label>
-            <select value={nRate} onChange={e=>setNRate(Number(e.target.value))} style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit"}}>
-              {[2,3,4,5,6,8,10,12].map(n=><option key={n} value={n}>{n} rate</option>)}
-            </select>
-          </div>
-          <FInput label="Prima rata il" type="date" value={primaRataData} onChange={e=>setPrimaRataData(e.target.value)}/>
-        </Grid2>
-        {(()=>{
-          const p=preventivi.find(x=>String(x.id)===String(ratePrevId));
-          if(!p)return null;
-          const imp=parseFloat((p.totale/nRate).toFixed(2));
-          return <div style={{background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,overflow:"hidden"}}>
-            <div style={{padding:"8px 14px",background:T.brandLight,fontSize:12,fontWeight:700,color:T.brand}}>{nRate} rate da {fmtEur(imp)}</div>
-            {Array.from({length:nRate},(_,i)=>{
-              const d=new Date(primaRataData+"T00:00");d.setMonth(d.getMonth()+i);
-              const im=i<nRate-1?imp:parseFloat((p.totale-imp*(nRate-1)).toFixed(2));
-              return <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",borderBottom:i<nRate-1?`1px solid ${T.border}`:"none"}}>
-                <div style={{fontSize:13}}><b>Rata {i+1}</b> — {d.toLocaleDateString("it-IT")} <span style={{fontSize:11,color:i===nRate-1?"#1D4ED8":"#D97706",fontWeight:600,marginLeft:6,padding:"1px 6px",background:i===nRate-1?"#EFF6FF":"#FFFBEB",borderRadius:8}}>{i===nRate-1?"Saldo":"Acconto"}</span></div>
-                <b style={{fontSize:13}}>{fmtEur(im)}</b>
-              </div>;
-            })}
-          </div>;
-        })()}
-      </div>
-    </Modal>}
     </Modal>
   </div>;
 }
@@ -3953,7 +3896,7 @@ function ListinoView({listino, setListino, user}) {
   </div>;
 }
 
-function ReportView({fatture, appuntamenti, pazienti, listino, preventivi}) {
+function ReportView({fatture, appuntamenti, pazienti, listino, preventivi, isMobile=false}) {
   const [period,setPeriod]=useState("mese");
   const [detailModal,setDetailModal]=useState(null); // {title, items}
   const [meseGrafico,setMeseGrafico]=useState(new Date().getMonth()); // 0-11
@@ -4667,7 +4610,7 @@ export default function App() {
         {view==="fatture"&&canView("fatture")&&<FatturazioneView fatture={fatture} setFatture={setFatture} pazienti={pazienti} preventivi={preventivi} setPreventivi={setPreventivi} onNav={navTo} initialFatturaId={openFatturaId} onFatturaOpened={()=>setOpenFatturaId(null)} user={user} isMobile={isMobile}/>}
         {view==="listino"&&canView("listino")&&<ListinoView listino={listino} setListino={setListino} user={user}/>}
         {view==="comunicazioni"&&canView("comunicazioni")&&<ComunicazioniView pazienti={pazienti} appuntamenti={appuntamenti}/>}
-        {view==="report"&&canView("report")&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino} preventivi={preventivi}/>}
+        {view==="report"&&canView("report")&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino} preventivi={preventivi} isMobile={isMobile}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
         {view==="impostazioni"&&canView("impostazioni")&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user} permessi={permessi} setPermessi={setPermessi}/>}
       </main>
