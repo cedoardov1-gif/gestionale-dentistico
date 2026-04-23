@@ -1460,12 +1460,37 @@ function DocumentiTab({paziente,studioInfo,impostazioni}){
       {documentiEmessi.map((d,i)=>(
         <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8}}>
           <span style={{fontSize:20}}>📄</span>
-          <div style={{flex:1}}><div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{d.label}</div><div style={{fontSize:12,color:T.textSub,marginTop:2}}>Generato il {fmtDate(d.data)}</div></div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{d.label}</div>
+            <div style={{fontSize:12,color:T.textSub,marginTop:2}}>
+              Generato il {fmtDate(d.data)}
+              {d.firmataIl&&<span style={{marginLeft:8,color:"#059669",fontWeight:600}}>· Firmato il {d.firmataIl}</span>}
+            </div>
+          </div>
           <button onClick={()=>apriModalFirma(d.id)} style={{padding:"6px 12px",borderRadius:T.r,border:`1px solid ${d.firma?"#059669":"#E5E7EB"}`,backgroundColor:d.firma?"#ECFDF5":"#F9FAFB",color:d.firma?"#059669":"#6B7280",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginRight:4}}>{d.firma?"✅ Firmato":"✍️ Firma"}</button>
           <button onClick={()=>{const t=TEMPLATES_DOCUMENTI.find(x=>x.id===d.templateId);if(t)generaEStampa(t);}} style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,backgroundColor:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🖨️ Visualizza</button>
           <button onClick={()=>setDocumentiEmessi(ds=>ds.filter(x=>x.id!==d.id))} style={{padding:"6px 12px",borderRadius:T.r,border:"1px solid #FECACA",backgroundColor:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
         </div>
       ))}
+
+      {/* Modal firma — era definito ma mai renderizzato nel JSX */}
+      {firmaModal&&<div onClick={e=>{if(e.target===e.currentTarget){setFirmaModal(false);setFirmaDocId(null);} }}
+        style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+        <div style={{background:"#fff",borderRadius:T.rXl,width:"100%",maxWidth:560,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
+          <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:16,fontWeight:700,color:T.text}}>✍️ Firma del paziente</div>
+              <div style={{fontSize:12,color:T.textSub,marginTop:2}}>
+                {documentiEmessi.find(d=>d.id===firmaDocId)?.label||"Documento"}
+              </div>
+            </div>
+            <button onClick={()=>{setFirmaModal(false);setFirmaDocId(null);}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.textMuted,lineHeight:1}}>✕</button>
+          </div>
+          <div style={{padding:"20px"}}>
+            <FirmaCanvas onSalva={salvaFirma} onAnnulla={()=>{setFirmaModal(false);setFirmaDocId(null);}}/>
+          </div>
+        </div>
+      </div>}
       {preview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,padding:"20px",overflowY:"auto"}}>
         <div style={{background:"#fff",borderRadius:T.rLg,maxWidth:760,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
           <div className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:T.bg,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}>
@@ -1505,7 +1530,9 @@ function DocumentiTab({paziente,studioInfo,impostazioni}){
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:30,marginTop:30}}>
                 <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>Luogo e data<br/><span style={{fontSize:11.5}}>Oristano, {oggi}</span></div>
-                <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>Firma del paziente<br/><span style={{fontSize:24,color:"#ccc"}}>________________________</span></div>
+                <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>Firma del paziente<br/>
+                  {(()=>{const doc=documentiEmessi.find(d=>d.templateId===preview?.template?.id);return doc?.firma?<img src={doc.firma} alt="Firma" style={{maxWidth:200,maxHeight:60,marginTop:4}}/>:<span style={{fontSize:24,color:"#ccc"}}>________________________</span>;})()}
+                </div>
               </div>
             </div>
           </div>
@@ -2540,7 +2567,7 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
             <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>Ora</label>
             <select value={aptForm.oraInizio} onChange={e=>setAptForm(f=>({...f,oraInizio:e.target.value}))}
               style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",outline:"none"}}>
-              {Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2===0?"00":"30";return `${String(h).padStart(2,"0")}:${m}`;}).filter(h=>parseInt(h)<20).map(h=><option key={h} value={h}>{h}</option>)}
+              {HOURS_FORM.map(h=><option key={h} value={h}>{h}</option>)}
             </select>
           </div>
         </Grid2>
@@ -2663,7 +2690,7 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
         <Grid2>
           <FInput label="Data" type="date" required value={aptForm.data||todayISO()} onChange={e=>setAptForm(f=>({...f,data:e.target.value}))}/>
           <FSelect label="Ora" value={aptForm.oraInizio} onChange={e=>setAptForm(f=>({...f,oraInizio:e.target.value}))}>
-            {Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2===0?"00":"30";return `${String(h).padStart(2,"0")}:${m}`;}).filter(h=>parseInt(h)<20).map(h=><option key={h}>{h}</option>)}
+            {HOURS_FORM.map(h=><option key={h}>{h}</option>)}
           </FSelect>
         </Grid2>
         <Grid2>
@@ -2764,9 +2791,77 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
 
 
 const DURATE=[15,30,45,60,90,120];
+
+// Searchable patient combobox — replaces native <select> for large patient lists
+function PazienteSearch({pazienti, value, onChange}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+  const selected = pazienti.find(p=>String(p.id)===String(value));
+  const displayText = selected ? `${selected.cognome} ${selected.nome}` : "";
+
+  const filtered = useMemo(()=>{
+    if(!query.trim()) return pazienti.slice().sort((a,b)=>a.cognome.localeCompare(b.cognome)).slice(0,50);
+    const q = query.toLowerCase();
+    return pazienti
+      .filter(p=>(p.cognome+" "+p.nome).toLowerCase().includes(q)||(p.telefono||"").includes(q)||(p.codiceFiscale||"").toLowerCase().includes(q))
+      .sort((a,b)=>a.cognome.localeCompare(b.cognome))
+      .slice(0,80);
+  },[pazienti, query]);
+
+  function select(p) {
+    onChange(String(p.id));
+    setQuery("");
+    setOpen(false);
+    inputRef.current?.blur();
+  }
+  function clear() { onChange(""); setQuery(""); setOpen(false); }
+
+  return (
+    <div style={{position:"relative",flex:1}}>
+      <div style={{display:"flex",alignItems:"center",border:`1.5px solid ${focused?T.brand:T.border}`,borderRadius:T.r,background:"#fff",overflow:"hidden"}}>
+        {selected && !open
+          ? <div style={{flex:1,padding:"9px 12px",fontSize:13,color:T.text,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"text"}}
+              onClick={()=>{setOpen(true);setQuery("");setTimeout(()=>inputRef.current?.focus(),10);}}>
+              <span>{displayText}</span>
+              <button onClick={e=>{e.stopPropagation();clear();}} style={{background:"none",border:"none",cursor:"pointer",color:T.textMuted,fontSize:16,padding:"0 4px",lineHeight:1}}>×</button>
+            </div>
+          : <input
+              ref={inputRef}
+              value={query}
+              onChange={e=>{setQuery(e.target.value);setOpen(true);}}
+              onFocus={()=>{setFocused(true);setOpen(true);}}
+              onBlur={()=>{setFocused(false);setTimeout(()=>setOpen(false),180);}}
+              placeholder={selected?"Cambia paziente...":"Cerca per cognome, nome, telefono..."}
+              style={{flex:1,padding:"9px 12px",fontSize:13,border:"none",outline:"none",fontFamily:"inherit",color:T.text,background:"transparent"}}
+            />
+        }
+      </div>
+      {open&&<div ref={listRef} style={{position:"absolute",top:"calc(100% + 4px)",left:0,right:0,background:"#fff",border:`1.5px solid ${T.brand}`,borderRadius:T.r,boxShadow:"0 8px 24px rgba(0,0,0,0.12)",zIndex:999,maxHeight:260,overflowY:"auto"}}>
+        {filtered.length===0
+          ? <div style={{padding:"12px 16px",fontSize:13,color:T.textMuted}}>Nessun paziente trovato</div>
+          : filtered.map(p=>(
+            <div key={p.id} onMouseDown={()=>select(p)}
+              style={{padding:"9px 14px",cursor:"pointer",borderBottom:`1px solid ${T.border}`,display:"flex",alignItems:"center",gap:10}}
+              onMouseEnter={e=>e.currentTarget.style.background=T.brandLight}
+              onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+              <Av name={`${p.nome} ${p.cognome}`} size={28} fs={10}/>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:T.text}}>{p.cognome} {p.nome}</div>
+                <div style={{fontSize:11,color:T.textSub,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.telefono||p.codiceFiscale||"—"}</div>
+              </div>
+            </div>
+          ))
+        }
+      </div>}
+    </div>
+  );
+}
 const STATI_APT=["confermato","attesa","urgente","completato","annullato"];
 const HOURS=Array.from({length:12},(_,i)=>`${String(i+8).padStart(2,"0")}:00`);
-const HOURS_FORM=Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const m=i%2===0?"00":"30";return `${String(h).padStart(2,"0")}:${m}`;}).filter((_,i)=>Math.floor(i/2)+8<20);
+const HOURS_FORM=(()=>{const h=[];for(let hh=8;hh<20;hh++){["00","15","30","45"].forEach(mm=>h.push(`${String(hh).padStart(2,"0")}:${mm}`));}return h;})();
 const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const GIORNI=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
@@ -2878,7 +2973,7 @@ function _AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazi
                     borderRadius:6,padding:"6px 12px",cursor:"pointer",height:slotH,overflow:"hidden",marginTop:topOffset,
                     display:"flex",alignItems:"flex-start",gap:10}}>
                   <div style={{flex:1}}>
-                    <div style={{fontSize:13,fontWeight:700,color:bs.color||T.brandDark}}>{a.oraInizio} — {getPaz(a.pazienteId)}</div>
+                    <div style={{fontSize:13,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.oraInizio} — {(()=>{const p=pazienteMap?.get(String(a.pazienteId));return p?`${p.cognome} ${p.nome}`:"—";})()}</div>
                     <div style={{fontSize:12,color:bs.color||T.brandDark,opacity:0.85}}>{a.tipo||""}{a.durata?" ("+a.durata+"min)":""}{a.operatore?" · "+a.operatore:""}</div>
                     {a.note&&<div style={{fontSize:11.5,color:T.textSub,marginTop:2,fontStyle:"italic"}}>{a.note}</div>}
                   </div>
@@ -2916,7 +3011,7 @@ function _AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazi
                 onMouseEnter={e=>{if(!apts.length)e.currentTarget.style.background=T.brandLight;}}
                 onMouseLeave={e=>{e.currentTarget.style.background=isToday?"#FAFFFE":"transparent";}}>
                 {apts.map(a=>{const bs=BADGE[a.stato]||{};const dur=a.durata||60;const slotH=Math.round(dur/60*44);const startsAtHalf=(a.oraInizio||"").endsWith(":30");const topOffset=startsAtHalf?22:0;const multiSlot=dur>30&&startsAtHalf||dur>60;return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{background:bs.bg||T.brandLight,border:`1.5px solid ${bs.dot||T.brand}`,borderRadius:6,padding:"3px 7px",marginTop:topOffset,marginBottom:2,cursor:"pointer",height:slotH,overflow:"hidden",boxSizing:"border-box",position:multiSlot?"absolute":"relative",zIndex:multiSlot?2:1,width:multiSlot?"calc(100% - 6px)":"auto"}}>
-                  <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getPaz(a.pazienteId)}</div>
+                  <div style={{fontSize:11.5,fontWeight:700,color:bs.color||T.brandDark,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{(()=>{const p=pazienteMap?.get(String(a.pazienteId));return p?`${p.cognome} ${p.nome}`:"—";})()}</div>
                   <div style={{fontSize:10,color:bs.color||T.brandDark,opacity:0.85,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:80}}>{a.oraInizio}{a.tipo?" · "+a.tipo:""}{a.durata?" ("+a.durata+"min)":""}</div>
                 </div>;})}
               </div>;
@@ -2936,7 +3031,7 @@ function _AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazi
             onMouseEnter={e=>e.currentTarget.style.background=T.brandLight}
             onMouseLeave={e=>e.currentTarget.style.background=isToday?T.brandLight:other?"#FAFAFA":T.surface}>
             <div style={{width:26,height:26,borderRadius:"50%",background:isToday?T.brand:"transparent",display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:isToday?700:400,color:isToday?"#fff":other?T.textMuted:T.text,marginBottom:4}}>{d.getDate()}</div>
-            {apts.slice(0,3).map(a=>{const bs=BADGE[a.stato]||{};return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{fontSize:10.5,fontWeight:600,color:bs.color||T.brandDark,background:bs.bg||T.brandLight,borderRadius:4,padding:"2px 5px",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.oraInizio} {getPaz(a.pazienteId).split(" ")[0]}</div>;})}
+            {apts.slice(0,3).map(a=>{const bs=BADGE[a.stato]||{};const p=pazienteMap?.get(String(a.pazienteId));return <div key={a.id} onClick={e=>{e.stopPropagation();openEdit(a);}} style={{fontSize:10.5,fontWeight:600,color:bs.color||T.brandDark,background:bs.bg||T.brandLight,borderRadius:4,padding:"2px 5px",marginBottom:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{a.oraInizio} {p?p.cognome:"—"}</div>;})}
             {apts.length>3&&<div style={{fontSize:10,color:T.textMuted}}>+{apts.length-3} altri</div>}
           </div>;
         })}
@@ -2947,11 +3042,11 @@ function _AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazi
       <div style={{marginBottom:14}}>
         <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:5,textTransform:"uppercase",letterSpacing:0.4}}>Paziente *</label>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <select value={form.pazienteId} onChange={e=>ff("pazienteId")(e.target.value)} required
-            style={{flex:1,padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",color:T.text,background:"#fff",outline:"none"}}>
-            <option value="">— Seleziona paziente —</option>
-            {pazienti.sort((a,b)=>a.cognome.localeCompare(b.cognome)).map(p=><option key={p.id} value={p.id}>{p.cognome} {p.nome}</option>)}
-          </select>
+          <PazienteSearch
+            pazienti={pazienti}
+            value={form.pazienteId}
+            onChange={id=>ff("pazienteId")(id)}
+          />
           {!editId&&<button type="button" onClick={()=>setShowNewPaz(!showNewPaz)}
             style={{padding:"9px 14px",borderRadius:T.r,border:`1.5px solid ${showNewPaz?T.brand:T.border}`,
               background:showNewPaz?T.brandLight:"#fff",color:showNewPaz?T.brand:T.textSub,
