@@ -791,9 +791,9 @@ function SBar({value, onChange, placeholder="Cerca..."}) {
 }
 
 function Tabs({tabs, active, onChange}) {
-  return <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20}}>
+  return <div className="tab-bar" style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
     {tabs.map(t=><button key={t.id} onClick={()=>onChange(t.id)}
-      style={{padding:"10px 18px",fontSize:13,fontWeight:600,border:"none",background:"none",cursor:"pointer",color:active===t.id?T.brand:T.textSub,borderBottom:active===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit"}}>
+      style={{flexShrink:0,padding:"10px 16px",fontSize:13,fontWeight:600,border:"none",background:"none",cursor:"pointer",color:active===t.id?T.brand:T.textSub,borderBottom:active===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:"unset"}}>
       {t.label}{t.count!==undefined&&<span style={{marginLeft:6,fontSize:11,background:active===t.id?T.brandLight:"#F3F4F6",color:active===t.id?T.brandDark:T.textSub,padding:"1px 6px",borderRadius:10}}>{t.count}</span>}
     </button>)}
   </div>;
@@ -3696,10 +3696,10 @@ function _FatturazioneView({fatture, setFatture, pazienti, pazienteMap, preventi
     </div>}
 
     {/* Sub-tabs Fatture / Banca */}
-    <div style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20}}>
+    <div className="tab-bar" style={{display:"flex",gap:0,borderBottom:`1px solid ${T.border}`,marginBottom:20,overflowX:"auto",WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
       {[{id:"fatture",label:"📋 Registro fatture"},{id:"scadenzario",label:"📅 Scadenzario"},{id:"banca",label:"🏦 Prima nota / Banca"}].map(t=>(
         <button key={t.id} onClick={()=>setSubtab(t.id)}
-          style={{padding:"10px 22px",fontSize:13.5,fontWeight:subtab===t.id?700:400,border:"none",background:"none",cursor:"pointer",color:subtab===t.id?T.brand:T.textSub,borderBottom:subtab===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit"}}>
+          style={{flexShrink:0,padding:"10px 18px",fontSize:13,fontWeight:subtab===t.id?700:400,border:"none",background:"none",cursor:"pointer",color:subtab===t.id?T.brand:T.textSub,borderBottom:subtab===t.id?`2px solid ${T.brand}`:"2px solid transparent",marginBottom:-1,transition:"all 0.15s",fontFamily:"inherit",whiteSpace:"nowrap",minHeight:"unset"}}>
           {t.label}
         </button>
       ))}
@@ -4198,9 +4198,9 @@ function _ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, pre
     <PageHdr title="Report e statistiche" subtitle="Analisi performance dello studio"/>
 
     {/* Filtro periodo */}
-    <div style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,width:"fit-content",overflow:"hidden",marginBottom:20}}>
-      {[["oggi","Oggi"],["settimana","Settimana"],["mese","Mese"],["anno","Anno"],["sempre","Sempre"]].map(([k,l])=>(
-        <button key={k} onClick={()=>setPeriod(k)} style={{padding:"8px 18px",border:"none",background:period===k?T.brand:"transparent",color:period===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:period===k?600:400}}>{l}</button>
+    <div className="tab-bar" style={{display:"flex",background:T.surface,borderRadius:T.r,border:`1px solid ${T.border}`,width:"fit-content",maxWidth:"100%",overflow:"hidden",marginBottom:20,WebkitOverflowScrolling:"touch",scrollbarWidth:"none"}}>
+      {[["oggi","Oggi"],["settimana","Sett."],["mese","Mese"],["anno","Anno"],["sempre","Sempre"]].map(([k,l])=>(
+        <button key={k} onClick={()=>setPeriod(k)} style={{flexShrink:0,padding:"8px 16px",border:"none",background:period===k?T.brand:"transparent",color:period===k?"#fff":T.textSub,fontFamily:"inherit",fontSize:13,cursor:"pointer",fontWeight:period===k?600:400,whiteSpace:"nowrap",minHeight:"unset"}}>{l}</button>
       ))}
     </div>
 
@@ -4257,12 +4257,12 @@ function _ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, pre
       {/* Grafico a torta per categoria */}
       {byCategoria.length>0&&<Card style={{marginBottom:14}}>
         <div style={{fontSize:14,fontWeight:700,color:T.text,marginBottom:16}}>📊 Incasso per categoria</div>
-        <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:24,alignItems:"center"}}>
-          <div style={{display:"flex",justifyContent:"center"}}>
+        <div style={{display:"flex",flexDirection:isMobile?"column":"row",gap:isMobile?16:24,alignItems:isMobile?"center":"center"}}>
+          <div style={{display:"flex",justifyContent:"center",flexShrink:0}}>
             {(()=>{
               const C=["#5BBFB5","#3B82F6","#F59E0B","#EF4444","#8B5CF6","#10B981","#F97316","#06B6D4","#EC4899","#84CC16"];
               let st=0;const r=90,cx=100,cy=100;
-              return <svg viewBox="0 0 200 200" width={180} height={180}>
+              return <svg viewBox="0 0 200 200" width={isMobile?150:180} height={isMobile?150:180}>
                 {byCategoria.map((c,i)=>{
                   const a=(c.valore/totCat)*2*Math.PI;
                   const x1=cx+r*Math.sin(st),y1=cy-r*Math.cos(st);
@@ -4275,14 +4275,14 @@ function _ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, pre
               </svg>;
             })()}
           </div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          <div style={{display:"flex",flexDirection:"column",gap:8,width:isMobile?"100%":"auto",flex:isMobile?undefined:1}}>
             {byCategoria.map((c,i)=>{
               const C=["#5BBFB5","#3B82F6","#F59E0B","#EF4444","#8B5CF6","#10B981","#F97316","#06B6D4","#EC4899","#84CC16"];
               return <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
                 <div style={{width:12,height:12,borderRadius:"50%",background:C[i%C.length],flexShrink:0}}/>
-                <div style={{flex:1,fontSize:13,color:T.text}}>{c.label}</div>
-                <div style={{fontSize:13,fontWeight:700,color:T.text}}>{fmtEur(c.valore)}</div>
-                <div style={{fontSize:11,color:T.textSub,minWidth:36,textAlign:"right"}}>{Math.round(c.valore/totCat*100)}%</div>
+                <div style={{flex:1,fontSize:13,color:T.text,minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.label}</div>
+                <div style={{fontSize:13,fontWeight:700,color:T.text,flexShrink:0}}>{fmtEur(c.valore)}</div>
+                <div style={{fontSize:11,color:T.textSub,minWidth:36,textAlign:"right",flexShrink:0}}>{Math.round(c.valore/totCat*100)}%</div>
               </div>;
             })}
           </div>
@@ -4301,8 +4301,10 @@ function _ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, pre
             </select>
           </div>
         </div>
-        <div style={{display:"flex",alignItems:"flex-end",gap:10,height:140}}>
-          {settimaneGrafico.map((s,i)=><Bar key={i} val={s.rev} max={10000} label={s.label} col={T.brand}/>)}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          <div style={{display:"flex",alignItems:"flex-end",gap:10,height:140,minWidth:isMobile?280:"auto"}}>
+            {settimaneGrafico.map((s,i)=><Bar key={i} val={s.rev} max={10000} label={s.label} col={T.brand}/>)}
+          </div>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted,marginTop:6,borderTop:`1px solid ${T.border}`,paddingTop:6}}>
           <span>Max: € 10.000</span>
@@ -4318,8 +4320,10 @@ function _ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, pre
             {anniDisponibili.map(a=><option key={a} value={a}>{a}</option>)}
           </select>
         </div>
-        <div style={{display:"flex",alignItems:"flex-end",gap:4,height:140}}>
-          {mesiGrafico.map((m,i)=><Bar key={i} val={m.rev} max={20000} label={m.label} col={m.isCurrent?T.brand:T.brandLight}/>)}
+        <div style={{overflowX:"auto",WebkitOverflowScrolling:"touch"}}>
+          <div style={{display:"flex",alignItems:"flex-end",gap:4,height:140,minWidth:isMobile?360:"auto"}}>
+            {mesiGrafico.map((m,i)=><Bar key={i} val={m.rev} max={20000} label={m.label} col={m.isCurrent?T.brand:T.brandLight}/>)}
+          </div>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:T.textMuted,marginTop:6,borderTop:`1px solid ${T.border}`,paddingTop:6}}>
           <span>Max: € 20.000</span>
