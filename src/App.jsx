@@ -1456,13 +1456,14 @@ function DocumentiTab({paziente,studioInfo,impostazioni}){
    IMPOSTAZIONI VIEW
 ══════════════════════════════════════════════ */
 
-function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,preventivi,fatture,listino,currentUser,permessi,setPermessi}){
+function ImpostazioniView({impostazioni,setImpostazioni,pazienti,setPazienti,appuntamenti,setAppuntamenti,preventivi,setPreventivi,fatture,setFatture,listino,setListino,currentUser,permessi,setPermessi}){
   const [activeTab,setActiveTab]=useState("studio");
   const [logEntries,setLogEntries]=useState([]);
   const [logLoading,setLogLoading]=useState(false);
   const [logFilter,setLogFilter]=useState("tutti");
   const logFiltered = logEntries.filter(e=>logFilter==="tutti"||e.categoria===logFilter);
   const logPag = usePagination(logFiltered, 25);
+  const [csvImportResult,setCsvImportResult]=useState(null); // {importati, saltati, duplicati}
   useEffect(()=>{
     if(activeTab!=="log")return;
     setLogLoading(true);
@@ -1504,6 +1505,108 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
       toast("Backup ripristinato ✓");
     }catch(err){toast("Errore: "+err.message,"error");}};
     reader.readAsText(file);e.target.value="";
+  }
+  function importaCSVAnagrafiche(e){
+    const file=e.target.files?.[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=async(ev)=>{
+      try{
+        // Parse CSV: latin-1 encoded, semicolon or comma separated
+        const text=ev.target.result;
+        const lines=text.split("\n").filter(l=>l.trim());
+        if(lines.length<2){toast("File CSV vuoto o non valido","error");return;}
+        // Detect separator
+        const sep=lines[0].includes(";")?";":",";
+        function parseCSVLine(line){
+          const result=[];let cur="";let inQ=false;
+          for(let i=0;i<line.length;i++){
+            const ch=line[i];
+            if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else{inQ=!inQ;}}
+            else if(ch===sep&&!inQ){result.push(cur.trim());cur="";}
+            else{cur+=ch;}
+          }
+          result.push(cur.trim());
+          return result;
+        }
+        const header=parseCSVLine(lines[0]).map(h=>h.toLowerCase().replace(/[^a-z0-9]/g,""));
+        // Map column indexes: ID,Cognome,Nome,Data di Nascita,Codice Fiscale,Città,Indirizzo,Provincia,CAP,Telefono 1,...
+        const iCognome=header.findIndex(h=>h.includes("cognome"));
+        const iNome=header.findIndex(h=>h==="nome");
+        const iData=header.findIndex(h=>h.includes("nascita")||h.includes("data"));
+        const iCF=header.findIndex(h=>h.includes("fiscale")||h.includes("codicefiscale"));
+        const iCitta=header.findIndex(h=>h.includes("citt")||h.includes("citta"));
+        const iIndirizzo=header.findIndex(h=>h.includes("indirizzo"));
+        const iProvincia=header.findIndex(h=>h.includes("provincia")||h.includes("prov"));
+        const iCap=header.findIndex(h=>h==="cap");
+        const iTel1=header.findIndex(h=>h.includes("telefono1")||h.includes("tel1")||h==="telefono1");
+        const iTel2=header.findIndex(h=>h.includes("telefono2")||h.includes("tel2")||h==="telefono2");
+        const iTel3=header.findIndex(h=>h.includes("telefono3")||h.includes("tel3")||h==="telefono3");
+        if(iCognome<0&&iNome<0){toast("Colonne Cognome/Nome non trovate nel CSV","error");return;}
+        // Build existing CF set for duplicate check
+        const existingCFs=new Set(pazienti.map(p=>(p.codiceFiscale||"").toUpperCase()).filter(Boolean));
+        const existingNames=new Set(pazienti.map(p=>((p.cognome||"")+" "+(p.nome||"")).toLowerCase().trim()));
+        let importati=0,saltati=0,duplicati=0;
+        const nuovi=[];
+        const maxId=pazienti.reduce((m,p)=>Math.max(m,Number(p.id)||0),0);
+        let nextId=maxId+1;
+        for(let i=1;i<lines.length;i++){
+          const row=parseCSVLine(lines[i]);
+          const cognome=(iCognome>=0?row[iCognome]||"":"").trim();
+          const nome=(iNome>=0?row[iNome]||"":"").trim();
+          if(!cognome&&!nome){saltati++;continue;}
+          const cf=(iCF>=0?row[iCF]||"":"").trim().toUpperCase();
+          // Duplicate check: by CF (if present) or by nome+cognome
+          if(cf&&existingCFs.has(cf)){duplicati++;continue;}
+          const nameKey=(cognome+" "+nome).toLowerCase().trim();
+          if(!cf&&existingNames.has(nameKey)){duplicati++;continue;}
+          // Convert date DD/MM/YYYY -> YYYY-MM-DD
+          let dataNascita="";
+          if(iData>=0&&row[iData]){
+            const d=row[iData].trim();
+            const m=d.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+            if(m){dataNascita=m[3]+"-"+m[2].padStart(2,"0")+"-"+m[1].padStart(2,"0");}
+          }
+          // Phone: pick first non-empty among tel1, tel2, tel3
+          let telefono="";
+          const telCandidates=[iTel1,iTel2,iTel3].filter(x=>x>=0).map(x=>row[x]||"").map(t=>t.trim()).filter(Boolean);
+          if(telCandidates.length>0){
+            // Normalize phone: remove spaces/dashes, keep digits and leading +
+            telefono=telCandidates[0].replace(/[\s\-\.]/g,"");
+            // If starts with 0 (Italian local), keep as is
+          }
+          // Build indirizzo
+          let indirizzo=(iIndirizzo>=0?row[iIndirizzo]||"":"").trim();
+          const citta=(iCitta>=0?row[iCitta]||"":"").trim();
+          const cap=(iCap>=0?row[iCap]||"":"").trim();
+          // Normalize province: extract just the 2-letter code if it contains parentheses like "CAGLIARI (CA)"
+          let prov=(iProvincia>=0?row[iProvincia]||"":"").trim();
+          const provMatch=prov.match(/\(([A-Z]{2})\)/);
+          if(provMatch){prov=provMatch[1];}
+          else if(prov.length>2){prov=prov.slice(0,2).toUpperCase();}
+          if(cap&&citta&&indirizzo){indirizzo=indirizzo+" - "+cap+" "+citta+(prov?" ("+prov+")":"");}
+          else if(citta&&indirizzo){indirizzo=indirizzo+" - "+citta+(prov?" ("+prov+")":"");}
+          else if(citta){indirizzo=citta+(prov?" ("+prov+")":"");}
+          const paziente={id:nextId++,cognome,nome,telefono,email:"",dataNascita,codiceFiscale:cf,indirizzo,note:"",allergie:"",farmaci:"",dataRegistrazione:new Date().toISOString().slice(0,10),dentiStato:{}};
+          nuovi.push(paziente);
+          if(cf)existingCFs.add(cf);
+          existingNames.add(nameKey);
+          importati++;
+        }
+        if(importati===0){
+          toast("Nessun paziente nuovo da importare ("+duplicati+" duplicati, "+saltati+" righe vuote)","warning");
+          setCsvImportResult({importati:0,saltati,duplicati});
+          return;
+        }
+        const ok=await gConfirm("Importa anagrafiche CSV","Verranno importati "+importati+" nuovi pazienti.\n"+duplicati+" duplicati saltati.\n"+saltati+" righe vuote saltate.","Importa",false);
+        if(!ok)return;
+        setPazienti(prev=>[...prev,...nuovi]);
+        setCsvImportResult({importati,saltati,duplicati});
+        toast("Importati "+importati+" pazienti ✓");
+      }catch(err){toast("Errore CSV: "+err.message,"error");console.error(err);}
+    };
+    // Read as latin-1 (windows-1252) for Italian CSV files
+    reader.readAsText(file,"windows-1252");
+    e.target.value="";
   }
   const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},...(currentUser?.ruolo==="admin"?[{id:"log",label:"📋 Log attività"}]:[]),{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
   const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
@@ -1693,6 +1796,19 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,appuntamenti,pr
             <div><div style={{fontSize:14,fontWeight:600,color:T.text}}>Ripristina da backup JSON</div><div style={{fontSize:12,color:T.textSub,marginTop:3}}>Carica un file .json esportato in precedenza</div></div>
             <button onClick={()=>document.getElementById("backupRestoreInput").click()} style={{padding:"9px 18px",borderRadius:T.r,border:`1px solid ${T.border}`,background:"#fff",color:T.text,cursor:"pointer",fontSize:13,fontWeight:600,fontFamily:"inherit"}}>📂 Ripristina</button>
             <input id="backupRestoreInput" type="file" accept=".json" style={{display:"none"}} onChange={importaDati}/>
+          </div>
+          <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",padding:"14px 18px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`}}>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:600,color:T.text}}>📥 Importa anagrafiche da CSV</div>
+              <div style={{fontSize:12,color:T.textSub,marginTop:3}}>Importa pazienti da un file CSV (formato gestionale precedente).<br/>Colonne supportate: Cognome, Nome, Data di Nascita, Codice Fiscale, Indirizzo, Telefono.<br/>I duplicati (stesso CF o stesso nome) vengono automaticamente saltati.</div>
+              {csvImportResult&&<div style={{marginTop:8,padding:"8px 12px",background:"#F0FDF4",borderRadius:T.r,border:"1px solid #BBF7D0",fontSize:12,color:"#065F46"}}>
+                ✅ Ultima importazione: <b>{csvImportResult.importati} importati</b>, {csvImportResult.duplicati} duplicati saltati, {csvImportResult.saltati} righe vuote
+              </div>}
+            </div>
+            <div style={{marginLeft:16,flexShrink:0}}>
+              <button onClick={()=>document.getElementById("csvImportInput").click()} style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:"#7C3AED",color:"#fff",cursor:"pointer",fontSize:13,fontWeight:700,fontFamily:"inherit"}}>📥 Importa CSV</button>
+              <input id="csvImportInput" type="file" accept=".csv,.txt" style={{display:"none"}} onChange={importaCSVAnagrafiche}/>
+            </div>
           </div>
           <div style={{padding:"14px 18px",background:"#F0FDF4",borderRadius:T.r,border:"1px solid #BBF7D0",display:"flex",alignItems:"center",gap:12}}>
             <span style={{fontSize:24}}>🔄</span>
@@ -4613,7 +4729,7 @@ export default function App() {
         {view==="comunicazioni"&&canView("comunicazioni")&&<ComunicazioniView pazienti={pazienti} appuntamenti={appuntamenti}/>}
         {view==="report"&&canView("report")&&<ReportView fatture={fatture} appuntamenti={appuntamenti} pazienti={pazienti} listino={listino} preventivi={preventivi} isMobile={isMobile}/>}
         {view==="utenti"&&<UtentiView currentUser={user}/>}
-        {view==="impostazioni"&&canView("impostazioni")&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} appuntamenti={appuntamenti} preventivi={preventivi} fatture={fatture} listino={listino} currentUser={user} permessi={permessi} setPermessi={setPermessi}/>}
+        {view==="impostazioni"&&canView("impostazioni")&&<ImpostazioniView impostazioni={impostazioni} setImpostazioni={setImpostazioni} pazienti={pazienti} setPazienti={setPazienti} appuntamenti={appuntamenti} setAppuntamenti={setAppuntamenti} preventivi={preventivi} setPreventivi={setPreventivi} fatture={fatture} setFatture={setFatture} listino={listino} setListino={setListino} currentUser={user} permessi={permessi} setPermessi={setPermessi}/>}
       </main>
       {isMobile&&<nav style={{background:T.surface,borderTop:`1px solid ${T.border}`,padding:"6px 0 max(8px,env(safe-area-inset-bottom))",display:"flex",justifyContent:"space-around",position:"fixed",bottom:0,left:0,right:0,zIndex:50}}>
         {[{id:"dashboard",icon:"⊞"},{id:"agenda",icon:"📅"},{id:"pazienti",icon:"👤"},{id:"preventivi",icon:"📄"},{id:"fatture",icon:"🧾"}].map(v=>(
