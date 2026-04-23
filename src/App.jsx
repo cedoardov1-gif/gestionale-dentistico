@@ -132,12 +132,21 @@ function useStore(key, init) {
   const table=tableMap[key];
   const [val,setVal]=useState(()=>{try{const s=localStorage.getItem("dsd_"+key);if(s)return JSON.parse(s);}catch(e){}return init;});
 
+  // Debounced localStorage write — avoids blocking the UI thread on every keystroke/state change
+  const lsTimerRef=useRef(null);
+  const debouncedLSWrite=useCallback((data)=>{
+    if(lsTimerRef.current)clearTimeout(lsTimerRef.current);
+    lsTimerRef.current=setTimeout(()=>{
+      try{localStorage.setItem("dsd_"+key,JSON.stringify(data));}catch(e){}
+    },500);
+  },[key]);
+
   useEffect(()=>{
     if(!table)return;
     import("./supabase.js").then(({supabase})=>{
       supabase.from(table).select("*").order("id").then(({data,error})=>{
         if(error){console.warn("Supabase read:",error.message);return;}
-        if(data&&data.length>0){const mapped=data.map(fromSupabaseRow);setVal(mapped);try{localStorage.setItem("dsd_"+key,JSON.stringify(mapped));}catch(e){}}
+        if(data&&data.length>0){const mapped=data.map(fromSupabaseRow);setVal(mapped);debouncedLSWrite(mapped);}
       });
     }).catch(e=>console.warn("Supabase import:",e));
   },[table]);
@@ -155,13 +164,12 @@ function useStore(key, init) {
             else if(payload.eventType==="UPDATE"){
               const old=next.find(x=>String(x.id)===String(row.id));
               next=next.map(x=>String(x.id)===String(row.id)?row:x);
-              // Conflict toast: notify if this record was recently modified locally
               if(old&&row._remoteUpdate){
                 try{const t=window._showToast;if(t)t("Dati aggiornati da un altro utente","info");}catch(e){}
               }
             }
             else if(payload.eventType==="DELETE"){next=next.filter(x=>String(x.id)!==String(payload.old.id));}
-            try{localStorage.setItem("dsd_"+key,JSON.stringify(next));}catch(e){}
+            debouncedLSWrite(next);
             return next;
           });
         }).subscribe();
@@ -169,28 +177,41 @@ function useStore(key, init) {
     return()=>{if(ch)import("./supabase.js").then(({supabase})=>supabase.removeChannel(ch));};
   },[table]);
 
+  // Keep a ref of previous value to compute diff for Supabase sync
+  const prevValRef=useRef(val);
+  useEffect(()=>{prevValRef.current=val;},[val]);
+
   const save=useCallback(async(v)=>{
-    const next=typeof v==="function"?v(val):v;
+    const prev=prevValRef.current;
+    const next=typeof v==="function"?v(prev):v;
     setVal(next);
-    try{localStorage.setItem("dsd_"+key,JSON.stringify(next));}catch(e){}
+    debouncedLSWrite(next);
     if(!table)return;
     import("./supabase.js").then(async({supabase})=>{
-      const nextIds=new Set(next.map(x=>String(x.id)));
-      const toUpsert=next.map(r=>toSupabaseRow(table,r));
-      const toDelete=val.filter(x=>!nextIds.has(String(x.id))).map(x=>x.id);
+      // Diff: only upsert changed/added rows, delete removed rows
+      const prevMap=new Map(prev.map(x=>[String(x.id),x]));
+      const nextMap=new Map(next.map(x=>[String(x.id),x]));
+      const toUpsert=next
+        .filter(x=>{
+          const p=prevMap.get(String(x.id));
+          // New record or changed record (quick check via JSON)
+          return !p||JSON.stringify(p)!==JSON.stringify(x);
+        })
+        .map(r=>toSupabaseRow(table,r));
+      const toDelete=prev.filter(x=>!nextMap.has(String(x.id))).map(x=>x.id);
+      if(toUpsert.length===0&&toDelete.length===0){return;} // nothing changed
       try{
-        try{window._setSyncing&&window._setSyncing(true);}catch(e){}
         if(window._supabaseSaveStart)window._supabaseSaveStart();
         if(toUpsert.length>0){const{error}=await supabase.from(table).upsert(toUpsert,{onConflict:"id"});if(error)throw error;}
         if(toDelete.length>0){const{error}=await supabase.from(table).delete().in("id",toDelete);if(error)throw error;}
-        console.log("✓ Supabase sync:",table);
-        try{window._setSyncing&&window._setSyncing(false);window._setLastSync&&window._setLastSync(new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}));}catch(e){}
+        console.log("✓ Supabase sync:",table,"upserted:",toUpsert.length,"deleted:",toDelete.length);
+        if(window._supabaseSaveEnd)window._supabaseSaveEnd();
       }catch(err){
         console.warn("✗ Supabase error:",err?.message||err);
         setTimeout(async()=>{try{const{supabase:sb}=await import("./supabase.js");if(toUpsert.length>0)await sb.from(table).upsert(toUpsert,{onConflict:"id"});if(toDelete.length>0)await sb.from(table).delete().in("id",toDelete);console.log("✓ Supabase retry ok:",table);}catch(e2){console.error("✗ Supabase failed:",e2?.message||e2);}},3000);
       }
     }).catch(e=>console.warn("Supabase:",e));
-  },[table,val,key]);
+  },[table,key,debouncedLSWrite]);
 
   return [val,save];
 }
