@@ -130,27 +130,44 @@ function fromSupabaseRow(r) {
 function useStore(key, init) {
   const tableMap={pazienti:"pazienti",appuntamenti:"appuntamenti",preventivi:"preventivi",fatture:"fatture",listino:"listino"};
   const table=tableMap[key];
-  const [val,setVal]=useState(()=>{try{const s=localStorage.getItem("dsd_"+key);if(s)return JSON.parse(s);}catch(e){}return init;});
+  // Skip localStorage for pazienti — too large (3800+ records, >5MB limit)
+  // Other tables are small enough for localStorage fallback
+  const usesLS = key !== "pazienti";
+  const [val,setVal]=useState(()=>{
+    if(!usesLS)return init;
+    try{const s=localStorage.getItem("dsd_"+key);if(s)return JSON.parse(s);}catch(e){}
+    return init;
+  });
 
-  // Debounced localStorage write — avoids blocking the UI thread on every keystroke/state change
+  // Debounced localStorage write — only for small tables
   const lsTimerRef=useRef(null);
   const debouncedLSWrite=useCallback((data)=>{
+    if(!usesLS)return;
     if(lsTimerRef.current)clearTimeout(lsTimerRef.current);
     lsTimerRef.current=setTimeout(()=>{
-      try{localStorage.setItem("dsd_"+key,JSON.stringify(data));}catch(e){}
+      try{localStorage.setItem("dsd_"+key,JSON.stringify(data));}catch(e){
+        // If storage quota exceeded, silently ignore
+        console.warn("localStorage quota exceeded for",key);
+      }
     },500);
-  },[key]);
+  },[key,usesLS]);
 
+  // Load from Supabase on mount
   useEffect(()=>{
     if(!table)return;
     import("./supabase.js").then(({supabase})=>{
       supabase.from(table).select("*").order("id").then(({data,error})=>{
         if(error){console.warn("Supabase read:",error.message);return;}
-        if(data&&data.length>0){const mapped=data.map(fromSupabaseRow);setVal(mapped);debouncedLSWrite(mapped);}
+        if(data&&data.length>0){
+          const mapped=data.map(fromSupabaseRow);
+          setVal(mapped);
+          debouncedLSWrite(mapped);
+        }
       });
     }).catch(e=>console.warn("Supabase import:",e));
   },[table]);
 
+  // Realtime updates
   useEffect(()=>{
     if(!table)return;
     let ch;
@@ -162,11 +179,7 @@ function useStore(key, init) {
             const row=payload.new?fromSupabaseRow(payload.new):null;
             if(payload.eventType==="INSERT"){if(!next.find(x=>String(x.id)===String(row.id)))next=[...next,row];}
             else if(payload.eventType==="UPDATE"){
-              const old=next.find(x=>String(x.id)===String(row.id));
               next=next.map(x=>String(x.id)===String(row.id)?row:x);
-              if(old&&row._remoteUpdate){
-                try{const t=window._showToast;if(t)t("Dati aggiornati da un altro utente","info");}catch(e){}
-              }
             }
             else if(payload.eventType==="DELETE"){next=next.filter(x=>String(x.id)!==String(payload.old.id));}
             debouncedLSWrite(next);
@@ -194,12 +207,11 @@ function useStore(key, init) {
       const toUpsert=next
         .filter(x=>{
           const p=prevMap.get(String(x.id));
-          // New record or changed record (quick check via JSON)
           return !p||JSON.stringify(p)!==JSON.stringify(x);
         })
         .map(r=>toSupabaseRow(table,r));
       const toDelete=prev.filter(x=>!nextMap.has(String(x.id))).map(x=>x.id);
-      if(toUpsert.length===0&&toDelete.length===0){return;} // nothing changed
+      if(toUpsert.length===0&&toDelete.length===0)return;
       try{
         if(window._supabaseSaveStart)window._supabaseSaveStart();
         if(toUpsert.length>0){const{error}=await supabase.from(table).upsert(toUpsert,{onConflict:"id"});if(error)throw error;}
@@ -208,7 +220,7 @@ function useStore(key, init) {
         if(window._supabaseSaveEnd)window._supabaseSaveEnd();
       }catch(err){
         console.warn("✗ Supabase error:",err?.message||err);
-        setTimeout(async()=>{try{const{supabase:sb}=await import("./supabase.js");if(toUpsert.length>0)await sb.from(table).upsert(toUpsert,{onConflict:"id"});if(toDelete.length>0)await sb.from(table).delete().in("id",toDelete);console.log("✓ Supabase retry ok:",table);}catch(e2){console.error("✗ Supabase failed:",e2?.message||e2);}},3000);
+        setTimeout(async()=>{try{const{supabase:sb}=await import("./supabase.js");if(toUpsert.length>0)await sb.from(table).upsert(toUpsert,{onConflict:"id"});if(toDelete.length>0)await sb.from(table).delete().in("id",toDelete);}catch(e2){console.error("✗ Supabase failed:",e2?.message||e2);}},3000);
       }
     }).catch(e=>console.warn("Supabase:",e));
   },[table,key,debouncedLSWrite]);
@@ -852,7 +864,7 @@ function LoginPage({onLogin}) {
   </div>;
 }
 
-function DashView({pazienti, pazienteMap, appuntamenti, preventivi, fatture, onNav, isMobile=false}) {
+function _DashView({pazienti, pazienteMap, appuntamenti, preventivi, fatture, onNav, isMobile=false}) {
   const today=todayISO(), now=new Date();
   const todayApts=appuntamenti.filter(a=>a.data===today).sort((a,b)=>a.oraInizio.localeCompare(b.oraInizio));
   const mese=fatture.filter(f=>{const d=new Date(f.data);return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();});
@@ -1632,7 +1644,7 @@ function ImpostazioniView({impostazioni,setImpostazioni,pazienti,setPazienti,app
   const tabs=[{id:"studio",label:"🏥 Dati Studio"},{id:"pazienti",label:"👤 Scheda Paziente"},{id:"anamnesi",label:"🩺 Anamnesi"},{id:"utenti",label:"👥 Utenti"},{id:"permessi",label:"🔐 Permessi"},...(currentUser?.ruolo==="admin"?[{id:"log",label:"📋 Log attività"}]:[]),{id:"documenti",label:"📄 Documenti"},{id:"backup",label:"💾 Backup & Dati"}];
   const inputStyle={width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box"};
   const CAMPI_LABELS={nome:"Nome",cognome:"Cognome",telefono:"Telefono",email:"Email",dataNascita:"Data di nascita",codiceFiscale:"Codice fiscale",indirizzo:"Indirizzo"};
-  const stats={pazienti:pazienti.length,appuntamenti:appuntamenti.length,preventivi:preventivi.length,fatture:fatture.length,listino:listino.length,dimensione:(new Blob([JSON.stringify({pazienti,appuntamenti,preventivi,fatture,listino})]).size/1024).toFixed(1)};
+  const stats=useMemo(()=>({pazienti:pazienti.length,appuntamenti:appuntamenti.length,preventivi:preventivi.length,fatture:fatture.length,listino:listino.length,dimensione:"—"}),[pazienti.length,appuntamenti.length,preventivi.length,fatture.length,listino.length]);
   return(
     <div style={{maxWidth:860}}>
       <PageHdr title="Impostazioni" subtitle="Configurazione dello studio e del gestionale"/>
@@ -1936,7 +1948,7 @@ function stampaAnamnesi(pd, impostazioni) {
 }
 
 
-function PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni, user, pazienteMap}) {
+function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, preventivi, setPreventivi, fatture, setFatture, listino, onNav, initialDetail, onDetailOpened, impostazioni, user, pazienteMap}) {
   const [search, setSearch] = useState("");
   const [sortAZ, setSortAZ] = useState(true);
   const [modal, setModal] = useState(false);
@@ -2705,7 +2717,7 @@ const HOURS_FORM=Array.from({length:24},(_,i)=>{const h=Math.floor(i/2)+8;const 
 const MESI=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 const GIORNI=["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
-function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazienteMap, listino, onNav, user}) {
+function _AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazienteMap, listino, onNav, user}) {
   const [curDate, setCurDate] = useState(new Date()); const [calView, setCalView] = useState("week"); const [modal, setModal] = useState(false); const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({pazienteId:"",data:todayISO(),oraInizio:"09:00",durata:60,tipo:"",stato:"confermato",note:"",operatore:"Dr.ssa Porcedda"});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
@@ -2930,7 +2942,7 @@ function AgendaView({appuntamenti, setAppuntamenti, pazienti, setPazienti, pazie
 }
 
 
-function PreventiviView({preventivi, setPreventivi, pazienti, pazienteMap, listino, fatture, onNav, initialPreventivoId, onPreventivoOpened, user, isMobile=false}) {
+function _PreventiviView({preventivi, setPreventivi, pazienti, pazienteMap, listino, fatture, onNav, initialPreventivoId, onPreventivoOpened, user, isMobile=false}) {
   const [filter, setFilter]=useState("tutti");
   const [highlightId, setHighlightId] = useState(null);
   useEffect(()=>{
@@ -3422,7 +3434,7 @@ function stampaFattura(fatt, pazientiList, fattureList) {
     const w = window.open("","_blank","width=900,height=750");
     if(w){w.document.write(html);w.document.close();}
   }
-function FatturazioneView({fatture, setFatture, pazienti, pazienteMap, preventivi, setPreventivi, onNav, initialFatturaId, onFatturaOpened, user, isMobile=false}) {
+function _FatturazioneView({fatture, setFatture, pazienti, pazienteMap, preventivi, setPreventivi, onNav, initialFatturaId, onFatturaOpened, user, isMobile=false}) {
   const [subtab, setSubtab] = useState("fatture");
   const [highlightId, setHighlightId] = useState(null);
   useEffect(()=>{
@@ -3976,7 +3988,7 @@ function FatturazioneView({fatture, setFatture, pazienti, pazienteMap, preventiv
 
 
 
-function ListinoView({listino, setListino, user}) {
+function _ListinoView({listino, setListino, user}) {
   const [modal,setModal]=useState(false); const [editId,setEditId]=useState(null); const [search,setSearch]=useState("");
   const [form,setForm]=useState({categoria:"Prevenzione",nome:"",prezzo:""});
   const ff=k=>v=>setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
@@ -4034,7 +4046,7 @@ function ListinoView({listino, setListino, user}) {
   </div>;
 }
 
-function ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, preventivi, isMobile=false}) {
+function _ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, preventivi, isMobile=false}) {
   const [period,setPeriod]=useState("mese");
   const [detailModal,setDetailModal]=useState(null); // {title, items}
   const [meseGrafico,setMeseGrafico]=useState(new Date().getMonth()); // 0-11
@@ -4454,7 +4466,7 @@ function UtentiView({currentUser}) {
 
 
 
-function ComunicazioniView({pazienti, appuntamenti}) {
+function _ComunicazioniView({pazienti, appuntamenti}) {
   const [search, setSearch] = useState("");
   const [template, setTemplate] = useState("compleanno");
   const [customMsg, setCustomMsg] = useState("");
@@ -4624,7 +4636,7 @@ const NAV=[
 ];
 
 
-function Sidebar({view, onNav, onLogout, user, pazienti, pazienteMap, appuntamenti, preventivi, fatture, canView, onOpenPaziente, onOpenFattura, onOpenPreventivo}) {
+function _Sidebar({view, onNav, onLogout, user, pazienti, pazienteMap, appuntamenti, preventivi, fatture, canView, onOpenPaziente, onOpenFattura, onOpenPreventivo}) {
   const counts={agenda:appuntamenti.filter(a=>a.data===todayISO()).length,pazienti:pazienti.length,preventivi:preventivi.filter(p=>p.stato==="in_attesa").length,fatture:(()=>{
       const nonPagate=fatture.filter(f=>f.statoPagamento==="non_pagato").length;
       const daSaldare=preventivi.filter(p=>p.stato==="accettato"&&fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="parziale")&&!fatture.some(f=>String(f.preventivoId)===String(p.id)&&f.statoPagamento==="pagato")).length;
@@ -4672,7 +4684,24 @@ function Sidebar({view, onNav, onLogout, user, pazienti, pazienteMap, appuntamen
   </aside>;
 }
 
+
+
+// Performance: memoized view components
+const DashView = React.memo(_DashView);
+const AgendaView = React.memo(_AgendaView);
+const PazientiView = React.memo(_PazientiView);
+const PreventiviView = React.memo(_PreventiviView);
+const FatturazioneView = React.memo(_FatturazioneView);
+const ListinoView = React.memo(_ListinoView);
+const ReportView = React.memo(_ReportView);
+const ComunicazioniView = React.memo(_ComunicazioniView);
+const Sidebar = React.memo(_Sidebar);
+
 export default function App() {
+  // One-time cleanup: remove pazienti from localStorage (too large, use Supabase only)
+  useEffect(()=>{
+    try{localStorage.removeItem("dsd_pazienti");}catch(e){}
+  },[]);
   const {user, login, logout, authLoading} = useAuth();
   const [isMobile, setIsMobile] = useState(typeof window!=="undefined"&&window.innerWidth<768);
   useEffect(()=>{
