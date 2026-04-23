@@ -152,18 +152,29 @@ function useStore(key, init) {
     },500);
   },[key,usesLS]);
 
-  // Load from Supabase on mount
+  // Load from Supabase on mount — paginated to bypass the 1000-row default limit
   useEffect(()=>{
     if(!table)return;
-    import("./supabase.js").then(({supabase})=>{
-      supabase.from(table).select("*").order("id").then(({data,error})=>{
-        if(error){console.warn("Supabase read:",error.message);return;}
-        if(data&&data.length>0){
-          const mapped=data.map(fromSupabaseRow);
+    import("./supabase.js").then(async({supabase})=>{
+      try{
+        const PAGE=1000;
+        let all=[];
+        let from=0;
+        while(true){
+          const{data,error}=await supabase.from(table).select("*").order("id").range(from,from+PAGE-1);
+          if(error){console.warn("Supabase read:",error.message);break;}
+          if(!data||data.length===0)break;
+          all=[...all,...data];
+          if(data.length<PAGE)break; // last page
+          from+=PAGE;
+        }
+        if(all.length>0){
+          const mapped=all.map(fromSupabaseRow);
           setVal(mapped);
           debouncedLSWrite(mapped);
+          console.log("✓ Loaded",all.length,"rows from",table);
         }
-      });
+      }catch(e){console.warn("Supabase load:",e);}
     }).catch(e=>console.warn("Supabase import:",e));
   },[table]);
 
