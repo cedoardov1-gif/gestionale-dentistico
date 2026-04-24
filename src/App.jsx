@@ -272,9 +272,9 @@ const PROFILI_UTENTI = {
 function useAuth() {
   const [user, setUser]           = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isRecovery, setIsRecovery] = useState(false); // true quando arriva dal link di reset
 
   useEffect(() => {
-    // 1) Legge la sessione esistente (token JWT salvato da Supabase nel localStorage)
     import("./supabase.js").then(({supabase}) => {
       supabase.auth.getSession().then(({data:{session}}) => {
         if(session?.user) {
@@ -284,13 +284,22 @@ function useAuth() {
         setAuthLoading(false);
       });
 
-      // 2) Aggiorna lo stato ad ogni cambio sessione (login, logout, refresh token, reset pwd)
       const {data:{subscription}} = supabase.auth.onAuthStateChange((_event, session) => {
+        // Intercetta il redirect dal link di reset password
+        if(_event === "PASSWORD_RECOVERY") {
+          setIsRecovery(true);
+          setUser(null); // non far entrare ancora
+          setAuthLoading(false);
+          return;
+        }
+        if(_event === "USER_UPDATED") {
+          setIsRecovery(false); // password aggiornata, torna al login normale
+        }
         if(session?.user) {
           const profilo = PROFILI_UTENTI[session.user.email] || {nome:"Utente", cognome:"", ruolo:"assistente"};
           const u = {...profilo, email: session.user.email, id: session.user.id};
           setUser(u);
-          if(_event === "SIGNED_IN") logAttivita(u, "login", "auth", "Accesso eseguito");
+          if(_event === "SIGNED_IN" && !isRecovery) logAttivita(u, "login", "auth", "Accesso eseguito");
         } else {
           if(_event === "SIGNED_OUT") logAttivita(user, "logout", "auth", "Disconnessione");
           setUser(null);
@@ -304,7 +313,6 @@ function useAuth() {
     const {supabase} = await import("./supabase.js");
     const {error} = await supabase.auth.signInWithPassword({email: email.trim(), password});
     if(error) {
-      // Messaggi di errore in italiano
       if(error.message.includes("Invalid login")) return {ok:false, error:"Email o password non corretti"};
       if(error.message.includes("Email not confirmed")) return {ok:false, error:"Email non confermata. Controlla la casella di posta."};
       if(error.message.includes("Too many requests")) return {ok:false, error:"Troppi tentativi. Riprova tra qualche minuto."};
@@ -316,7 +324,7 @@ function useAuth() {
   const logout = async () => {
     const {supabase} = await import("./supabase.js");
     await supabase.auth.signOut();
-    // Pulisce cache locale (non i pazienti — quelli li ricarica Supabase al prossimo login)
+    setIsRecovery(false);
     ["dsd_appuntamenti","dsd_preventivi","dsd_fatture","dsd_listino"].forEach(k=>{
       try{localStorage.removeItem(k);}catch(e){}
     });
@@ -330,7 +338,77 @@ function useAuth() {
     return {ok:true};
   };
 
-  return {user, login, logout, resetPassword, authLoading};
+  const updatePassword = async (newPassword) => {
+    const {supabase} = await import("./supabase.js");
+    const {error} = await supabase.auth.updateUser({password: newPassword});
+    if(error) return {ok:false, error:error.message};
+    setIsRecovery(false);
+    return {ok:true};
+  };
+
+  return {user, login, logout, resetPassword, updatePassword, isRecovery, authLoading};
+}
+
+// Pagina per impostare la nuova password dopo il click sul link di reset
+function NuovaPasswordPage({onUpdatePassword, onAnnulla}) {
+  const [pwd, setPwd]         = useState("");
+  const [pwd2, setPwd2]       = useState("");
+  const [err, setErr]         = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone]       = useState(false);
+
+  async function salva() {
+    if(pwd.length < 8) { setErr("La password deve essere di almeno 8 caratteri"); return; }
+    if(pwd !== pwd2)   { setErr("Le due password non coincidono"); return; }
+    setLoading(true); setErr("");
+    const result = await onUpdatePassword(pwd);
+    setLoading(false);
+    if(!result.ok) { setErr("Errore: " + result.error); return; }
+    setDone(true);
+    setTimeout(() => onAnnulla(), 2000);
+  }
+
+  return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#EBF8F7 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{width:"100%",maxWidth:400}}>
+      <div style={{textAlign:"center",marginBottom:28}}>
+        <div style={{fontSize:48,marginBottom:12}}>🔑</div>
+        <h1 style={{fontSize:22,fontWeight:700,color:T.text,margin:0}}>Imposta nuova password</h1>
+        <p style={{fontSize:14,color:T.textSub,marginTop:6}}>Studio Dentistico Sardo</p>
+      </div>
+      <div style={{background:"#fff",borderRadius:T.rXl,padding:28,boxShadow:"0 4px 24px rgba(0,0,0,0.1)",border:`1px solid ${T.border}`}}>
+        {done
+          ? <div style={{textAlign:"center",padding:"20px 0"}}>
+              <div style={{fontSize:40,marginBottom:12}}>✅</div>
+              <div style={{fontSize:16,fontWeight:700,color:T.text}}>Password aggiornata!</div>
+              <div style={{fontSize:13,color:T.textSub,marginTop:6}}>Reindirizzamento al login...</div>
+            </div>
+          : <>
+            <div style={{marginBottom:16}}>
+              <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Nuova password</label>
+              <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)}
+                placeholder="Minimo 8 caratteri" autoFocus
+                style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box",display:"block"}}/>
+            </div>
+            <div style={{marginBottom:18}}>
+              <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Conferma password</label>
+              <input type="password" value={pwd2} onChange={e=>setPwd2(e.target.value)}
+                placeholder="Ripeti la password"
+                onKeyDown={e=>e.key==="Enter"&&salva()}
+                style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box",display:"block"}}/>
+            </div>
+            {err&&<div style={{padding:"10px 14px",background:T.dangerBg,border:`1px solid #FECACA`,borderRadius:T.r,fontSize:13,color:T.danger,marginBottom:16}}>{err}</div>}
+            <button onClick={salva} disabled={loading}
+              style={{display:"block",width:"100%",padding:"13px",fontSize:15,fontWeight:700,
+                background:loading?"#3D9990":T.brand,color:"#fff",border:"none",borderRadius:T.r,
+                cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",
+                boxShadow:"0 3px 10px rgba(91,191,181,0.45)"}}>
+              {loading?"Salvataggio...":"Salva password →"}
+            </button>
+          </>
+        }
+      </div>
+    </div>
+  </div>;
 }
 
 
@@ -5044,7 +5122,7 @@ export default function App() {
   useEffect(()=>{
     try{localStorage.removeItem("dsd_pazienti");}catch(e){}
   },[]);
-  const {user, login, logout, resetPassword, authLoading} = useAuth();
+  const {user, login, logout, resetPassword, updatePassword, isRecovery, authLoading} = useAuth();
   const [isMobile, setIsMobile] = useState(typeof window!=="undefined"&&window.innerWidth<768);
   useEffect(()=>{
     const onResize=()=>setIsMobile(window.innerWidth<768);
@@ -5090,6 +5168,7 @@ export default function App() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
+  if(isRecovery) return <NuovaPasswordPage onUpdatePassword={updatePassword} onAnnulla={()=>window.location.reload()}/>;
   if (!user) return <LoginPage onLogin={login} onResetPassword={resetPassword}/>;
 
   function navTo(v,pazId){setView(v);if(pazId!==undefined)setOpenPazienteId(pazId);setSidebarOpen(false);}
