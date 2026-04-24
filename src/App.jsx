@@ -620,6 +620,20 @@ function MobileStyles(){
         /* Only apply min-height to primary action buttons, not all buttons */
         button.btn-primary-action { min-height: 44px; }
       }
+      @media print {
+        body > *:not(#print-root) { display: none !important; }
+        .no-print { display: none !important; }
+        #documento-stampa {
+          display: block !important;
+          padding: 20mm 25mm !important;
+          font-family: Georgia, serif !important;
+          font-size: 11pt !important;
+          line-height: 1.75 !important;
+          color: #000 !important;
+          background: #fff !important;
+        }
+        #documento-stampa img { max-width: 200px !important; }
+      }
     `}</style>
   );
 }
@@ -1412,126 +1426,200 @@ function FirmaCanvas({onSalva,onAnnulla}){
 }
 
 
-function DocumentiTab({paziente,studioInfo,impostazioni}){
+function DocumentiTab({paziente, studioInfo, impostazioni, documentiEmessi, setDocumentiEmessi}){
   const studio=studioInfo||{};
   const [showSelector,setShowSelector]=useState(false);
   const [firmaModal,setFirmaModal]=useState(false);
   const [firmaDocId,setFirmaDocId]=useState(null);
-  const [documentiEmessi,setDocumentiEmessi]=useState([]);
   const [preview,setPreview]=useState(null);
+  // previewing a specific doc (to show its saved firma)
+  const [previewDocId,setPreviewDocId]=useState(null);
   const oggi=new Date().toLocaleDateString("it-IT",{day:"2-digit",month:"long",year:"numeric"});
   const byCategoria=TEMPLATES_DOCUMENTI.reduce((acc,t)=>{if(!acc[t.categoria])acc[t.categoria]=[];acc[t.categoria].push(t);return acc;},{});
 
   function apriModalFirma(id){setFirmaDocId(id);setFirmaModal(true);}
-  function salvaFirma(img){setDocumentiEmessi(d=>d.map(doc=>doc.id===firmaDocId?{...doc,firma:img,firmataIl:new Date().toLocaleDateString("it-IT")}:doc));setFirmaModal(false);setFirmaDocId(null);}
-  function generaEStampa(template){setPreview({...template.genera(paziente),template});}
+  function salvaFirma(img){
+    setDocumentiEmessi(d=>d.map(doc=>doc.id===firmaDocId?{...doc,firma:img,firmataIl:new Date().toLocaleDateString("it-IT")}:doc));
+    setFirmaModal(false);
+    setFirmaDocId(null);
+  }
+  function eliminaDoc(id){
+    if(!window.confirm("Eliminare questo documento?"))return;
+    setDocumentiEmessi(d=>d.filter(x=>x.id!==id));
+  }
+  function generaEMostra(template, docId){
+    setPreview({...template.genera(paziente),template});
+    setPreviewDocId(docId||null);
+  }
   function salvaDoc(template){
-    setDocumentiEmessi(d=>[...d,{id:Date.now(),templateId:template.id,label:template.label,data:new Date().toISOString().slice(0,10)}]);
+    const newDoc={id:Date.now(),templateId:template.id,label:template.label,data:new Date().toISOString().slice(0,10)};
+    setDocumentiEmessi(d=>[...d,newDoc]);
     setShowSelector(false);
+    // Auto-open preview
+    setPreview({...template.genera(paziente),template});
+    setPreviewDocId(newDoc.id);
   }
   function stampa(){window.print();}
+
+  // Firma image for preview: look up by docId first, then by templateId
+  function getFirmaForPreview(){
+    if(previewDocId){
+      const doc=documentiEmessi.find(d=>d.id===previewDocId);
+      if(doc?.firma)return doc.firma;
+    }
+    const doc=documentiEmessi.find(d=>d.templateId===preview?.template?.id&&d.firma);
+    return doc?.firma||null;
+  }
 
   return(
     <div>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-        <div style={{fontSize:13,color:T.textSub}}>{documentiEmessi.length} documenti</div>
+        <div style={{fontSize:13,color:T.textSub}}>{documentiEmessi.length} {documentiEmessi.length===1?"documento":"documenti"}</div>
         <button onClick={()=>setShowSelector(!showSelector)} style={{padding:"9px 18px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Nuovo documento</button>
       </div>
+
       {showSelector&&<div style={{background:"#fff",border:`1.5px solid ${T.border}`,borderRadius:T.rLg,padding:16,marginBottom:16,boxShadow:T.shadowMd}}>
         <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:12}}>Seleziona documento</div>
         {Object.entries(byCategoria).map(([cat,templates])=>(
           <div key={cat} style={{marginBottom:14}}>
             <div style={{fontSize:11,fontWeight:700,color:T.textSub,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{cat}</div>
             {templates.map(t=>(
-              <div key={t.id} onClick={()=>{generaEStampa(t);salvaDoc(t);}} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,cursor:"pointer",background:T.bg,marginBottom:6}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.brand;e.currentTarget.style.background=T.brandLight;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.bg;}}>
+              <div key={t.id} onClick={()=>salvaDoc(t)}
+                style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,cursor:"pointer",background:T.bg,marginBottom:6}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor=T.brand;e.currentTarget.style.background=T.brandLight;}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.background=T.bg;}}>
                 <span style={{fontSize:22}}>{t.icona}</span>
-                <span style={{fontSize:13,color:T.text}}>{t.label}</span>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:T.text}}>{t.label}</div>
+                </div>
+                <span style={{fontSize:12,color:T.brand,fontWeight:600}}>Genera →</span>
               </div>
             ))}
           </div>
         ))}
         <button onClick={()=>setShowSelector(false)} style={{padding:"7px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,backgroundColor:"#fff",color:T.textSub,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Annulla</button>
       </div>}
+
       {documentiEmessi.length===0&&!showSelector&&<div style={{textAlign:"center",padding:"40px 20px",color:T.textMuted,border:`1px dashed ${T.border}`,borderRadius:T.rLg}}>
         <div style={{fontSize:36,marginBottom:10}}>📄</div>
         <div style={{fontSize:14,fontWeight:600,color:T.textSub}}>Nessun documento generato</div>
         <div style={{fontSize:12,marginTop:4}}>Clicca "Nuovo documento" per generare consensi e moduli</div>
       </div>}
-      {documentiEmessi.map((d,i)=>(
-        <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8}}>
-          <span style={{fontSize:20}}>📄</span>
-          <div style={{flex:1}}>
+
+      {documentiEmessi.map((d)=>(
+        <div key={d.id} style={{display:"flex",alignItems:"center",gap:10,padding:"12px 14px",background:T.bg,borderRadius:T.r,border:`1px solid ${T.border}`,marginBottom:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:20,flexShrink:0}}>{d.firma?"✅":"📄"}</span>
+          <div style={{flex:1,minWidth:140}}>
             <div style={{fontSize:13.5,fontWeight:600,color:T.text}}>{d.label}</div>
             <div style={{fontSize:12,color:T.textSub,marginTop:2}}>
               Generato il {fmtDate(d.data)}
-              {d.firmataIl&&<span style={{marginLeft:8,color:"#059669",fontWeight:600}}>· Firmato il {d.firmataIl}</span>}
+              {d.firmataIl&&<span style={{marginLeft:8,color:"#059669",fontWeight:600}}>· ✍️ {d.firmataIl}</span>}
             </div>
           </div>
-          <button onClick={()=>apriModalFirma(d.id)} style={{padding:"6px 12px",borderRadius:T.r,border:`1px solid ${d.firma?"#059669":"#E5E7EB"}`,backgroundColor:d.firma?"#ECFDF5":"#F9FAFB",color:d.firma?"#059669":"#6B7280",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginRight:4}}>{d.firma?"✅ Firmato":"✍️ Firma"}</button>
-          <button onClick={()=>{const t=TEMPLATES_DOCUMENTI.find(x=>x.id===d.templateId);if(t)generaEStampa(t);}} style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,backgroundColor:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🖨️ Visualizza</button>
-          <button onClick={()=>setDocumentiEmessi(ds=>ds.filter(x=>x.id!==d.id))} style={{padding:"6px 12px",borderRadius:T.r,border:"1px solid #FECACA",backgroundColor:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🗑</button>
+          <div style={{display:"flex",gap:6,flexShrink:0,flexWrap:"wrap"}}>
+            <button onClick={()=>apriModalFirma(d.id)}
+              style={{padding:"6px 12px",borderRadius:T.r,border:`1px solid ${d.firma?"#059669":"#D1D5DB"}`,backgroundColor:d.firma?"#ECFDF5":"#F9FAFB",color:d.firma?"#059669":"#6B7280",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              {d.firma?"✅ Rifirma":"✍️ Firma"}
+            </button>
+            <button onClick={()=>{const t=TEMPLATES_DOCUMENTI.find(x=>x.id===d.templateId);if(t)generaEMostra(t,d.id);}}
+              style={{padding:"6px 14px",borderRadius:T.r,border:`1px solid ${T.brand}`,backgroundColor:T.brandLight,color:T.brand,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              🖨️ Visualizza
+            </button>
+            <button onClick={()=>eliminaDoc(d.id)}
+              style={{padding:"6px 10px",borderRadius:T.r,border:"1px solid #FECACA",backgroundColor:"#FEF2F2",color:"#DC2626",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              🗑
+            </button>
+          </div>
         </div>
       ))}
 
-      {/* Modal firma — era definito ma mai renderizzato nel JSX */}
-      {firmaModal&&<div onClick={e=>{if(e.target===e.currentTarget){setFirmaModal(false);setFirmaDocId(null);} }}
-        style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
+      {/* Modal firma */}
+      {firmaModal&&<div onClick={e=>{if(e.target===e.currentTarget){setFirmaModal(false);setFirmaDocId(null);}}}
+        style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",zIndex:1100,display:"flex",alignItems:"center",justifyContent:"center",padding:16}}>
         <div style={{background:"#fff",borderRadius:T.rXl,width:"100%",maxWidth:560,boxShadow:"0 20px 60px rgba(0,0,0,0.25)"}}>
           <div style={{padding:"16px 20px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <div>
               <div style={{fontSize:16,fontWeight:700,color:T.text}}>✍️ Firma del paziente</div>
-              <div style={{fontSize:12,color:T.textSub,marginTop:2}}>
-                {documentiEmessi.find(d=>d.id===firmaDocId)?.label||"Documento"}
-              </div>
+              <div style={{fontSize:12,color:T.textSub,marginTop:2}}>{documentiEmessi.find(d=>d.id===firmaDocId)?.label||"Documento"}</div>
             </div>
-            <button onClick={()=>{setFirmaModal(false);setFirmaDocId(null);}} style={{background:"none",border:"none",fontSize:20,cursor:"pointer",color:T.textMuted,lineHeight:1}}>✕</button>
+            <button onClick={()=>{setFirmaModal(false);setFirmaDocId(null);}} style={{background:"none",border:"none",fontSize:22,cursor:"pointer",color:T.textMuted,lineHeight:1,padding:4}}>✕</button>
           </div>
-          <div style={{padding:"20px"}}>
+          <div style={{padding:20}}>
             <FirmaCanvas onSalva={salvaFirma} onAnnulla={()=>{setFirmaModal(false);setFirmaDocId(null);}}/>
           </div>
         </div>
       </div>}
-      {preview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,padding:"20px",overflowY:"auto"}}>
-        <div style={{background:"#fff",borderRadius:T.rLg,maxWidth:760,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)"}}>
-          <div className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:T.bg,borderRadius:`${T.rLg} ${T.rLg} 0 0`}}>
-            <div style={{fontSize:14,fontWeight:700,color:T.text}}>Anteprima documento</div>
+
+      {/* Anteprima documento */}
+      {preview&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.55)",display:"flex",alignItems:"flex-start",justifyContent:"center",zIndex:1000,padding:"20px",overflowY:"auto"}}>
+        <div style={{background:"#fff",borderRadius:T.rLg,maxWidth:760,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,0.3)",marginBottom:20}}>
+          {/* Barra comandi — nascosta in stampa */}
+          <div className="no-print" style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 20px",borderBottom:`1px solid ${T.border}`,background:T.bg,borderRadius:`${T.rLg} ${T.rLg} 0 0`,position:"sticky",top:0,zIndex:2}}>
+            <div style={{fontSize:14,fontWeight:700,color:T.text}}>📄 {preview.titolo}</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={stampa} style={{padding:"8px 18px",borderRadius:T.r,border:"none",backgroundColor:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🖨️ Stampa / PDF</button>
-              <button onClick={()=>setPreview(null)} style={{padding:"8px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,backgroundColor:"#fff",color:T.textSub,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✕ Chiudi</button>
+              <button onClick={()=>{setPreview(null);setPreviewDocId(null);}} style={{padding:"8px 14px",borderRadius:T.r,border:`1px solid ${T.border}`,backgroundColor:"#fff",color:T.textSub,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✕ Chiudi</button>
             </div>
           </div>
-          <div id="documento-stampa" style={{padding:"40px 50px",fontFamily:"Georgia,serif",fontSize:11.5,lineHeight:1.7,color:"#1a1a1a"}}>
-            <div style={{textAlign:"center",marginBottom:28,paddingBottom:16,borderBottom:"2px solid #1a1a1a"}}>
-              <div style={{fontSize:18,fontWeight:700,letterSpacing:1,marginBottom:4}}>STUDIO DENTISTICO SARDO</div>
-              <div style={{fontSize:11,color:"#555"}}>Oristano (OR)</div>
+
+          {/* Corpo documento */}
+          <div id="documento-stampa" style={{padding:"48px 56px",fontFamily:"'Georgia',serif",fontSize:12,lineHeight:1.75,color:"#1a1a1a"}}>
+            {/* Header studio */}
+            <div style={{textAlign:"center",marginBottom:32,paddingBottom:18,borderBottom:"2.5px solid #1a1a1a"}}>
+              <div style={{fontSize:20,fontWeight:700,letterSpacing:1.5,marginBottom:4,textTransform:"uppercase"}}>STUDIO DENTISTICO SARDO</div>
+              <div style={{fontSize:12,color:"#555",marginBottom:2}}>Dr.ssa Lucrezia Gemma Porcedda — Medico Chirurgo Odontoiatra</div>
+              <div style={{fontSize:11.5,color:"#777"}}>
+                {studio.indirizzo||"Via Roma, Oristano (OR)"}
+                {studio.telefono&&" · Tel. "+studio.telefono}
+                {studio.email&&" · "+studio.email}
+              </div>
             </div>
-            <div style={{textAlign:"center",marginBottom:24}}>
-              <div style={{fontSize:15,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:6}}>{preview.titolo}</div>
-              <div style={{fontSize:11,color:"#555",fontStyle:"italic"}}>{preview.sottotitolo}</div>
+
+            {/* Titolo documento */}
+            <div style={{textAlign:"center",marginBottom:28}}>
+              <div style={{fontSize:16,fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}}>{preview.titolo}</div>
+              {preview.sottotitolo&&<div style={{fontSize:12,color:"#555",fontStyle:"italic"}}>{preview.sottotitolo}</div>}
             </div>
-            <div style={{background:"#f5f5f5",padding:"14px 18px",borderRadius:6,marginBottom:22,border:"1px solid #ddd"}}>
-              <div style={{fontSize:12,fontWeight:700,marginBottom:8,textTransform:"uppercase",letterSpacing:0.5}}>Dati del paziente</div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"4px 20px",fontSize:11.5}}>
+
+            {/* Box dati paziente */}
+            <div style={{background:"#f7f7f7",padding:"14px 20px",borderRadius:6,marginBottom:28,border:"1px solid #ddd"}}>
+              <div style={{fontSize:11.5,fontWeight:700,marginBottom:10,textTransform:"uppercase",letterSpacing:0.6,color:"#333"}}>Dati del paziente</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"6px 24px",fontSize:12}}>
                 <div><b>Cognome e Nome:</b> {paziente.cognome} {paziente.nome}</div>
                 <div><b>Data di nascita:</b> {fmtDate(paziente.dataNascita)||"—"}</div>
                 <div><b>Codice Fiscale:</b> {paziente.codiceFiscale||"—"}</div>
                 <div><b>Telefono:</b> {paziente.telefono||"—"}</div>
               </div>
             </div>
+
+            {/* Sezioni contenuto */}
             {preview.sezioni.map((s,i)=>(
-              <div key={i} style={{marginBottom:16}}>
-                <div style={{fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:0.4,marginBottom:6,borderBottom:"1px solid #ccc",paddingBottom:4}}>{i+1}. {s.titolo}</div>
-                <div style={{fontSize:11.5,color:"#333",whiteSpace:"pre-line",lineHeight:1.7}}>{s.testo}</div>
+              <div key={i} style={{marginBottom:20}}>
+                <div style={{fontSize:12.5,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8,paddingBottom:5,borderBottom:"1px solid #ccc",color:"#1a1a1a"}}>{i+1}. {s.titolo}</div>
+                <div style={{fontSize:12,color:"#333",whiteSpace:"pre-line",lineHeight:1.75}}>{s.testo}</div>
               </div>
             ))}
-            <div style={{marginTop:36,paddingTop:20,borderTop:"1px solid #ccc"}}>
-              <div style={{fontSize:11.5,marginBottom:20}}>
-                {preview.firmaLabel} <b>{paziente.cognome} {paziente.nome}</b>, dichiara di aver letto e compreso le informazioni riportate nel presente documento e presta il proprio consenso consapevole.
+
+            {/* Area firma */}
+            <div style={{marginTop:40,paddingTop:24,borderTop:"1px solid #bbb"}}>
+              <div style={{fontSize:12,marginBottom:24,lineHeight:1.6}}>
+                {preview.firmaLabel} <b>{paziente.cognome} {paziente.nome}</b>, nato/a il {fmtDate(paziente.dataNascita)||"—"}, dichiara di aver letto e compreso le informazioni riportate nel presente documento e presta il proprio consenso consapevole.
               </div>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:30,marginTop:30}}>
-                <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>Luogo e data<br/><span style={{fontSize:11.5}}>Oristano, {oggi}</span></div>
-                <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,textAlign:"center",fontSize:11}}>Firma del paziente<br/>
-                  {(()=>{const doc=documentiEmessi.find(d=>d.templateId===preview?.template?.id);return doc?.firma?<img src={doc.firma} alt="Firma" style={{maxWidth:200,maxHeight:60,marginTop:4}}/>:<span style={{fontSize:24,color:"#ccc"}}>________________________</span>;})()}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1.5fr",gap:40,marginTop:32}}>
+                <div style={{textAlign:"center"}}>
+                  <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,fontSize:11.5}}>
+                    Luogo e data<br/>
+                    <span style={{fontSize:12,fontWeight:600}}>Oristano, {oggi}</span>
+                  </div>
+                </div>
+                <div style={{textAlign:"center"}}>
+                  <div style={{borderTop:"1px solid #1a1a1a",paddingTop:8,fontSize:11.5}}>
+                    Firma del paziente<br/>
+                    {getFirmaForPreview()
+                      ? <img src={getFirmaForPreview()} alt="Firma" style={{maxWidth:220,maxHeight:70,marginTop:6,display:"block",margin:"6px auto 0"}}/>
+                      : <span style={{display:"block",height:60,lineHeight:"60px",color:"#ccc",fontSize:28,letterSpacing:8}}>________________________</span>
+                    }
+                  </div>
                 </div>
               </div>
             </div>
@@ -2030,6 +2118,22 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
   const [form, setForm] = useState({nome:"",cognome:"",telefono:"",email:"",dataNascita:"",luogoNascita:"",provinciaNascita:"",codiceFiscale:"",indirizzo:"",note:"",allergie:"",farmaci:""});
   const ff = k => v => setForm(p=>({...p,[k]:typeof v==="string"?v:v.target.value}));
 
+  // Documenti per paziente — persistiti in localStorage per non perderli al cambio tab
+  const [tuttiDocumenti, setTuttiDocumenti] = useState(()=>{
+    try{const s=localStorage.getItem("dsd_documenti");return s?JSON.parse(s):{};} catch(e){return {};}
+  });
+  const documentiPaz = useMemo(()=>tuttiDocumenti[String(detail)]||[], [tuttiDocumenti, detail]);
+  function setDocumentiPaz(fn) {
+    setTuttiDocumenti(prev=>{
+      const key=String(detail);
+      const old=prev[key]||[];
+      const next=typeof fn==="function"?fn(old):fn;
+      const updated={...prev,[key]:next};
+      try{localStorage.setItem("dsd_documenti",JSON.stringify(updated));}catch(e){}
+      return updated;
+    });
+  }
+
   useEffect(()=>{
     if(initialDetail!==null&&initialDetail!==undefined){
       setDetail(initialDetail);
@@ -2497,7 +2601,7 @@ function _PazientiView({pazienti, setPazienti, appuntamenti, setAppuntamenti, pr
             </div>
           </div>}
 
-          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio} impostazioni={impostazioni}/>}
+          {tab==="documenti"&&<DocumentiTab paziente={pd} studioInfo={impostazioni?.studio} impostazioni={impostazioni} documentiEmessi={documentiPaz} setDocumentiEmessi={setDocumentiPaz}/>}
         </div>
       </div>
 
