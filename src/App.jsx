@@ -73,9 +73,11 @@ const INIT_FATTURE = [
   {id:3,numero:"2024/003",pazienteId:4,preventivoId:null,data:dOff(-1),voci:[{nome:"Visita di controllo",prezzo:80,qty:1}],totale:80,statoPagamento:"non_pagato",metodoPagamento:"Contanti",note:""},
 ];
 
+// Profili utenti locali — solo nome/cognome/ruolo, NESSUNA password
+// Le password vivono esclusivamente in Supabase Authentication
 const UTENTI_DEFAULT = [
-  {id:1,nome:"Lucrezia Gemma",cognome:"Porcedda",email:"info@studiodentisticosardo.it",ruolo:"admin",password:"Favorio40!",attivo:true},
-  {id:2,nome:"Maria",cognome:"Conti",email:"mconti@studio.it",ruolo:"assistente",password:"assist123",attivo:true},
+  {id:1, nome:"Lucrezia Gemma", cognome:"Porcedda", email:"info@studiodentisticosardo.it", ruolo:"admin",       attivo:true},
+  {id:2, nome:"Maria",          cognome:"Conti",     email:"mconti@studio.it",             ruolo:"assistente",  attivo:true},
 ];
 
 const SEZIONI = [
@@ -178,27 +180,45 @@ function useStore(key, init) {
     }).catch(e=>console.warn("Supabase import:",e));
   },[table]);
 
-  // Realtime updates
+  // Realtime updates + reconnect after phone sleep / tab switch
   useEffect(()=>{
     if(!table)return;
     let ch;
-    import("./supabase.js").then(({supabase})=>{
-      ch=supabase.channel("rt_"+table)
-        .on("postgres_changes",{event:"*",schema:"public",table},payload=>{
-          setVal(prev=>{
-            let next=[...prev];
-            const row=payload.new?fromSupabaseRow(payload.new):null;
-            if(payload.eventType==="INSERT"){if(!next.find(x=>String(x.id)===String(row.id)))next=[...next,row];}
-            else if(payload.eventType==="UPDATE"){
-              next=next.map(x=>String(x.id)===String(row.id)?row:x);
+    function subscribe(){
+      import("./supabase.js").then(({supabase})=>{
+        if(ch){try{supabase.removeChannel(ch);}catch(e){}}
+        ch=supabase.channel("rt_"+table+"_"+Date.now())
+          .on("postgres_changes",{event:"*",schema:"public",table},payload=>{
+            setVal(prev=>{
+              let next=[...prev];
+              const row=payload.new?fromSupabaseRow(payload.new):null;
+              if(payload.eventType==="INSERT"){if(!next.find(x=>String(x.id)===String(row.id)))next=[...next,row];}
+              else if(payload.eventType==="UPDATE"){next=next.map(x=>String(x.id)===String(row.id)?row:x);}
+              else if(payload.eventType==="DELETE"){next=next.filter(x=>String(x.id)!==String(payload.old.id));}
+              debouncedLSWrite(next);
+              return next;
+            });
+          }).subscribe((status)=>{
+            if(status==="CHANNEL_ERROR"){
+              console.warn("Realtime error on",table,"— retry in 5s");
+              setTimeout(subscribe,5000);
             }
-            else if(payload.eventType==="DELETE"){next=next.filter(x=>String(x.id)!==String(payload.old.id));}
-            debouncedLSWrite(next);
-            return next;
           });
-        }).subscribe();
-    }).catch(e=>console.warn("Realtime:",e));
-    return()=>{if(ch)import("./supabase.js").then(({supabase})=>supabase.removeChannel(ch));};
+      }).catch(e=>console.warn("Realtime:",e));
+    }
+    subscribe();
+    // Riconnette quando il telefono torna dallo sleep o si cambia tab
+    function onVisible(){
+      if(document.visibilityState==="visible"){
+        console.log("Tab visible — reconnecting realtime for",table);
+        subscribe();
+      }
+    }
+    document.addEventListener("visibilitychange",onVisible);
+    return()=>{
+      document.removeEventListener("visibilitychange",onVisible);
+      if(ch)import("./supabase.js").then(({supabase})=>{try{supabase.removeChannel(ch);}catch(e){}});
+    };
   },[table]);
 
   // Keep a ref of previous value to compute diff for Supabase sync
@@ -240,33 +260,75 @@ function useStore(key, init) {
 }
 
 
+// Mappa email → profilo utente (ruolo, nome, cognome)
+// Le password NON sono qui — vivono esclusivamente in Supabase Auth
+const PROFILI_UTENTI = {
+  "info@studiodentisticosardo.it": {nome:"Lucrezia Gemma", cognome:"Porcedda", ruolo:"admin"},
+  "mconti@studio.it":             {nome:"Maria",          cognome:"Conti",     ruolo:"assistente"},
+};
+
 function useAuth() {
-  const [user, setUser] = useState(null);
+  const [user, setUser]           = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
-    try { const s = localStorage.getItem("dsd_user"); if(s) setUser(JSON.parse(s)); } catch(e) {}
-    setAuthLoading(false);
+    // 1) Legge la sessione esistente (token JWT salvato da Supabase nel localStorage)
+    import("./supabase.js").then(({supabase}) => {
+      supabase.auth.getSession().then(({data:{session}}) => {
+        if(session?.user) {
+          const profilo = PROFILI_UTENTI[session.user.email] || {nome:"Utente", cognome:"", ruolo:"assistente"};
+          setUser({...profilo, email: session.user.email, id: session.user.id});
+        }
+        setAuthLoading(false);
+      });
+
+      // 2) Aggiorna lo stato ad ogni cambio sessione (login, logout, refresh token, reset pwd)
+      const {data:{subscription}} = supabase.auth.onAuthStateChange((_event, session) => {
+        if(session?.user) {
+          const profilo = PROFILI_UTENTI[session.user.email] || {nome:"Utente", cognome:"", ruolo:"assistente"};
+          const u = {...profilo, email: session.user.email, id: session.user.id};
+          setUser(u);
+          if(_event === "SIGNED_IN") logAttivita(u, "login", "auth", "Accesso eseguito");
+        } else {
+          if(_event === "SIGNED_OUT") logAttivita(user, "logout", "auth", "Disconnessione");
+          setUser(null);
+        }
+      });
+      return () => subscription.unsubscribe();
+    });
   }, []);
 
   const login = async (email, password) => {
-    const stored = (() => { try { const s = localStorage.getItem("dsd_utenti"); return s ? JSON.parse(s) : UTENTI_DEFAULT; } catch(e) { return UTENTI_DEFAULT; } })();
-    const u = stored.find(u => u.email === email && u.password === password && u.attivo !== false);
-    if(!u) return {ok: false, error: "Email o password non corretti"};
-    localStorage.setItem("dsd_user", JSON.stringify(u));
-    setUser(u);
-    logAttivita(u,"login","auth","Accesso eseguito");
-    return {ok: true};
+    const {supabase} = await import("./supabase.js");
+    const {error} = await supabase.auth.signInWithPassword({email: email.trim(), password});
+    if(error) {
+      // Messaggi di errore in italiano
+      if(error.message.includes("Invalid login")) return {ok:false, error:"Email o password non corretti"};
+      if(error.message.includes("Email not confirmed")) return {ok:false, error:"Email non confermata. Controlla la casella di posta."};
+      if(error.message.includes("Too many requests")) return {ok:false, error:"Troppi tentativi. Riprova tra qualche minuto."};
+      return {ok:false, error:"Errore di accesso: "+error.message};
+    }
+    return {ok:true};
   };
 
-  const logout = () => {
-    const _lu=(()=>{try{const s=localStorage.getItem("dsd_user");return s?JSON.parse(s):null;}catch(e){return null;}})();
-    logAttivita(_lu,"logout","auth","Disconnessione");
-    localStorage.removeItem("dsd_user");
-    setUser(null);
+  const logout = async () => {
+    const {supabase} = await import("./supabase.js");
+    await supabase.auth.signOut();
+    // Pulisce cache locale (non i pazienti — quelli li ricarica Supabase al prossimo login)
+    ["dsd_appuntamenti","dsd_preventivi","dsd_fatture","dsd_listino"].forEach(k=>{
+      try{localStorage.removeItem(k);}catch(e){}
+    });
   };
 
-  return {user, login, logout, authLoading};
+  const resetPassword = async (email) => {
+    const {supabase} = await import("./supabase.js");
+    const redirectTo = window.location.origin + window.location.pathname;
+    const {error} = await supabase.auth.resetPasswordForEmail(email.trim(), {redirectTo});
+    if(error) return {ok:false, error:error.message};
+    return {ok:true};
+  };
+
+  return {user, login, logout, resetPassword, authLoading};
 }
 
 
@@ -813,96 +875,108 @@ function Tabs({tabs, active, onChange}) {
   </div>;
 }
 
-function LoginPage({onLogin}) {
-  const [email, setEmail] = useState("");
-  const [pwd, setPwd] = useState("");
-  const [err, setErr] = useState("");
+function LoginPage({onLogin, onResetPassword}) {
+  const [email, setEmail]     = useState("");
+  const [pwd, setPwd]         = useState("");
+  const [err, setErr]         = useState("");
   const [loading, setLoading] = useState(false);
-  const [showRecovery, setShowRecovery] = useState(false);
-  const [recoveryEmail, setRecoveryEmail] = useState("");
-  const [recoveryResult, setRecoveryResult] = useState(null);
+  const [showReset, setShowReset]       = useState(false);
+  const [resetEmail, setResetEmail]     = useState("");
+  const [resetResult, setResetResult]   = useState(null); // {ok, msg}
+  const [resetLoading, setResetLoading] = useState(false);
 
-  function handleRecovery(){
-    const stored=()=>{try{const s=localStorage.getItem("dsd_utenti");if(s)return JSON.parse(s);}catch(e){}return UTENTI_DEFAULT;};
-    const u=stored().find(x=>x.email===recoveryEmail.trim());
-    if(!u){setRecoveryResult({ok:false,msg:"Nessun account trovato con questa email."});return;}
-    // Generate a temporary reset code stored in localStorage
-    const code=Math.random().toString(36).slice(2,8).toUpperCase();
-    try{const codes=JSON.parse(localStorage.getItem("dsd_reset_codes")||"{}");
-      codes[recoveryEmail.trim()]={code,ts:Date.now()};
-      localStorage.setItem("dsd_reset_codes",JSON.stringify(codes));
-    }catch(e){}
-    setRecoveryResult({ok:true,name:u.nome,code});
-  }
   async function go() {
+    if(!email.trim()||!pwd){setErr("Inserisci email e password");return;}
     setLoading(true); setErr("");
     const result = await onLogin(email.trim(), pwd);
     if(result && !result.ok) setErr(result.error || "Email o password non corretti");
     setLoading(false);
   }
   const onKey = e => { if(e.key==="Enter") go(); };
+
+  async function handleReset() {
+    if(!resetEmail.trim()){setResetResult({ok:false,msg:"Inserisci la tua email"});return;}
+    setResetLoading(true);
+    const result = await onResetPassword(resetEmail.trim());
+    setResetLoading(false);
+    if(result.ok) {
+      setResetResult({ok:true, msg:`Email inviata a ${resetEmail.trim()}. Controlla la casella di posta (anche la cartella spam) e clicca il link per reimpostare la password.`});
+    } else {
+      setResetResult({ok:false, msg:"Errore: "+result.error});
+    }
+  }
+
   return <div style={{minHeight:"100vh",background:"linear-gradient(135deg,#EBF8F7 0%,#E0F2FE 100%)",display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
     <div style={{width:"100%",maxWidth:400}}>
       <div style={{textAlign:"center",marginBottom:28}}>
         <img src={LOGO} alt="Studio" style={{width:110,marginBottom:14}}/>
         <h1 style={{fontSize:22,fontWeight:700,color:T.text,margin:0}}>Gestionale Studio</h1>
-        <p style={{fontSize:14,color:T.textSub,marginTop:6}}>Accedi al tuo account</p>
+        <p style={{fontSize:14,color:T.textSub,marginTop:6}}>Studio Dentistico Sardo — Area riservata</p>
       </div>
       <div style={{background:"#fff",borderRadius:T.rXl,padding:28,boxShadow:"0 4px 24px rgba(0,0,0,0.1)",border:`1px solid ${T.border}`}}>
-        <div style={{marginBottom:16}}>
-          <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Email</label>
-          <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={onKey} placeholder="email@studio.it" autoComplete="email"
-            style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",display:"block"}}/>
-        </div>
-        <div style={{marginBottom:18}}>
-          <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Password</label>
-          <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)} onKeyDown={onKey} placeholder="••••••••" autoComplete="current-password"
-            style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",display:"block"}}/>
-        </div>
-        {err&&<div style={{padding:"10px 14px",background:T.dangerBg,border:`1px solid #FECACA`,borderRadius:T.r,fontSize:13,color:T.danger,marginBottom:16}}>{err}</div>}
-        <button onClick={go} disabled={loading}
-          style={{display:"block",width:"100%",padding:"13px",fontSize:15,fontWeight:700,
-            background:loading?"#3D9990":T.brand,color:"#fff",border:"none",borderRadius:T.r,
-            cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",
-            boxShadow:"0 3px 10px rgba(91,191,181,0.45)",transition:"all 0.15s",opacity:loading?0.85:1}}>
-          {loading?"Accesso in corso...":"Accedi →"}
-        </button>
-        {/* Recovery link */}
-        <div style={{textAlign:"center",marginTop:16}}>
-          <button type="button" onClick={()=>{setShowRecovery(!showRecovery);setRecoveryResult(null);setRecoveryEmail("");}}
-            style={{background:"none",border:"none",color:T.brand,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:600,textDecoration:"underline"}}>
-            {showRecovery?"✕ Annulla":"Password dimenticata?"}
-          </button>
-        </div>
-        {showRecovery&&<div style={{marginTop:14,padding:"16px",background:"#EBF8F7",borderRadius:T.rLg,border:`1px solid ${T.brand}44`}}>
-          {!recoveryResult?<>
-            <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:10}}>🔑 Recupero accesso</div>
-            <p style={{fontSize:12.5,color:T.textSub,marginBottom:12}}>Inserisci la tua email. Verrà generato un codice temporaneo da mostrare all'amministratore.</p>
-            <input value={recoveryEmail} onChange={e=>setRecoveryEmail(e.target.value)}
-              placeholder="La tua email" type="email"
-              style={{width:"100%",padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:10}}/>
-            <button onClick={handleRecovery}
-              style={{width:"100%",padding:"10px",borderRadius:T.r,border:"none",background:T.brand,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-              Genera codice
+
+        {!showReset ? <>
+          {/* ─── FORM LOGIN ─── */}
+          <div style={{marginBottom:16}}>
+            <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Email</label>
+            <input type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={onKey}
+              placeholder="email@studio.it" autoComplete="email"
+              style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",display:"block"}}/>
+          </div>
+          <div style={{marginBottom:6}}>
+            <label style={{display:"block",fontSize:13,fontWeight:600,color:T.textSub,marginBottom:6}}>Password</label>
+            <input type="password" value={pwd} onChange={e=>setPwd(e.target.value)} onKeyDown={onKey}
+              placeholder="••••••••" autoComplete="current-password"
+              style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",color:T.text,background:"#fff",boxSizing:"border-box",display:"block"}}/>
+          </div>
+          {/* Link reset password - discreto, piccolo */}
+          <div style={{textAlign:"right",marginBottom:16}}>
+            <button type="button" onClick={()=>{setShowReset(true);setResetResult(null);setResetEmail(email);}}
+              style={{background:"none",border:"none",color:T.brand,fontSize:12,cursor:"pointer",fontFamily:"inherit",textDecoration:"underline",opacity:0.8}}>
+              Password dimenticata?
             </button>
-          </>:<>
-            {recoveryResult.ok
-              ?<div style={{textAlign:"center"}}>
-                <div style={{fontSize:28,marginBottom:8}}>✅</div>
-                <div style={{fontSize:13,fontWeight:700,color:T.text,marginBottom:4}}>Codice generato per {recoveryResult.name}</div>
-                <div style={{fontSize:11,color:T.textSub,marginBottom:12}}>Mostra questo codice all'amministratore. Lui potrà usarlo per reimpostare la tua password da Impostazioni → Utenti.</div>
-                <div style={{fontSize:32,fontWeight:900,letterSpacing:6,color:T.brand,padding:"12px",background:"#fff",borderRadius:T.r,border:`2px dashed ${T.brand}`,fontFamily:"monospace"}}>{recoveryResult.code}</div>
-                <div style={{fontSize:11,color:T.textMuted,marginTop:8}}>Codice valido per 24 ore</div>
-              </div>
-              :<div style={{textAlign:"center",color:T.danger,fontSize:13}}>{recoveryResult.msg}</div>
-            }
-          </>}
-        </div>}
-        <div style={{marginTop:18,padding:"12px 14px",background:"#F8FAFC",borderRadius:T.r,fontSize:12,color:T.textSub,border:`1px solid ${T.border}`}}>
-          <div style={{fontWeight:700,color:T.text,marginBottom:6}}>Account demo:</div>
-          <div>👩‍⚕️ Admin: lgporcedda@studio.it / <b>admin123</b></div>
-          <div style={{marginTop:4}}>👩‍💼 Assistente: mconti@studio.it / <b>assist123</b></div>
-        </div>
+          </div>
+          {err&&<div style={{padding:"10px 14px",background:T.dangerBg,border:`1px solid #FECACA`,borderRadius:T.r,fontSize:13,color:T.danger,marginBottom:16}}>{err}</div>}
+          <button onClick={go} disabled={loading}
+            style={{display:"block",width:"100%",padding:"13px",fontSize:15,fontWeight:700,
+              background:loading?"#3D9990":T.brand,color:"#fff",border:"none",borderRadius:T.r,
+              cursor:loading?"not-allowed":"pointer",fontFamily:"inherit",
+              boxShadow:"0 3px 10px rgba(91,191,181,0.45)",transition:"all 0.15s",opacity:loading?0.85:1}}>
+            {loading?"Verifica in corso...":"Accedi →"}
+          </button>
+        </> : <>
+          {/* ─── FORM RESET PASSWORD ─── */}
+          <button onClick={()=>{setShowReset(false);setResetResult(null);}}
+            style={{background:"none",border:"none",color:T.textSub,fontSize:13,cursor:"pointer",fontFamily:"inherit",marginBottom:16,padding:0,display:"flex",alignItems:"center",gap:6}}>
+            ← Torna al login
+          </button>
+          <div style={{fontSize:16,fontWeight:700,color:T.text,marginBottom:6}}>🔑 Reimposta password</div>
+          {!resetResult ? <>
+            <p style={{fontSize:13,color:T.textSub,marginBottom:16,lineHeight:1.5}}>
+              Inserisci la tua email. Riceverai un link per reimpostare la password direttamente nella tua casella di posta.
+            </p>
+            <input value={resetEmail} onChange={e=>setResetEmail(e.target.value)}
+              placeholder="La tua email" type="email"
+              style={{width:"100%",padding:"11px 14px",fontSize:14,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",boxSizing:"border-box",marginBottom:16,display:"block"}}/>
+            <button onClick={handleReset} disabled={resetLoading}
+              style={{display:"block",width:"100%",padding:"12px",borderRadius:T.r,border:"none",background:T.brand,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:resetLoading?0.75:1}}>
+              {resetLoading?"Invio in corso...":"📧 Invia email di reset"}
+            </button>
+          </> : <div style={{padding:"16px",borderRadius:T.r,background:resetResult.ok?"#ECFDF5":"#FEF2F2",border:`1px solid ${resetResult.ok?"#BBF7D0":"#FECACA"}`}}>
+            <div style={{fontSize:13,color:resetResult.ok?"#065F46":"#991B1B",lineHeight:1.6}}>
+              {resetResult.ok ? "✅ " : "❌ "}{resetResult.msg}
+            </div>
+            {resetResult.ok&&<button onClick={()=>{setShowReset(false);setResetResult(null);}}
+              style={{marginTop:12,padding:"8px 16px",borderRadius:T.r,border:"none",background:T.brand,color:"#fff",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              Torna al login
+            </button>}
+          </div>}
+        </>}
+
+      </div>
+      {/* Footer discreto */}
+      <div style={{textAlign:"center",marginTop:16,fontSize:11,color:T.textMuted}}>
+        Accesso riservato al personale dello studio
       </div>
     </div>
   </div>;
@@ -4632,63 +4706,6 @@ function _ReportView({fatture, appuntamenti, pazienti, pazienteMap, listino, pre
 }
 
 
-function RecoveryCodeVerifier({utenti, setUtenti}) {
-  const [code, setCode] = useState("");
-  const [newPwd, setNewPwd] = useState("");
-  const [result, setResult] = useState(null);
-  const [showPwd, setShowPwd] = useState(false);
-
-  function verify(){
-    if(!code.trim())return;
-    try{
-      const codes=JSON.parse(localStorage.getItem("dsd_reset_codes")||"{}");
-      const entry=Object.entries(codes).find(([,v])=>v.code===code.trim().toUpperCase());
-      if(!entry){setResult({ok:false,msg:"Codice non trovato o scaduto."});return;}
-      const [email,{ts}]=entry;
-      if(Date.now()-ts>24*60*60*1000){setResult({ok:false,msg:"Codice scaduto (oltre 24 ore)."});return;}
-      const u=utenti.find(x=>x.email===email);
-      if(!u){setResult({ok:false,msg:"Utente non trovato."});return;}
-      setResult({ok:true,email,nome:u.nome+" "+u.cognome});
-    }catch(e){setResult({ok:false,msg:"Errore lettura codice."});}
-  }
-
-  function resetPassword(){
-    if(!newPwd||newPwd.length<4)return alert("Password minimo 4 caratteri");
-    try{
-      const codes=JSON.parse(localStorage.getItem("dsd_reset_codes")||"{}");
-      const entry=Object.entries(codes).find(([,v])=>v.code===code.trim().toUpperCase());
-      if(!entry)return;
-      const [email]=entry;
-      setUtenti(p=>p.map(u=>u.email===email?{...u,password:newPwd}:u));
-      delete codes[email];
-      localStorage.setItem("dsd_reset_codes",JSON.stringify(codes));
-      setResult(null); setCode(""); setNewPwd("");
-      alert("Password reimpostata con successo!");
-    }catch(e){alert("Errore.");}
-  }
-
-  return <div style={{display:"flex",flexDirection:"column",gap:10,maxWidth:400}}>
-    <div style={{display:"flex",gap:8}}>
-      <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="Inserisci codice (es. AB12CD)"
-        style={{flex:1,padding:"9px 12px",fontSize:14,fontWeight:700,letterSpacing:3,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"monospace",outline:"none",textTransform:"uppercase"}}/>
-      <Btn onClick={verify}>Verifica</Btn>
-    </div>
-    {result&&!result.ok&&<div style={{fontSize:13,color:T.danger,fontWeight:600}}>⚠️ {result.msg}</div>}
-    {result?.ok&&<div style={{padding:"12px 14px",background:"#ECFDF5",borderRadius:T.r,border:`1px solid ${T.success}`}}>
-      <div style={{fontSize:13,fontWeight:700,color:T.success,marginBottom:8}}>✅ Codice valido — {result.nome} ({result.email})</div>
-      <div style={{display:"flex",gap:8,alignItems:"center"}}>
-        <div style={{position:"relative",flex:1}}>
-          <input type={showPwd?"text":"password"} value={newPwd} onChange={e=>setNewPwd(e.target.value)}
-            placeholder="Nuova password" style={{width:"100%",padding:"8px 32px 8px 10px",fontSize:13,border:`1.5px solid ${T.success}`,borderRadius:T.r,fontFamily:"inherit",outline:"none",boxSizing:"border-box"}}/>
-          <button onClick={()=>setShowPwd(!showPwd)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:14}}>{showPwd?"🙈":"👁️"}</button>
-        </div>
-        <Btn onClick={resetPassword}>Reimposta</Btn>
-      </div>
-    </div>}
-  </div>;
-}
-
-
 function UtentiView({currentUser}) {
   const [utenti,setUtenti]=useState(()=>{
     try{const s=localStorage.getItem("dsd_utenti");if(s)return JSON.parse(s);}catch(e){}
@@ -4696,48 +4713,76 @@ function UtentiView({currentUser}) {
   });
   const [modal,setModal]=useState(false);
   const [editId,setEditId]=useState(null);
-  const [showPwd,setShowPwd]=useState(false);
-  const [form,setForm]=useState({nome:"",cognome:"",email:"",ruolo:"assistente",password:"",attivo:true});
+  const [form,setForm]=useState({nome:"",cognome:"",email:"",ruolo:"assistente",attivo:true});
   const ff=k=>v=>setForm(p=>({...p,[k]:v}));
+  const [resetEmail,setResetEmail]=useState("");
+  const [resetResult,setResetResult]=useState(null);
+  const [resetLoading,setResetLoading]=useState(false);
 
   useEffect(()=>{
     try{localStorage.setItem("dsd_utenti",JSON.stringify(utenti));}catch(e){}
   },[utenti]);
 
-  function openNew(){setForm({nome:"",cognome:"",email:"",ruolo:"assistente",password:"",attivo:true});setEditId(null);setShowPwd(false);setModal(true);}
-  function openEdit(u){setForm({...u,password:""});setEditId(u.id);setShowPwd(false);setModal(true);}
+  function openNew(){setForm({nome:"",cognome:"",email:"",ruolo:"assistente",attivo:true});setEditId(null);setModal(true);}
+  function openEdit(u){setForm({nome:u.nome,cognome:u.cognome,email:u.email,ruolo:u.ruolo,attivo:u.attivo});setEditId(u.id);setModal(true);}
   function save(){
     if(!form.nome||!form.email)return alert("Nome ed email obbligatori");
-    if(!editId&&!form.password)return alert("La password è obbligatoria per i nuovi utenti");
-    if(editId){
-      const updated={...form,id:editId};
-      if(!form.password)delete updated.password; // keep existing if blank
-      setUtenti(p=>p.map(x=>x.id===editId?{...x,...updated}:x));
-    } else {
-      setUtenti(p=>[...p,{...form,id:uid()}]);
-    }
+    if(editId){setUtenti(p=>p.map(x=>x.id===editId?{...x,...form}:x));}
+    else{setUtenti(p=>[...p,{...form,id:uid()}]);}
     setModal(false);
+  }
+
+  async function inviaResetPassword(){
+    if(!resetEmail.trim()){setResetResult({ok:false,msg:"Inserisci un\'email"});return;}
+    setResetLoading(true);
+    const {supabase}=await import("./supabase.js");
+    const redirectTo=window.location.origin+window.location.pathname;
+    const {error}=await supabase.auth.resetPasswordForEmail(resetEmail.trim(),{redirectTo});
+    setResetLoading(false);
+    if(error){setResetResult({ok:false,msg:error.message});return;}
+    setResetResult({ok:true,msg:`Email di reset inviata a ${resetEmail.trim()}`});
+    setResetEmail("");
   }
 
   const isAdmin=currentUser?.ruolo==="admin";
 
   return <div>
-    <PageHdr title="Gestione utenti" subtitle="Accessi e permessi" action={isAdmin&&<Btn icon="+" onClick={openNew}>Nuovo utente</Btn>}/>
-    <Card p={0}><Tbl columns={[
-      {label:"Utente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}><Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/><div><div style={{fontWeight:600}}>{r.nome} {r.cognome}</div><div style={{fontSize:12,color:T.textSub}}>{r.email}</div></div></div>},
+    <PageHdr title="Gestione utenti" subtitle="Accessi e permessi"
+      action={isAdmin&&<Btn icon="+" onClick={openNew}>Nuovo utente</Btn>}/>
+    <Card p={0} style={{marginBottom:16}}><Tbl columns={[
+      {label:"Utente",render:r=><div style={{display:"flex",alignItems:"center",gap:10}}>
+        <Av name={`${r.nome} ${r.cognome}`} size={36} fs={12}/>
+        <div><div style={{fontWeight:600}}>{r.nome} {r.cognome}</div><div style={{fontSize:12,color:T.textSub}}>{r.email}</div></div>
+      </div>},
       {label:"Ruolo",render:r=><Badge label={r.ruolo} status={r.ruolo}/>,nowrap:true},
       {label:"Stato",render:r=><Badge label={r.attivo?"Attivo":"Disattivo"} status={r.attivo?"confermato":"annullato"}/>,nowrap:true},
       {label:"",render:r=>isAdmin&&<div style={{display:"flex",gap:4}}>
-        <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>✏️ Modifica</Btn>
-        {r.id!==currentUser?.id&&<Btn size="xs" variant={r.attivo?"danger":"success"} onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>{r.attivo?"Disattiva":"Attiva"}</Btn>}
+        <Btn size="xs" variant="ghost" onClick={()=>openEdit(r)}>&#9999;&#65039; Modifica</Btn>
+        {r.id!==currentUser?.id&&<Btn size="xs" variant={r.attivo?"danger":"success"}
+          onClick={()=>setUtenti(p=>p.map(x=>x.id===r.id?{...x,attivo:!x.attivo}:x))}>
+          {r.attivo?"Disattiva":"Attiva"}
+        </Btn>}
       </div>,nowrap:true},
     ]} data={utenti} emptyText="Nessun utente"/></Card>
 
-    {/* Recupero codice - solo admin */}
-    {isAdmin&&<Card style={{marginTop:16}}>
-      <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 6px"}}>🔑 Verifica codice di recupero</h3>
-      <p style={{fontSize:13,color:T.textSub,marginBottom:14}}>Se un utente ha generato un codice di recupero, inseriscilo qui per reimpostare la sua password.</p>
-      <RecoveryCodeVerifier utenti={utenti} setUtenti={setUtenti}/>
+    {isAdmin&&<Card style={{marginTop:4}}>
+      <h3 style={{fontSize:15,fontWeight:700,color:T.text,margin:"0 0 6px"}}>&#128273; Reset password utente</h3>
+      <p style={{fontSize:13,color:T.textSub,marginBottom:14,lineHeight:1.5}}>
+        Invia un'email di reset password a un utente. Ricever&#224; un link sicuro per impostare la nuova password autonomamente.<br/>
+        <span style={{fontSize:12,color:T.textMuted}}>Le password non sono mai visibili nel gestionale &#8212; sono gestite da Supabase Authentication.</span>
+      </p>
+      <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        <input value={resetEmail} onChange={e=>setResetEmail(e.target.value)}
+          placeholder="Email dell'utente da resettare" type="email"
+          style={{flex:1,minWidth:220,padding:"9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,fontFamily:"inherit",outline:"none"}}/>
+        <Btn onClick={inviaResetPassword} disabled={resetLoading}>{resetLoading?"Invio...":"Invia reset"}</Btn>
+      </div>
+      {resetResult&&<div style={{marginTop:10,padding:"10px 14px",borderRadius:T.r,
+        background:resetResult.ok?"#ECFDF5":"#FEF2F2",
+        border:`1px solid ${resetResult.ok?"#BBF7D0":"#FECACA"}`,
+        fontSize:13,color:resetResult.ok?"#065F46":"#991B1B"}}>
+        {resetResult.ok?"&#10003; ":"&#10007; "}{resetResult.msg}
+      </div>}
     </Card>}
 
     <Modal open={modal} onClose={()=>setModal(false)} title={editId?"Modifica utente":"Nuovo utente"}
@@ -4747,24 +4792,17 @@ function UtentiView({currentUser}) {
         <FInput label="Cognome" value={form.cognome} onChange={e=>ff("cognome")(e.target.value)}/>
       </Grid2>
       <FInput label="Email" required type="email" value={form.email} onChange={e=>ff("email")(e.target.value)}/>
-      <Grid2>
-        <FSelect label="Ruolo" value={form.ruolo} onChange={e=>ff("ruolo")(e.target.value)}>
-          <option value="admin">Admin</option>
-          <option value="assistente">Assistente</option>
-        </FSelect>
-        <div>
-          <label style={{display:"block",fontSize:12,fontWeight:600,color:T.textSub,marginBottom:6,textTransform:"uppercase",letterSpacing:0.4}}>{editId?"Nuova password (lascia vuoto = invariata)":"Password *"}</label>
-          <div style={{position:"relative"}}>
-            <input type={showPwd?"text":"password"} value={form.password||""} onChange={e=>ff("password")(e.target.value)}
-              placeholder={editId?"Lascia vuoto per non cambiare":"••••••••"}
-              style={{width:"100%",padding:"9px 36px 9px 12px",fontSize:13,border:`1.5px solid ${T.border}`,borderRadius:T.r,outline:"none",fontFamily:"inherit",boxSizing:"border-box"}}/>
-            <button onClick={()=>setShowPwd(!showPwd)} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:16,color:T.textSub}}>{showPwd?"🙈":"👁️"}</button>
-          </div>
-        </div>
-      </Grid2>
+      <FSelect label="Ruolo" value={form.ruolo} onChange={e=>ff("ruolo")(e.target.value)}>
+        <option value="admin">Admin</option>
+        <option value="assistente">Assistente</option>
+      </FSelect>
+      {editId&&<div style={{padding:"10px 14px",background:"#EBF8F7",borderRadius:T.r,border:`1px solid ${T.brand}44`,fontSize:13,color:T.text}}>
+        Per cambiare la password usa la sezione "Reset password" qui sopra.
+      </div>}
     </Modal>
   </div>;
 }
+
 
 
 
@@ -5004,7 +5042,7 @@ export default function App() {
   useEffect(()=>{
     try{localStorage.removeItem("dsd_pazienti");}catch(e){}
   },[]);
-  const {user, login, logout, authLoading} = useAuth();
+  const {user, login, logout, resetPassword, authLoading} = useAuth();
   const [isMobile, setIsMobile] = useState(typeof window!=="undefined"&&window.innerWidth<768);
   useEffect(()=>{
     const onResize=()=>setIsMobile(window.innerWidth<768);
@@ -5050,7 +5088,7 @@ export default function App() {
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
-  if (!user) return <LoginPage onLogin={login}/>;
+  if (!user) return <LoginPage onLogin={login} onResetPassword={resetPassword}/>;
 
   function navTo(v,pazId){setView(v);if(pazId!==undefined)setOpenPazienteId(pazId);setSidebarOpen(false);}
 
