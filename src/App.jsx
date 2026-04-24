@@ -78,6 +78,7 @@ const INIT_FATTURE = [
 const UTENTI_DEFAULT = [
   {id:1, nome:"Lucrezia Gemma", cognome:"Porcedda", email:"info@studiodentisticosardo.it", ruolo:"admin",       attivo:true},
   {id:2, nome:"Maria",          cognome:"Conti",     email:"mconti@studio.it",             ruolo:"assistente",  attivo:true},
+  {id:3, nome:"Alessandra",     cognome:"Altea",     email:"lucreziagemma9@gmail.com",     ruolo:"assistente",  attivo:true},
 ];
 
 const SEZIONI = [
@@ -265,6 +266,7 @@ function useStore(key, init) {
 const PROFILI_UTENTI = {
   "info@studiodentisticosardo.it": {nome:"Lucrezia Gemma", cognome:"Porcedda", ruolo:"admin"},
   "mconti@studio.it":             {nome:"Maria",          cognome:"Conti",     ruolo:"assistente"},
+  "lucreziagemma9@gmail.com":     {nome:"Alessandra",     cognome:"Altea",     ruolo:"assistente"},
 };
 
 function useAuth() {
